@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { AirtableRecord, AirtableResponse, CompraCompleta, EstadisticasData, ApiResponse, AirtableField } from '@/types/compras';
 
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const comprasData = await comprasResponse.json();
+    const comprasData: AirtableResponse = await comprasResponse.json();
 
     // Obtener items relacionados
     const itemsUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${ITEMS_TABLE_ID}`;
@@ -63,113 +64,113 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const itemsData = await itemsResponse.json();
+    const itemsData: AirtableResponse = await itemsResponse.json();
 
     // Procesar y combinar datos
-    const comprasConItems = comprasData.records.map((compra: any) => {
-      const itemsIds = compra.fields['Items Compras y Adquisiciones'] || [];
-      const itemsRelacionados = itemsData.records.filter((item: any) => 
+    const comprasConItems: CompraCompleta[] = comprasData.records.map((compra: AirtableRecord) => {
+      const itemsIds = (compra.fields['Items Compras y Adquisiciones'] as string[]) || [];
+      const itemsRelacionados = itemsData.records.filter((item: AirtableRecord) => 
         itemsIds.includes(item.id)
       );
 
       return {
         id: compra.id,
-        fechaSolicitud: compra.fields['Fecha de solicitud'],
-        areaCorrespondiente: compra.fields['Area Correspondiente'],
-        nombreSolicitante: compra.fields['Nombre Solicitante'],
-        cargoSolicitante: compra.fields['Cargo Solicitante'],
-        descripcionSolicitud: compra.fields['Descripcion Solicitud Transcripcion'],
-        descripcionIA: compra.fields['Descripcion Solicitud IAInterpretacion'],
-        hasProvider: compra.fields['HasProvider'],
-        razonSocialProveedor: compra.fields['Razon Social Proveedor'],
-        cotizacionDoc: compra.fields['Cotizacion Doc'],
-        documentoSolicitud: compra.fields['Documento Solicitud'],
-        valorTotal: compra.fields['Valor Total'],
-        iva: compra.fields['IVA'],
-        totalNeto: compra.fields['Total Neto'],
-        estadoSolicitud: compra.fields['Estado Solicitud'],
-        retencion: compra.fields['Retencion'],
-        baseMinimaEnPesos: compra.fields['Base minima en pesos'],
-        baseMinimaEnUVT: compra.fields['Base minima en UVT'],
-        valorUVT: compra.fields['valor UVT'],
-        compraServicio: compra.fields['Compra/Servicio'],
+        fechaSolicitud: compra.fields['Fecha de solicitud'] as string,
+        areaCorrespondiente: compra.fields['Area Correspondiente'] as string,
+        nombreSolicitante: compra.fields['Nombre Solicitante'] as string,
+        cargoSolicitante: compra.fields['Cargo Solicitante'] as string,
+        descripcionSolicitud: compra.fields['Descripcion Solicitud Transcripcion'] as string,
+        descripcionIA: compra.fields['Descripcion Solicitud IAInterpretacion'] as string,
+        hasProvider: compra.fields['HasProvider'] as string,
+        razonSocialProveedor: compra.fields['Razon Social Proveedor'] as string,
+        cotizacionDoc: compra.fields['Cotizacion Doc'] as string,
+        documentoSolicitud: compra.fields['Documento Solicitud'] as string,
+        valorTotal: compra.fields['Valor Total'] as number,
+        iva: compra.fields['IVA'] as number,
+        totalNeto: compra.fields['Total Neto'] as number,
+        estadoSolicitud: compra.fields['Estado Solicitud'] as string,
+        retencion: compra.fields['Retencion'] as number,
+        baseMinimaEnPesos: compra.fields['Base minima en pesos'] as number,
+        baseMinimaEnUVT: compra.fields['Base minima en UVT'] as number,
+        valorUVT: compra.fields['valor UVT'] as number,
+        compraServicio: compra.fields['Compra/Servicio'] as string[],
         
         // Información del proveedor
-        nombreProveedor: compra.fields['Nombre (from Proveedor)'],
-        nitProveedor: compra.fields['C.c o Nit (from Proveedor)'],
-        autoretenedor: compra.fields['Autoretenedor (from Proveedor)'],
-        responsableIVA: compra.fields['ResponsableIVA (from Proveedor)'],
-        responsableICA: compra.fields['ResponsableICA (from Proveedor)'],
-        tarifaActividad: compra.fields['TarifaActividad (from Proveedor)'],
-        ciudadProveedor: compra.fields['Ciudad_Proveedor (from Proveedor)'],
-        departamentoProveedor: compra.fields['Departamento (from Departamento ) (from Proveedor)'],
-        rutProveedor: compra.fields['RUT (from Proveedor)'],
-        contribuyente: compra.fields['Contribuyente (from Proveedor)'],
-        facturadorElectronico: compra.fields['Facturador electronico (from Proveedor)'],
-        personaProveedor: compra.fields['Persona (from Proveedor)'],
-        declaranteRenta: compra.fields['Declarante de renta (from Proveedor)'],
+        nombreProveedor: compra.fields['Nombre (from Proveedor)'] as string[],
+        nitProveedor: compra.fields['C.c o Nit (from Proveedor)'] as string[],
+        autoretenedor: compra.fields['Autoretenedor (from Proveedor)'] as string[],
+        responsableIVA: compra.fields['ResponsableIVA (from Proveedor)'] as string[],
+        responsableICA: compra.fields['ResponsableICA (from Proveedor)'] as string[],
+        tarifaActividad: compra.fields['TarifaActividad (from Proveedor)'] as string[],
+        ciudadProveedor: compra.fields['Ciudad_Proveedor (from Proveedor)'] as string[],
+        departamentoProveedor: compra.fields['Departamento (from Departamento ) (from Proveedor)'] as string[],
+        rutProveedor: compra.fields['RUT (from Proveedor)'] as AirtableField[],
+        contribuyente: compra.fields['Contribuyente (from Proveedor)'] as string[],
+        facturadorElectronico: compra.fields['Facturador electronico (from Proveedor)'] as string[],
+        personaProveedor: compra.fields['Persona (from Proveedor)'] as string[],
+        declaranteRenta: compra.fields['Declarante de renta (from Proveedor)'] as string[],
         
         // Información de movimiento bancario
-        numeroSemanaBancario: compra.fields['Numero semana formulado (from Copia de Declarante de renta (from Proveedor))'],
-        clasificacionBancaria: compra.fields['Clasificacion (from Copia de Declarante de renta (from Proveedor))'],
-        valorBancario: compra.fields['Valor (from Copia de Declarante de renta (from Proveedor))'],
-        proyeccionBancaria: compra.fields['Proyeccion (from Copia de Declarante de renta (from Proveedor))'],
+        numeroSemanaBancario: compra.fields['Numero semana formulado (from Copia de Declarante de renta (from Proveedor))'] as number[],
+        clasificacionBancaria: compra.fields['Clasificacion (from Copia de Declarante de renta (from Proveedor))'] as string[],
+        valorBancario: compra.fields['Valor (from Copia de Declarante de renta (from Proveedor))'] as number[],
+        proyeccionBancaria: compra.fields['Proyeccion (from Copia de Declarante de renta (from Proveedor))'] as string[],
         
         // Nombre del admin que aprobó/rechazó (nuevo campo)
-        nombresAdmin: compra.fields['Nombres Admin'],
+        nombresAdmin: compra.fields['Nombres Admin'] as string,
         
-        items: itemsRelacionados.map((item: any) => ({
+        items: itemsRelacionados.map((item: AirtableRecord) => ({
           id: item.id,
-          objeto: item.fields['Objeto'],
-          centroCostos: item.fields['Centro Costos'],
-          cantidad: item.fields['Cantidad'],
-          valorItem: item.fields['Valor Item'],
-          compraServicio: item.fields['Compra/Servicio'],
-          prioridad: item.fields['Prioridad'],
-          fechaRequerida: item.fields['Fecha Requerida Entrega'],
-          formaPago: item.fields['FORMA DE PAGO'],
-          aprobacion: item.fields['Aprobacion'],
-          estadoGestion: item.fields['Estado Gestion'],
-          reciboRemision: item.fields['Recibo/Remision'],
-          transporte: item.fields['Transporte'],
-          nombreProveedor: item.fields['Nombre (from Proveedor)'],
-          nitProveedor: item.fields['C.c o Nit (from Proveedor)'],
-          correoProveedor: item.fields['Correo (from Proveedor)'],
-          celularProveedor: item.fields['Celular (from Proveedor)'],
-          ciudadProveedor: item.fields['Ciudad (from Proveedor)'],
-          autoretenedorProveedor: item.fields['Autoretenedor (from Proveedor)'],
-          responsableIVAProveedor: item.fields['ResponsableIVA (from Proveedor)'],
-          responsableICAProveedor: item.fields['ResponsableICA (from Proveedor)'],
-          tarifaActividadProveedor: item.fields['TarifaActividad (from Proveedor)'],
-          departamentoProveedor: item.fields['Departamento (from Departamento ) (from Proveedor)'],
-          rutProveedor: item.fields['RUT (from Proveedor)'],
-          personaProveedor: item.fields['Persona (from Proveedor)'],
-          contribuyenteProveedor: item.fields['Contribuyente (from Proveedor)'],
-          facturadorElectronicoProveedor: item.fields['Facturador electronico (from Proveedor)'],
-          declaranteRentaProveedor: item.fields['Declarante de renta (from Proveedor)'],
+          objeto: item.fields['Objeto'] as string,
+          centroCostos: item.fields['Centro Costos'] as string,
+          cantidad: item.fields['Cantidad'] as number,
+          valorItem: item.fields['Valor Item'] as number,
+          compraServicio: item.fields['Compra/Servicio'] as string,
+          prioridad: item.fields['Prioridad'] as string,
+          fechaRequerida: item.fields['Fecha Requerida Entrega'] as string,
+          formaPago: item.fields['FORMA DE PAGO'] as string,
+          aprobacion: item.fields['Aprobacion'] as string,
+          estadoGestion: item.fields['Estado Gestion'] as string,
+          reciboRemision: item.fields['Recibo/Remision'] as string,
+          transporte: item.fields['Transporte'] as string,
+          nombreProveedor: item.fields['Nombre (from Proveedor)'] as string[],
+          nitProveedor: item.fields['C.c o Nit (from Proveedor)'] as string[],
+          correoProveedor: item.fields['Correo (from Proveedor)'] as string[],
+          celularProveedor: item.fields['Celular (from Proveedor)'] as string[],
+          ciudadProveedor: item.fields['Ciudad (from Proveedor)'] as string[],
+          autoretenedorProveedor: item.fields['Autoretenedor (from Proveedor)'] as string[],
+          responsableIVAProveedor: item.fields['ResponsableIVA (from Proveedor)'] as string[],
+          responsableICAProveedor: item.fields['ResponsableICA (from Proveedor)'] as string[],
+          tarifaActividadProveedor: item.fields['TarifaActividad (from Proveedor)'] as string[],
+          departamentoProveedor: item.fields['Departamento (from Departamento ) (from Proveedor)'] as string[],
+          rutProveedor: item.fields['RUT (from Proveedor)'] as AirtableField[],
+          personaProveedor: item.fields['Persona (from Proveedor)'] as string[],
+          contribuyenteProveedor: item.fields['Contribuyente (from Proveedor)'] as string[],
+          facturadorElectronicoProveedor: item.fields['Facturador electronico (from Proveedor)'] as string[],
+          declaranteRentaProveedor: item.fields['Declarante de renta (from Proveedor)'] as string[],
         }))
       };
     });
 
     // Calcular estadísticas
-    const estadisticas = {
+    const estadisticas: EstadisticasData = {
       totalCompras: comprasConItems.length,
-      totalItems: comprasConItems.reduce((sum: number, compra: any) => sum + compra.items.length, 0),
-      montoTotal: comprasConItems.reduce((sum: number, compra: any) => sum + (compra.valorTotal || 0), 0),
-      montoTotalNeto: comprasConItems.reduce((sum: number, compra: any) => sum + (compra.totalNeto || 0), 0),
-      distribucionEstados: comprasConItems.reduce((acc: Record<string, number>, compra: any) => {
+      totalItems: comprasConItems.reduce((sum: number, compra: CompraCompleta) => sum + compra.items.length, 0),
+      montoTotal: comprasConItems.reduce((sum: number, compra: CompraCompleta) => sum + (compra.valorTotal || 0), 0),
+      montoTotalNeto: comprasConItems.reduce((sum: number, compra: CompraCompleta) => sum + (compra.totalNeto || 0), 0),
+      distribucionEstados: comprasConItems.reduce((acc: Record<string, number>, compra: CompraCompleta) => {
         const estado = compra.estadoSolicitud || 'Sin estado';
         acc[estado] = (acc[estado] || 0) + 1;
         return acc;
       }, {} as Record<string, number>),
-      distribucionAreas: comprasConItems.reduce((acc: Record<string, number>, compra: any) => {
+      distribucionAreas: comprasConItems.reduce((acc: Record<string, number>, compra: CompraCompleta) => {
         const area = compra.areaCorrespondiente || 'Sin área';
         acc[area] = (acc[area] || 0) + 1;
         return acc;
       }, {} as Record<string, number>),
     };
 
-    return NextResponse.json({
+    return NextResponse.json<ApiResponse>({
       compras: comprasConItems,
       estadisticas,
       totalRecords: comprasData.records.length,

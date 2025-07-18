@@ -2,72 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import DetalleCompraCompleto from './DetalleCompraCompleto';
-
-interface ComprasData {
-  id: string;
-  fechaSolicitud: string;
-  areaCorrespondiente: string;
-  nombreSolicitante: string;
-  cargoSolicitante: string;
-  descripcionSolicitud: string;
-  descripcionIA: string;
-  hasProvider: string;
-  razonSocialProveedor: string;
-  cotizacionDoc: string;
-  documentoSolicitud: string;
-  valorTotal: number;
-  iva: number;
-  totalNeto: number;
-  estadoSolicitud: string;
-  retencion: number;
-  baseMinimaEnPesos: number;
-  baseMinimaEnUVT: number;
-  valorUVT: number;
-  compraServicio: string[];
-  nombreProveedor: string[];
-  nitProveedor: string[];
-  autoretenedor: string[];
-  responsableIVA: string[];
-  responsableICA: string[];
-  tarifaActividad: string[];
-  ciudadProveedor: string[];
-  departamentoProveedor: string[];
-  rutProveedor: any[];
-  contribuyente: string[];
-  facturadorElectronico: string[];
-  personaProveedor: string[];
-  declaranteRenta: string[];
-  numeroSemanaBancario: number[];
-  clasificacionBancaria: string[];
-  valorBancario: number[];
-  proyeccionBancaria: string[];
-  nombresAdmin: string;
-  items: any[];
-}
-
-interface EstadisticasData {
-  totalCompras: number;
-  totalItems: number;
-  montoTotal: number;
-  montoTotalNeto: number;
-  distribucionEstados: Record<string, number>;
-  distribucionAreas: Record<string, number>;
-}
+import { CompraCompleta, EstadisticasData, UserData, ApiResponse } from '@/types/compras';
 
 interface DashboardComprasProps {
-  userData: any;
+  userData: UserData;
   onLogout: () => void;
 }
 
 export default function DashboardCompras({ userData, onLogout }: DashboardComprasProps) {
-  const [comprasData, setComprasData] = useState<ComprasData[]>([]);
+  const [comprasData, setComprasData] = useState<CompraCompleta[]>([]);
   const [estadisticas, setEstadisticas] = useState<EstadisticasData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroArea, setFiltroArea] = useState('todas');
   const [updatingStates, setUpdatingStates] = useState<Set<string>>(new Set());
-  const [selectedCompra, setSelectedCompra] = useState<ComprasData | null>(null);
+  const [selectedCompra, setSelectedCompra] = useState<CompraCompleta | null>(null);
   const [showDetalleCompleto, setShowDetalleCompleto] = useState(false);
 
   useEffect(() => {
@@ -83,7 +33,7 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
         throw new Error('Error al cargar los datos');
       }
 
-      const data = await response.json();
+      const data: ApiResponse = await response.json();
       setComprasData(data.compras);
       setEstadisticas(data.estadisticas);
     } catch (error) {

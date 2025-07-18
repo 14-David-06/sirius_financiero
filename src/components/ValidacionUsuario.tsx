@@ -1,18 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { UserData } from '@/types/compras';
 
 interface ValidacionUsuarioProps {
-  onValidationSuccess: (userData: any) => void;
+  onValidationSuccess: (userData: UserData) => void;
   onValidationError: (error: string) => void;
-}
-
-interface UserData {
-  cedula: string;
-  nombre: string;
-  cargo: string;
-  area: string;
-  email: string;
 }
 
 // Iconos SVG simples

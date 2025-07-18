@@ -68,6 +68,18 @@ export default function MonitoreoSolicitudes() {
     );
   }
 
+  // Verificar que userData no sea null
+  if (!userData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black/50">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Cargando datos del usuario...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"

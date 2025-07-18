@@ -3,79 +3,7 @@
 import React, { useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-
-interface Item {
-  id: string;
-  objeto: string;
-  centroCostos: string;
-  cantidad: number;
-  valorItem: number;
-  compraServicio: string;
-  prioridad: string;
-  fechaRequerida: string;
-  formaPago: string;
-  aprobacion: string;
-  estadoGestion: string;
-  reciboRemision: string;
-  transporte: string;
-  nombreProveedor: string[];
-  nitProveedor: string[];
-  correoProveedor: string[];
-  celularProveedor: string[];
-  ciudadProveedor: string[];
-  autoretenedorProveedor: string[];
-  responsableIVAProveedor: string[];
-  responsableICAProveedor: string[];
-  tarifaActividadProveedor: string[];
-  departamentoProveedor: string[];
-  rutProveedor: any[];
-  personaProveedor: string[];
-  contribuyenteProveedor: string[];
-  facturadorElectronicoProveedor: string[];
-  declaranteRentaProveedor: string[];
-}
-
-interface CompraCompleta {
-  id: string;
-  fechaSolicitud: string;
-  areaCorrespondiente: string;
-  nombreSolicitante: string;
-  cargoSolicitante: string;
-  descripcionSolicitud: string;
-  descripcionIA: string;
-  hasProvider: string;
-  razonSocialProveedor: string;
-  cotizacionDoc: string;
-  documentoSolicitud: string;
-  valorTotal: number;
-  iva: number;
-  totalNeto: number;
-  estadoSolicitud: string;
-  retencion: number;
-  baseMinimaEnPesos: number;
-  baseMinimaEnUVT: number;
-  valorUVT: number;
-  compraServicio: string[];
-  nombreProveedor: string[];
-  nitProveedor: string[];
-  autoretenedor: string[];
-  responsableIVA: string[];
-  responsableICA: string[];
-  tarifaActividad: string[];
-  ciudadProveedor: string[];
-  departamentoProveedor: string[];
-  rutProveedor: any[];
-  contribuyente: string[];
-  facturadorElectronico: string[];
-  personaProveedor: string[];
-  declaranteRenta: string[];
-  numeroSemanaBancario: number[];
-  clasificacionBancaria: string[];
-  valorBancario: number[];
-  proyeccionBancaria: string[];
-  nombresAdmin: string;
-  items: Item[];
-}
+import { CompraCompleta, CompraItem, AirtableField } from '@/types/compras';
 
 interface DetalleCompraCompletoProps {
   compra: CompraCompleta;
@@ -85,7 +13,7 @@ interface DetalleCompraCompletoProps {
 const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'financiero' | 'proveedor' | 'items'>('general');
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -94,7 +22,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
     }).format(amount || 0);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('es-CO', {
       year: 'numeric',
@@ -118,7 +46,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
     }
   };
 
-  const renderArrayField = (field: any, label: string) => {
+  const renderArrayField = (field: string[] | number[] | undefined, label: string) => {
     if (!field || (Array.isArray(field) && field.length === 0)) return null;
     const value = Array.isArray(field) ? field.join(', ') : field;
     return (
@@ -310,7 +238,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
         <div>
           <h4 className="font-semibold text-gray-800 mb-2">Documentos del Proveedor</h4>
           <div className="space-y-2">
-            {compra.rutProveedor.map((rut: any, index: number) => (
+            {compra.rutProveedor.map((rut: AirtableField, index: number) => (
               <div key={index}>
                 <a 
                   href={rut.url} 
@@ -332,7 +260,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
     <div className="space-y-4">
       <h4 className="font-semibold text-gray-800 mb-2">Items de la Compra ({compra.items.length})</h4>
       
-      {compra.items.map((item, index) => (
+      {compra.items.map((item: CompraItem, index: number) => (
         <Card key={item.id} className="p-4">
           <div className="flex justify-between items-start mb-3">
             <h5 className="font-medium text-gray-800">Item #{index + 1}</h5>
