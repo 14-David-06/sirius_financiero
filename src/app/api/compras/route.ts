@@ -90,6 +90,34 @@ export async function GET(request: NextRequest) {
         estadoSolicitud: compra.fields['Estado Solicitud'],
         retencion: compra.fields['Retencion'],
         baseMinimaEnPesos: compra.fields['Base minima en pesos'],
+        baseMinimaEnUVT: compra.fields['Base minima en UVT'],
+        valorUVT: compra.fields['valor UVT'],
+        compraServicio: compra.fields['Compra/Servicio'],
+        
+        // Información del proveedor
+        nombreProveedor: compra.fields['Nombre (from Proveedor)'],
+        nitProveedor: compra.fields['C.c o Nit (from Proveedor)'],
+        autoretenedor: compra.fields['Autoretenedor (from Proveedor)'],
+        responsableIVA: compra.fields['ResponsableIVA (from Proveedor)'],
+        responsableICA: compra.fields['ResponsableICA (from Proveedor)'],
+        tarifaActividad: compra.fields['TarifaActividad (from Proveedor)'],
+        ciudadProveedor: compra.fields['Ciudad_Proveedor (from Proveedor)'],
+        departamentoProveedor: compra.fields['Departamento (from Departamento ) (from Proveedor)'],
+        rutProveedor: compra.fields['RUT (from Proveedor)'],
+        contribuyente: compra.fields['Contribuyente (from Proveedor)'],
+        facturadorElectronico: compra.fields['Facturador electronico (from Proveedor)'],
+        personaProveedor: compra.fields['Persona (from Proveedor)'],
+        declaranteRenta: compra.fields['Declarante de renta (from Proveedor)'],
+        
+        // Información de movimiento bancario
+        numeroSemanaBancario: compra.fields['Numero semana formulado (from Copia de Declarante de renta (from Proveedor))'],
+        clasificacionBancaria: compra.fields['Clasificacion (from Copia de Declarante de renta (from Proveedor))'],
+        valorBancario: compra.fields['Valor (from Copia de Declarante de renta (from Proveedor))'],
+        proyeccionBancaria: compra.fields['Proyeccion (from Copia de Declarante de renta (from Proveedor))'],
+        
+        // Nombre del admin que aprobó/rechazó (nuevo campo)
+        nombresAdmin: compra.fields['Nombres Admin'],
+        
         items: itemsRelacionados.map((item: any) => ({
           id: item.id,
           objeto: item.fields['Objeto'],
@@ -102,10 +130,23 @@ export async function GET(request: NextRequest) {
           formaPago: item.fields['FORMA DE PAGO'],
           aprobacion: item.fields['Aprobacion'],
           estadoGestion: item.fields['Estado Gestion'],
+          reciboRemision: item.fields['Recibo/Remision'],
+          transporte: item.fields['Transporte'],
           nombreProveedor: item.fields['Nombre (from Proveedor)'],
           nitProveedor: item.fields['C.c o Nit (from Proveedor)'],
           correoProveedor: item.fields['Correo (from Proveedor)'],
           celularProveedor: item.fields['Celular (from Proveedor)'],
+          ciudadProveedor: item.fields['Ciudad (from Proveedor)'],
+          autoretenedorProveedor: item.fields['Autoretenedor (from Proveedor)'],
+          responsableIVAProveedor: item.fields['ResponsableIVA (from Proveedor)'],
+          responsableICAProveedor: item.fields['ResponsableICA (from Proveedor)'],
+          tarifaActividadProveedor: item.fields['TarifaActividad (from Proveedor)'],
+          departamentoProveedor: item.fields['Departamento (from Departamento ) (from Proveedor)'],
+          rutProveedor: item.fields['RUT (from Proveedor)'],
+          personaProveedor: item.fields['Persona (from Proveedor)'],
+          contribuyenteProveedor: item.fields['Contribuyente (from Proveedor)'],
+          facturadorElectronicoProveedor: item.fields['Facturador electronico (from Proveedor)'],
+          declaranteRentaProveedor: item.fields['Declarante de renta (from Proveedor)'],
         }))
       };
     });

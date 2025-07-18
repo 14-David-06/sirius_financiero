@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import DetalleCompraCompleto from './DetalleCompraCompleto';
 
 interface ComprasData {
   id: string;
@@ -9,11 +10,38 @@ interface ComprasData {
   nombreSolicitante: string;
   cargoSolicitante: string;
   descripcionSolicitud: string;
+  descripcionIA: string;
   hasProvider: string;
   razonSocialProveedor: string;
+  cotizacionDoc: string;
+  documentoSolicitud: string;
   valorTotal: number;
+  iva: number;
   totalNeto: number;
   estadoSolicitud: string;
+  retencion: number;
+  baseMinimaEnPesos: number;
+  baseMinimaEnUVT: number;
+  valorUVT: number;
+  compraServicio: string[];
+  nombreProveedor: string[];
+  nitProveedor: string[];
+  autoretenedor: string[];
+  responsableIVA: string[];
+  responsableICA: string[];
+  tarifaActividad: string[];
+  ciudadProveedor: string[];
+  departamentoProveedor: string[];
+  rutProveedor: any[];
+  contribuyente: string[];
+  facturadorElectronico: string[];
+  personaProveedor: string[];
+  declaranteRenta: string[];
+  numeroSemanaBancario: number[];
+  clasificacionBancaria: string[];
+  valorBancario: number[];
+  proyeccionBancaria: string[];
+  nombresAdmin: string;
   items: any[];
 }
 
@@ -39,6 +67,8 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroArea, setFiltroArea] = useState('todas');
   const [updatingStates, setUpdatingStates] = useState<Set<string>>(new Set());
+  const [selectedCompra, setSelectedCompra] = useState<ComprasData | null>(null);
+  const [showDetalleCompleto, setShowDetalleCompleto] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -349,6 +379,25 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                           </p>
                         </div>
                       )}
+                      
+                      {compra.nombresAdmin && (
+                        <div className="mt-2">
+                          <p className="text-white/70 text-sm">Aprobado/Rechazado por:</p>
+                          <p className="text-white font-medium">{compra.nombresAdmin}</p>
+                        </div>
+                      )}
+                      
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          onClick={() => {
+                            setSelectedCompra(compra);
+                            setShowDetalleCompleto(true);
+                          }}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-sm"
+                        >
+                          📋 Ver Detalle Completo
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -357,6 +406,17 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
           )}
         </div>
       </div>
+      
+      {/* Modal de Detalle Completo */}
+      {showDetalleCompleto && selectedCompra && (
+        <DetalleCompraCompleto
+          compra={selectedCompra}
+          onClose={() => {
+            setShowDetalleCompleto(false);
+            setSelectedCompra(null);
+          }}
+        />
+      )}
     </div>
   );
 }
