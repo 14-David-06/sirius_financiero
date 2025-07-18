@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import SessionIndicator from './SessionIndicator';
-import { useAuthSession } from '@/lib/hooks/useAuthSession';
 
 interface ComprasData {
   id: string;
@@ -34,7 +32,6 @@ interface DashboardComprasProps {
 }
 
 export default function DashboardCompras({ userData, onLogout }: DashboardComprasProps) {
-  const { getRemainingTime, extendSession } = useAuthSession();
   const [comprasData, setComprasData] = useState<ComprasData[]>([]);
   const [estadisticas, setEstadisticas] = useState<EstadisticasData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,7 +135,7 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header con información del usuario */}
-        <div className="mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
+        <div className="mt-16 mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
@@ -155,19 +152,12 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <SessionIndicator 
-                getRemainingTime={getRemainingTime}
-                extendSession={extendSession}
-                onLogout={onLogout}
-              />
-              <button
-                onClick={onLogout}
-                className="bg-red-500/20 text-red-300 border border-red-400/30 px-4 py-2 rounded-xl font-semibold hover:bg-red-500/30 transition-all duration-300"
-              >
-                🔐 Cerrar Sesión
-              </button>
-            </div>
+            <button
+              onClick={onLogout}
+              className="bg-red-500/20 text-red-300 border border-red-400/30 px-6 py-2 rounded-xl font-semibold hover:bg-red-500/30 transition-all duration-300"
+            >
+              🔐 Cerrar Sesión
+            </button>
           </div>
         </div>
 

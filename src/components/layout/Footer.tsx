@@ -38,10 +38,7 @@ export default function Footer() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Contacto</h3>
               <p className="text-gray-300">
-                info@siriusfinanciero.com
-              </p>
-              <p className="text-gray-300">
-                +1 (234) 567-890
+                adm@siriusregenerative.com
               </p>
             </div>
           </div>

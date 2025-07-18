@@ -72,7 +72,7 @@ export default function MonitoreoSolicitudes() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167278/IMG_0498_1_oqi6c7.jpg)'
+        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167074/20032025-DSC_3427_1_1_zmq71m.jpg)'
       }}
     >
       <div className="absolute inset-0 bg-black/20"></div>
