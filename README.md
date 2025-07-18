@@ -187,3 +187,125 @@ npm run lint
 🎯 **Proyecto desarrollado para optimizar la gestión financiera empresarial con un enfoque minimalista y funcional.**
 
 ⚡ **Construido con Next.js 15, React 19, TypeScript y Tailwind CSS**
+
+---
+⚖️ AVISO LEGAL Y DERECHOS DE PROPIEDAD INTELECTUAL
+📋 INFORMACIÓN GENERAL
+Este software y toda la documentación asociada (en adelante, el “Software”) son propiedad exclusiva de Sirius Regenerative Solutions S.A.S ZOMAC (en adelante, la “Empresa”), sociedad legalmente constituida bajo las leyes de la República de Colombia.
+
+🛡️ DERECHOS DE PROPIEDAD INTELECTUAL
+TODOS LOS DERECHOS RESERVADOS. El Software comprende, sin limitarse a:
+
+Código fuente y código objeto
+
+Documentación técnica y de usuario
+
+Interfaces gráficas y diseño de experiencia de usuario
+
+Algoritmos, estructuras lógicas y procesos de negocio
+
+Bases de datos y arquitecturas de datos
+
+Marcas, logotipos, elementos gráficos e identidad visual
+
+Todo lo anterior constituye propiedad intelectual protegida por las leyes de derechos de autor, propiedad industrial, secretos empresariales y demás normativas nacionales e internacionales aplicables. Cualquier uso no autorizado está expresamente prohibido.
+
+🚫 RESTRICCIONES DE USO
+Queda terminantemente prohibido, sin autorización previa, expresa y por escrito de la Empresa:
+
+Reproducir, distribuir o generar obras derivadas del Software
+
+Realizar ingeniería inversa, descompilar o desensamblar el Software
+
+Vender, sublicenciar, arrendar, ceder o transferir el Software a terceros
+
+Modificar, traducir o adaptar el Software en cualquier forma
+
+Remover o alterar avisos legales, marcas o notas de derechos de autor
+
+Acceder al Software con el propósito de desarrollar productos o servicios competitivos
+
+Utilizar el Software para fines comerciales no autorizados
+
+📄 LICENCIA DE USO RESTRINGIDO
+El uso del Software está estrictamente limitado a los siguientes perfiles, bajo condiciones de confidencialidad y seguridad:
+
+Empleados autorizados de Sirius Regenerative Solutions S.A.S ZOMAC
+
+Contratistas o consultores externos con acuerdos de confidencialidad vigentes
+
+Aliados o socios estratégicos, con autorización formal y documentada
+
+Uso interno exclusivo, relacionado con operaciones y desarrollo organizacional
+
+🔒 CONFIDENCIALIDAD Y PROTECCIÓN DE DATOS
+El Software puede contener información clasificada y/o datos personales sensibles. En consecuencia, los usuarios autorizados se obligan a:
+
+Mantener la confidencialidad absoluta de toda información a la que accedan
+
+Abstenerse de divulgar información a terceros no autorizados
+
+Adoptar medidas técnicas y organizativas adecuadas para garantizar la seguridad de los datos
+
+Cumplir con la legislación vigente en materia de protección de datos personales
+
+Notificar inmediatamente a la Empresa sobre cualquier incidente de seguridad o acceso indebido
+
+🏛️ JURISDICCIÓN Y LEY APLICABLE
+Este Aviso Legal se rige e interpreta conforme a:
+
+La legislación de la República de Colombia, excluyendo normas sobre conflicto de leyes
+
+La jurisdicción exclusiva de los tribunales competentes de Colombia
+
+Normativas relevantes como:
+
+Ley 23 de 1982 (Derecho de Autor)
+
+Decisión Andina 351 de 1993
+
+Otras disposiciones nacionales sobre propiedad intelectual y protección de datos
+
+🌍 PROTECCIÓN INTERNACIONAL
+El Software se encuentra protegido por tratados y convenios internacionales, incluyendo pero no limitándose a:
+
+Convenio de Berna sobre obras literarias y artísticas
+
+Convenio de París sobre propiedad industrial
+
+ADPIC (Acuerdo sobre los Aspectos de los Derechos de Propiedad Intelectual relacionados con el Comercio)
+
+Tratado de Cooperación en materia de Patentes (PCT)
+
+Legislación de propiedad intelectual en cada país donde opere la Empresa
+
+🚨 CUMPLIMIENTO NORMATIVO INTERNACIONAL
+El desarrollo, uso y operación del Software cumplen con estándares internacionales de privacidad y seguridad, entre ellos:
+
+GDPR – Reglamento General de Protección de Datos (UE)
+
+CCPA – Ley de Privacidad del Consumidor (California, EE. UU.)
+
+LGPD – Ley General de Protección de Datos (Brasil)
+
+SOX – Ley Sarbanes-Oxley (controles financieros y auditoría)
+
+ISO/IEC 27001 – Gestión de Seguridad de la Información
+
+Normativas locales correspondientes en las jurisdicciones donde opera la Empresa
+
+⚠️ EXENCIÓN DE RESPONSABILIDAD
+El Software se proporciona “tal como está”, sin ningún tipo de garantía expresa o implícita. La Empresa no será responsable por daños directos, indirectos, incidentales, especiales o consecuentes derivados del uso, mal uso o imposibilidad de uso del Software.
+
+📅 VIGENCIA
+El presente Aviso Legal entra en vigor a partir de la fecha de creación del Software y permanecerá vigente hasta su modificación o revocatoria expresa por parte de Sirius Regenerative Solutions S.A.S ZOMAC.
+
+🔄 MODIFICACIONES
+La Empresa se reserva el derecho de modificar este Aviso Legal en cualquier momento, sin necesidad de aviso previo. Es responsabilidad del usuario consultar periódicamente los términos vigentes.
+
+© 2025 Sirius Regenerative Solutions S.A.S ZOMAC. Todos los derechos reservados.
+
+Este Software contiene información confidencial y está protegido por la legislación nacional e internacional. El uso no autorizado podrá dar lugar a sanciones civiles, administrativas y/o penales, conforme a las leyes aplicables.
+
+
+---
