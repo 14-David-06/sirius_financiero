@@ -109,27 +109,20 @@ export default function SolicitudesCompra() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752165981/20032025-DSCF8381_2_1_jzs49t.jpg)'
+        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
       }}
     >
       <div className="min-h-screen flex flex-col justify-center py-20 px-4">
         <div className="max-w-2xl mx-auto w-full">
           {/* Header */}
           <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <div className="flex items-center justify-center mb-4">
-              <img 
-                src="/logo.png" 
-                alt="Sirius Logo" 
-                className="w-12 h-12 object-contain"
-              />
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
+              <h2 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
               Solicitud de Compras – Sirius
             </h2>
           </div>
 
           {/* Form Card */}
-          <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl relative overflow-hidden">
+          <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/30 shadow-2xl relative overflow-hidden">
             {/* Top accent */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-t-3xl"></div>
             

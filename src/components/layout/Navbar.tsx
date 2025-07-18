@@ -19,9 +19,8 @@ export default function Navbar() {
             <img 
               src="/logo.png" 
               alt="Sirius Financiero Logo" 
-              className="w-8 h-8 object-contain"
+              className="w-36 h-28 object-contain"
             />
-            <span className="text-xl font-bold text-white drop-shadow-lg">Sirius Financiero</span>
           </Link>
 
           {/* Desktop Menu */}

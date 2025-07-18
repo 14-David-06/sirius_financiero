@@ -5,7 +5,7 @@ export default function LandingPage() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752165981/20032025-DSCF8381_2_1_jzs49t.jpg)'
+        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752165981/20032025-DSCF8381_2_1_jzs49t.jpg'
       }}
     >
       {/* Overlay */}

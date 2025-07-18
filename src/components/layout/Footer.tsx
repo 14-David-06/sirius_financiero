@@ -8,12 +8,10 @@ export default function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Logo y descripción */}
             <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">S</span>
-                </div>
-                <span className="text-xl font-bold">Sirius Financiero</span>
-              </div>
+              <img 
+              src="/logo.png" 
+              alt="Sirius Financiero Logo" 
+              className="w-36 h-28 object-contain"/>
               <p className="text-gray-300 mb-4 max-w-md">
                 Plataforma integral para la gestión financiera empresarial con tecnología avanzada.
               </p>
