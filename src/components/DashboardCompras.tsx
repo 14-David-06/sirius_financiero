@@ -38,6 +38,7 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
   const [error, setError] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroArea, setFiltroArea] = useState('todas');
+  const [updatingStates, setUpdatingStates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     cargarDatos();
@@ -71,6 +72,8 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
         return 'bg-red-500/20 text-red-300 border-red-400/30';
       case 'pendiente':
         return 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30';
+      case 'comprado':
+        return 'bg-blue-500/20 text-blue-300 border-blue-400/30';
       default:
         return 'bg-gray-500/20 text-gray-300 border-gray-400/30';
     }
@@ -92,8 +95,50 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
     });
   };
 
+  const updateEstado = async (compraId: string, nuevoEstado: string) => {
+    try {
+      // Agregar el ID a los estados que se están actualizando
+      setUpdatingStates(prev => new Set([...prev, compraId]));
+      
+      const response = await fetch('/api/compras/update-estado', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          compraId,
+          nuevoEstado,
+          nombresAdmin: userData.nombre
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error del servidor:', errorData);
+        throw new Error(errorData.error || 'Error al actualizar el estado');
+      }
+
+      const result = await response.json();
+      console.log('Estado actualizado exitosamente:', result);
+      
+      // Recargar los datos para mostrar el cambio
+      await cargarDatos();
+    } catch (error) {
+      console.error('Error al actualizar estado:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert(`Error al actualizar el estado: ${errorMessage}`);
+    } finally {
+      // Remover el ID de los estados que se están actualizando
+      setUpdatingStates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(compraId);
+        return newSet;
+      });
+    }
+  };
+
   const comprasFiltradas = comprasData.filter(compra => {
-    const cumpleFiltroEstado = filtroEstado === 'todos' || compra.estadoSolicitud?.toLowerCase() === filtroEstado.toLowerCase();
+    const cumpleFiltroEstado = filtroEstado === 'todos' || compra.estadoSolicitud === filtroEstado;
     const cumpleFiltroArea = filtroArea === 'todas' || compra.areaCorrespondiente === filtroArea;
     return cumpleFiltroEstado && cumpleFiltroArea;
   });
@@ -202,9 +247,10 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                 className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400"
               >
                 <option value="todos" className="text-gray-900 bg-white">Todos los Estados</option>
-                <option value="aprobado" className="text-gray-900 bg-white">Aprobado</option>
-                <option value="pendiente" className="text-gray-900 bg-white">Pendiente</option>
-                <option value="rechazado" className="text-gray-900 bg-white">Rechazado</option>
+                <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
+                <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
+                <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
+                <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
               </select>
             </div>
             <div>
@@ -246,9 +292,27 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                         <h3 className="text-lg font-semibold text-white">
                           {compra.nombreSolicitante}
                         </h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
-                          {compra.estadoSolicitud || 'Sin estado'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
+                            {compra.estadoSolicitud || 'Sin estado'}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={compra.estadoSolicitud || ''}
+                              onChange={(e) => updateEstado(compra.id, e.target.value)}
+                              disabled={updatingStates.has(compra.id)}
+                              className="text-xs px-2 py-1 bg-white/10 border border-white/30 rounded-lg text-white focus:outline-none focus:border-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
+                              <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
+                              <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
+                              <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
+                            </select>
+                            {updatingStates.has(compra.id) && (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
