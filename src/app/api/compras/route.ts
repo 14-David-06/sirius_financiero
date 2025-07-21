@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AirtableRecord, AirtableResponse, CompraCompleta, EstadisticasData, ApiResponse, AirtableField } from '@/types/compras';
+import { 
+  sanitizeInput, 
+  checkRateLimit, 
+  securityHeaders,
+  secureLog,
+  escapeAirtableQuery
+} from '@/lib/security/validation';
 
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -9,25 +16,49 @@ const ITEMS_TABLE_ID = 'tblkKheSajdYRiAAl'; // ID de la tabla Items Compras y Ad
 
 export async function GET(request: NextRequest) {
   try {
-    // Validar configuración de Airtable
-    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
-      return NextResponse.json(
-        { error: 'Configuración de Airtable no encontrada' },
-        { status: 500 }
+    // 🔒 Rate Limiting
+    const clientIP = request.headers.get('x-forwarded-for') || 
+                     request.headers.get('x-real-ip') || 
+                     'unknown';
+    if (!checkRateLimit(clientIP, 20, 60000)) { // 20 requests per minute
+      secureLog('⚠️ Rate limit excedido en GET compras', { ip: clientIP });
+      return new NextResponse(
+        JSON.stringify({ error: 'Demasiadas solicitudes. Intente más tarde.' }),
+        { 
+          status: 429,
+          headers: securityHeaders
+        }
       );
     }
 
-    // Obtener parámetros de consulta
+    // 🔒 Validar configuración de Airtable
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+      secureLog('🚨 Configuración de Airtable no encontrada');
+      return new NextResponse(
+        JSON.stringify({ error: 'Configuración de Airtable no encontrada' }),
+        { 
+          status: 500,
+          headers: securityHeaders
+        }
+      );
+    }
+
+    // 🔒 Obtener y validar parámetros de consulta
     const { searchParams } = new URL(request.url);
-    const filterByUser = searchParams.get('user');
-    const maxRecords = searchParams.get('maxRecords') || '100';
+    const rawFilterByUser = searchParams.get('user');
+    const rawMaxRecords = searchParams.get('maxRecords') || '100';
+
+    // Validar y sanitizar parámetros
+    const filterByUser = rawFilterByUser ? sanitizeInput(rawFilterByUser) : null;
+    const maxRecords = Math.min(parseInt(rawMaxRecords) || 100, 500); // Límite máximo de 500
 
     // Construir URL para obtener compras
     const comprasUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${COMPRAS_TABLE_ID}`;
     let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=Fecha de solicitud&sort[0][direction]=desc`;
     
     if (filterByUser) {
-      const filterFormula = `{Nombre Solicitante} = "${filterByUser}"`;
+      const escapedUser = escapeAirtableQuery(filterByUser);
+      const filterFormula = `{Nombre Solicitante} = "${escapedUser}"`;
       comprasQuery += `&filterByFormula=${encodeURIComponent(filterFormula)}`;
     }
 
@@ -40,9 +71,13 @@ export async function GET(request: NextRequest) {
     });
 
     if (!comprasResponse.ok) {
-      return NextResponse.json(
-        { error: 'Error al obtener compras' },
-        { status: 500 }
+      secureLog('🚨 Error al obtener compras', { status: comprasResponse.status });
+      return new NextResponse(
+        JSON.stringify({ error: 'Error al obtener compras' }),
+        { 
+          status: 500,
+          headers: securityHeaders
+        }
       );
     }
 
@@ -89,6 +124,7 @@ export async function GET(request: NextRequest) {
         iva: compra.fields['IVA'] as number,
         totalNeto: compra.fields['Total Neto'] as number,
         estadoSolicitud: compra.fields['Estado Solicitud'] as string,
+        prioridadSolicitud: compra.fields['Prioridad Solicitud'] as string,
         retencion: compra.fields['Retencion'] as number,
         baseMinimaEnPesos: compra.fields['Base minima en pesos'] as number,
         baseMinimaEnUVT: compra.fields['Base minima en UVT'] as number,

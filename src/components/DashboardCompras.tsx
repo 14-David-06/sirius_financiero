@@ -59,6 +59,32 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
     }
   };
 
+  const getPriorityColor = (prioridad: string) => {
+    switch (prioridad?.toLowerCase()) {
+      case 'alta':
+        return 'bg-red-500/20 text-red-300 border-red-400/30';
+      case 'media':
+        return 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30';
+      case 'baja':
+        return 'bg-green-500/20 text-green-300 border-green-400/30';
+      default:
+        return 'bg-gray-500/20 text-gray-300 border-gray-400/30';
+    }
+  };
+
+  const getPriorityIcon = (prioridad: string) => {
+    switch (prioridad?.toLowerCase()) {
+      case 'alta':
+        return '🔴';
+      case 'media':
+        return '🟡';
+      case 'baja':
+        return '🟢';
+      default:
+        return '⚪';
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
@@ -117,11 +143,49 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
     }
   };
 
-  const comprasFiltradas = comprasData.filter(compra => {
-    const cumpleFiltroEstado = filtroEstado === 'todos' || compra.estadoSolicitud === filtroEstado;
-    const cumpleFiltroArea = filtroArea === 'todas' || compra.areaCorrespondiente === filtroArea;
-    return cumpleFiltroEstado && cumpleFiltroArea;
-  });
+  const comprasFiltradas = comprasData
+    .filter(compra => {
+      const cumpleFiltroEstado = filtroEstado === 'todos' || compra.estadoSolicitud === filtroEstado;
+      const cumpleFiltroArea = filtroArea === 'todas' || compra.areaCorrespondiente === filtroArea;
+      return cumpleFiltroEstado && cumpleFiltroArea;
+    })
+    .sort((a, b) => {
+      // Función para obtener el peso del estado (Pendiente tiene máxima prioridad)
+      const getEstadoWeight = (estado: string) => {
+        switch (estado?.toLowerCase()) {
+          case 'pendiente': return 4; // Máxima prioridad
+          case 'aprobado': return 3;
+          case 'rechazado': return 2;
+          case 'comprado': return 1;
+          default: return 0;
+        }
+      };
+
+      // Función para obtener el peso de la prioridad
+      const getPrioridadWeight = (prioridad: string) => {
+        switch (prioridad?.toLowerCase()) {
+          case 'alta': return 3;   // Alta prioridad
+          case 'media': return 2;  // Media prioridad
+          case 'baja': return 1;   // Baja prioridad
+          default: return 0;       // Sin prioridad definida
+        }
+      };
+
+      // Comparar primero por estado (Pendiente primero)
+      const estadoComparison = getEstadoWeight(b.estadoSolicitud) - getEstadoWeight(a.estadoSolicitud);
+      if (estadoComparison !== 0) {
+        return estadoComparison;
+      }
+
+      // Si ambos tienen el mismo estado, ordenar por prioridad (Alta → Media → Baja)
+      const prioridadComparison = getPrioridadWeight(b.prioridadSolicitud || '') - getPrioridadWeight(a.prioridadSolicitud || '');
+      if (prioridadComparison !== 0) {
+        return prioridadComparison;
+      }
+
+      // Si estado y prioridad son iguales, ordenar por fecha (más reciente primero)
+      return new Date(b.fechaSolicitud).getTime() - new Date(a.fechaSolicitud).getTime();
+    });
 
   if (isLoading) {
     return (
@@ -172,9 +236,6 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                 <h1 className="text-2xl font-bold text-white">
                   Bienvenido, {userData.nombre}
                 </h1>
-                <p className="text-white/80">
-                  {userData.cargo} - {userData.area}
-                </p>
               </div>
             </div>
             <button
@@ -267,59 +328,76 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                 <div key={compra.id} className="p-6 hover:bg-white/5 transition-colors duration-200">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-4 mb-2">
-                        <span className="text-white/80 text-sm">#{index + 1}</span>
-                        <h3 className="text-lg font-semibold text-white">
-                          {compra.nombreSolicitante}
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
-                            {compra.estadoSolicitud || 'Sin estado'}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <select
-                              value={compra.estadoSolicitud || ''}
-                              onChange={(e) => updateEstado(compra.id, e.target.value)}
-                              disabled={updatingStates.has(compra.id)}
-                              className="text-xs px-2 py-1 bg-white/10 border border-white/30 rounded-lg text-white focus:outline-none focus:border-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
-                              <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
-                              <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
-                              <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
-                            </select>
-                            {updatingStates.has(compra.id) && (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
-                            )}
+                          <div className="flex items-center gap-4 mb-2">
+                            <span className="text-white/80 text-sm">#{index + 1}</span>
+                            <h3 className="text-lg font-semibold text-white">
+                              {compra.nombreSolicitante}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
+                                {compra.estadoSolicitud || 'Sin estado'}
+                              </span>
+                              {compra.prioridadSolicitud && (
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(compra.prioridadSolicitud)}`}>
+                                  {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <select
+                                  value={compra.estadoSolicitud || ''}
+                                  onChange={(e) => updateEstado(compra.id, e.target.value)}
+                                  disabled={updatingStates.has(compra.id)}
+                                  className="text-xs px-2 py-1 bg-white/10 border border-white/30 rounded-lg text-white focus:outline-none focus:border-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
+                                  <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
+                                  <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
+                                  <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
+                                </select>
+                                {updatingStates.has(compra.id) && (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-white/70 text-sm">Área:</p>
-                          <p className="text-white font-medium">{compra.areaCorrespondiente}</p>
-                        </div>
-                        <div>
-                          <p className="text-white/70 text-sm">Fecha:</p>
-                          <p className="text-white font-medium">{formatDate(compra.fechaSolicitud)}</p>
-                        </div>
-                        <div>
-                          <p className="text-white/70 text-sm">Valor Total:</p>
-                          <p className="text-white font-medium">{formatCurrency(compra.valorTotal || 0)}</p>
-                        </div>
-                        <div>
-                          <p className="text-white/70 text-sm">Items:</p>
-                          <p className="text-white font-medium">{compra.items.length} items</p>
-                        </div>
-                      </div>
-                      
-                      {compra.razonSocialProveedor && (
-                        <div className="mb-2">
-                          <p className="text-white/70 text-sm">Proveedor:</p>
-                          <p className="text-white font-medium">{compra.razonSocialProveedor}</p>
-                        </div>
-                      )}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                              <p className="text-white/70 text-sm">Área:</p>
+                              <p className="text-white font-medium">{compra.areaCorrespondiente}</p>
+                            </div>
+                            <div>
+                              <p className="text-white/70 text-sm">Fecha:</p>
+                              <p className="text-white font-medium">{formatDate(compra.fechaSolicitud)}</p>
+                            </div>
+                            {compra.prioridadSolicitud && (
+                              <div>
+                                <p className="text-white/70 text-sm">🎯 Prioridad:</p>
+                                <p className={`font-medium ${
+                                  compra.prioridadSolicitud.toLowerCase() === 'alta' ? 'text-red-300' : 
+                                  compra.prioridadSolicitud.toLowerCase() === 'media' ? 'text-yellow-300' : 
+                                  'text-green-300'
+                                }`}>
+                                  {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
+                                </p>
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-white/70 text-sm">Valor Total:</p>
+                              <p className="text-white font-medium">{formatCurrency(compra.valorTotal || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-white/70 text-sm">Items:</p>
+                              <p className="text-white font-medium">{compra.items.length} items</p>
+                            </div>
+                          </div>
+                          
+                          {compra.razonSocialProveedor && (
+                            <div className="mb-2">
+                              <p className="text-white/70 text-sm">Proveedor:</p>
+                              <p className="text-white font-medium">{compra.razonSocialProveedor}</p>
+                            </div>
+                          )}
                       
                       {compra.descripcionSolicitud && (
                         <div className="bg-white/10 rounded-xl p-3 mt-3">

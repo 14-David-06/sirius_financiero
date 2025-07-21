@@ -6,7 +6,11 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "security:check": "node scripts/clean-logs.js verify",
+    "security:clean": "node scripts/clean-logs.js clean",
+    "security:audit": "node scripts/clean-logs.js all",
+    "prebuild": "npm run security:audit"
   },
   "dependencies": {
     "lucide-react": "^0.525.0",

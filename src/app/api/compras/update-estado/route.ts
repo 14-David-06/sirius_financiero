@@ -4,7 +4,7 @@ export async function POST(request: Request) {
   try {
     const { compraId, nuevoEstado, nombresAdmin } = await request.json();
     
-    console.log('Datos recibidos:', { compraId, nuevoEstado, nombresAdmin });
+    // Log removido por seguridad;
 
     if (!compraId || !nuevoEstado || !nombresAdmin) {
       console.error('Faltan datos requeridos');
