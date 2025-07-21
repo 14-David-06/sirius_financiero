@@ -39,7 +39,7 @@ yarn-error.log*
 *.cert
 secrets/
 credentials/
-security/
+# security/ <- Comentado para permitir src/lib/security/
 backups/
 
 # Environment variables - CRÍTICO
