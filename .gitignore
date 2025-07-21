@@ -57,14 +57,11 @@ config/tokens.json
 **/api-keys/**
 **/tokens/**
 
-# Logs sensibles
-*.log
-logs/
+# Logs sensibles (archivos específicos, no directorios de código)
 audit-logs/
+*.sensitive.log
 
-# Logs and monitoring
-logs/
-*.log
+# Build and development logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
