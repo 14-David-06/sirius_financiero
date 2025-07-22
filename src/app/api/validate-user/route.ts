@@ -11,7 +11,7 @@ import {
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-const AIRTABLE_TABLE_NAME = 'Equipo Financiero';
+const AIRTABLE_TEAM_TABLE_NAME = process.env.AIRTABLE_TEAM_TABLE_NAME || 'Equipo Financiero';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // 🔒 Consultar Airtable con escape seguro
-    const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`;
+    const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TEAM_TABLE_NAME}`;
     const escapedCedula = escapeAirtableQuery(sanitizedCedula);
     const filterFormula = `{Cedula} = "${escapedCedula}"`;
     

@@ -7,7 +7,7 @@
 
 **Ubicación**: `.env.local`
 ```
-AIRTABLE_API_KEY=patfWbjV8m7ZwatsF.70dd64632c8b855d6bb8fe80d370ebe8cda5b1d1161603566de873773c963007
+AIRTABLE_API_KEY=
 ```
 
 **Riesgo**: 

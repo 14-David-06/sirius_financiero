@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 
+// Configuración de Airtable
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const COMPRAS_TABLE_ID = process.env.AIRTABLE_COMPRAS_TABLE_ID;
+
 export async function POST(request: Request) {
   try {
     const { compraId, nuevoEstado, nombresAdmin } = await request.json();
@@ -14,11 +19,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Configurar Airtable
-    const airtableBaseId = process.env.AIRTABLE_BASE_ID;
-    const airtableApiKey = process.env.AIRTABLE_API_KEY;
-
-    if (!airtableBaseId || !airtableApiKey) {
+    // Validar configuración de Airtable
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY || !COMPRAS_TABLE_ID) {
       console.error('Variables de entorno de Airtable no encontradas');
       return NextResponse.json(
         { error: 'Configuración de Airtable no encontrada' },
@@ -30,11 +32,11 @@ export async function POST(request: Request) {
 
     // Actualizar el estado en Airtable
     const response = await fetch(
-      `https://api.airtable.com/v0/${airtableBaseId}/tblC7QjS4OeexqlbM/${compraId}`,
+      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${COMPRAS_TABLE_ID}/${compraId}`,
       {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${airtableApiKey}`,
+          'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

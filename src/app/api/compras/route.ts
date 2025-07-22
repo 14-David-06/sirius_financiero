@@ -11,8 +11,8 @@ import {
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-const COMPRAS_TABLE_ID = 'tblC7QjS4OeexqlbM'; // ID de la tabla Compras y Adquisiciones
-const ITEMS_TABLE_ID = 'tblkKheSajdYRiAAl'; // ID de la tabla Items Compras y Adquisiciones
+const COMPRAS_TABLE_ID = process.env.AIRTABLE_COMPRAS_TABLE_ID;
+const ITEMS_TABLE_ID = process.env.AIRTABLE_ITEMS_TABLE_ID;
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 🔒 Validar configuración de Airtable
-    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY || !COMPRAS_TABLE_ID || !ITEMS_TABLE_ID) {
       secureLog('🚨 Configuración de Airtable no encontrada');
       return new NextResponse(
         JSON.stringify({ error: 'Configuración de Airtable no encontrada' }),

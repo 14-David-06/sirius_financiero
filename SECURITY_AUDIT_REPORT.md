@@ -16,8 +16,8 @@
 **Ubicaciones Comprometidas:**
 ```bash
 📁 .env.local (EXPUESTO)
-AIRTABLE_API_KEY=patfWbjV8m7ZwatsF.70dd64632c8b855d6bb8fe80d370ebe8cda5b1d1161603566de873773c963007
-AIRTABLE_BASE_ID=appBNCVj4Njbyu1En
+AIRTABLE_API_KEY=<REDACTED_FOR_SECURITY>
+AIRTABLE_BASE_ID=<REDACTED_FOR_SECURITY>
 ```
 
 **Impacto:**
@@ -39,7 +39,7 @@ AIRTABLE_BASE_ID=appBNCVj4Njbyu1En
 **Ubicación:**
 ```typescript
 // src/components/SolicitudesCompra.tsx:343
-const webhookUrl = 'https://telegram-apps-u38879.vm.elestio.app/webhook/3fd837cc-ac0c-4dba-a312-1587f069a7e8';
+const webhookUrl = '<REDACTED_WEBHOOK_URL>';
 ```
 
 **Impacto:**
@@ -90,7 +90,7 @@ console.log('📄 JSON que se enviará:', JSON.stringify(formDataText, null, 2))
 const securityHeaders = [
   'default-src \'self\';',
   'script-src \'self\' \'unsafe-eval\' \'unsafe-inline\';',
-  'connect-src \'self\' https://api.airtable.com https://telegram-apps-u38879.vm.elestio.app;'
+  'connect-src \'self\' https://api.airtable.com <YOUR_WEBHOOK_DOMAIN>;'
 ];
 ```
 
@@ -129,7 +129,7 @@ const securityHeaders = [
 3. **MOVER WEBHOOK URL A VARIABLES DE ENTORNO**
    ```bash
    # En .env.local
-   NEXT_PUBLIC_WEBHOOK_URL=https://telegram-apps-u38879.vm.elestio.app/webhook/3fd837cc-ac0c-4dba-a312-1587f069a7e8
+   NEXT_PUBLIC_WEBHOOK_URL=<YOUR_WEBHOOK_URL>
    ```
 
 4. **REMOVER LOGS DE DEBUG EN PRODUCCIÓN**
