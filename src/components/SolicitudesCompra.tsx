@@ -691,7 +691,7 @@ export default function SolicitudesCompra() {
 
                         <div>
                           <label className="block text-white font-semibold mb-2 drop-shadow-md">
-                            Precio Estimado
+                            Precio Estimado Por Unidad
                           </label>
                           <input
                             type="number"
