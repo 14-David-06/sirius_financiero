@@ -32,10 +32,20 @@ export async function GET(request: NextRequest) {
     }
 
     // 🔒 Validar configuración de Airtable
+    const envCheck = {
+      AIRTABLE_BASE_ID: !!AIRTABLE_BASE_ID,
+      AIRTABLE_API_KEY: !!AIRTABLE_API_KEY,
+      COMPRAS_TABLE_ID: !!COMPRAS_TABLE_ID,
+      ITEMS_TABLE_ID: !!ITEMS_TABLE_ID
+    };
+
     if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY || !COMPRAS_TABLE_ID || !ITEMS_TABLE_ID) {
-      secureLog('🚨 Configuración de Airtable no encontrada');
+      secureLog('🚨 Configuración de Airtable no encontrada', { envCheck });
       return new NextResponse(
-        JSON.stringify({ error: 'Configuración de Airtable no encontrada' }),
+        JSON.stringify({ 
+          error: 'Configuración de Airtable no encontrada',
+          debug: process.env.NODE_ENV === 'development' ? envCheck : undefined
+        }),
         { 
           status: 500,
           headers: securityHeaders
@@ -71,9 +81,21 @@ export async function GET(request: NextRequest) {
     });
 
     if (!comprasResponse.ok) {
-      secureLog('🚨 Error al obtener compras', { status: comprasResponse.status });
+      const errorText = await comprasResponse.text();
+      secureLog('🚨 Error al obtener compras', { 
+        status: comprasResponse.status,
+        statusText: comprasResponse.statusText,
+        url: comprasUrl + comprasQuery,
+        errorText: errorText.substring(0, 200) // Solo los primeros 200 chars para seguridad
+      });
       return new NextResponse(
-        JSON.stringify({ error: 'Error al obtener compras' }),
+        JSON.stringify({ 
+          error: 'Error al obtener compras',
+          details: process.env.NODE_ENV === 'development' ? {
+            status: comprasResponse.status,
+            statusText: comprasResponse.statusText
+          } : undefined
+        }),
         { 
           status: 500,
           headers: securityHeaders
@@ -93,9 +115,25 @@ export async function GET(request: NextRequest) {
     });
 
     if (!itemsResponse.ok) {
-      return NextResponse.json(
-        { error: 'Error al obtener items' },
-        { status: 500 }
+      const errorText = await itemsResponse.text();
+      secureLog('🚨 Error al obtener items', { 
+        status: itemsResponse.status,
+        statusText: itemsResponse.statusText,
+        url: `${itemsUrl}?maxRecords=1000`,
+        errorText: errorText.substring(0, 200)
+      });
+      return new NextResponse(
+        JSON.stringify({ 
+          error: 'Error al obtener items',
+          details: process.env.NODE_ENV === 'development' ? {
+            status: itemsResponse.status,
+            statusText: itemsResponse.statusText
+          } : undefined
+        }),
+        { 
+          status: 500,
+          headers: securityHeaders
+        }
       );
     }
 
@@ -215,9 +253,23 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error obteniendo compras:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
+    secureLog('🚨 Error general en GET compras', { 
+      error: error instanceof Error ? error.message : 'Error desconocido',
+      stack: error instanceof Error ? error.stack?.substring(0, 500) : undefined
+    });
+    
+    return new NextResponse(
+      JSON.stringify({ 
+        error: 'Error interno del servidor',
+        timestamp: new Date().toISOString(),
+        debug: process.env.NODE_ENV === 'development' ? {
+          message: error instanceof Error ? error.message : 'Error desconocido'
+        } : undefined
+      }),
+      { 
+        status: 500,
+        headers: securityHeaders
+      }
     );
   }
 }
