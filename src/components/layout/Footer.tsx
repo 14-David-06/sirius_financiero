@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Footer() {
   return (
@@ -8,10 +9,13 @@ export default function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Logo y descripción */}
             <div>
-              <img 
-              src="/logo.png" 
-              alt="Sirius Financiero Logo" 
-              className="w-36 h-28 object-contain"/>
+              <Image 
+                src="/logo.png" 
+                alt="Sirius Financiero Logo" 
+                width={144}
+                height={112}
+                className="object-contain"
+              />
               <p className="text-gray-300 mb-4 max-w-md">
                 Plataforma integral para la gestión financiera empresarial con tecnología avanzada.
               </p>

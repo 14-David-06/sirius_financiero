@@ -6,7 +6,7 @@ import Card from '@/components/ui/Card';
 
 interface DiagnosticResult {
   status: 'success' | 'error';
-  data?: any;
+  data?: Record<string, unknown> | unknown[];
   error?: string;
   timestamp?: string;
 }
@@ -134,7 +134,7 @@ export default function DiagnosticPanel() {
           <li>Ejecuta los diagnósticos arriba para identificar el problema específico</li>
           <li>Si fallan las variables de entorno, ve a tu dashboard de Vercel</li>
           <li>Configura las variables de entorno en Settings → Environment Variables</li>
-          <li>Asegúrate de que estén configuradas para "Production"</li>
+          <li>Asegúrate de que estén configuradas para &quot;Production&quot;</li>
           <li>Redeploy tu aplicación después de configurar las variables</li>
           <li>Ejecuta nuevamente los diagnósticos para verificar</li>
         </ol>
