@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface ItemData {
   id: number;
@@ -230,7 +230,7 @@ export default function SolicitudesCompra() {
     }));
   };
 
-  const cleanupAudioResources = () => {
+  const cleanupAudioResources = useCallback(() => {
     if (audioRecorder.stream) {
       audioRecorder.stream.getTracks().forEach(track => track.stop());
     }
@@ -248,7 +248,7 @@ export default function SolicitudesCompra() {
       dataArray: null,
       mediaRecorder: null
     }));
-  };
+  }, [audioRecorder.stream, audioRecorder.audioContext]);
 
   const grabarDescripcion = async () => {
     if (audioRecorder.isRecording) {
@@ -465,7 +465,7 @@ export default function SolicitudesCompra() {
     return () => {
       cleanupAudioResources();
     };
-  }, []);
+  }, [cleanupAudioResources]);
 
   return (
     <div 

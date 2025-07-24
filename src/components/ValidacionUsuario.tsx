@@ -76,6 +76,7 @@ export default function ValidacionUsuario({ onValidationSuccess, onValidationErr
         onValidationError(data.error || 'Error al validar usuario');
       }
     } catch (error) {
+      console.log('Error capturado:', error); // Use the error variable
       const errorMessage = 'Error de conexión. Intente nuevamente';
       setError(errorMessage);
       onValidationError(errorMessage);

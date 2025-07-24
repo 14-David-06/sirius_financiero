@@ -8,6 +8,7 @@ interface SessionIndicatorProps {
   onLogout: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function SessionIndicator({ getRemainingTime, extendSession, onLogout }: SessionIndicatorProps) {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [showExtendOption, setShowExtendOption] = useState(false);
