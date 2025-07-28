@@ -36,7 +36,7 @@ Se ha implementado exitosamente la funcionalidad para mostrar y actualizar el es
 
 ### Vista de Items Actualizada:
 ```
-Item #1                                [Sin comprar]
+Item #1                                [Sin comprar] ← rojo
 ├── Objeto: Laptop Dell
 ├── Centro de Costos: TI
 ├── Cantidad: 2
@@ -44,8 +44,8 @@ Item #1                                [Sin comprar]
 └── Estado: Sin comprar
 
 Actualizar Estado del Item:
-Estado actual: [Sin comprar]
-[Sin comprar] [Comprado]
+Estado actual: [Sin comprar] ← rojo
+[Sin comprar] [Comprado] ← verde cuando se marca como comprado
 ```
 
 ### Estados Visuales:
