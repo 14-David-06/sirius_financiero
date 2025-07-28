@@ -200,6 +200,7 @@ export async function GET(request: NextRequest) {
           cantidad: item.fields['Cantidad'] as number,
           valorItem: item.fields['Valor Item'] as number,
           compraServicio: item.fields['Compra/Servicio'] as string,
+          estadoItem: item.fields['Estado Item'] as string, // Nuevo campo
           prioridad: item.fields['Prioridad'] as string,
           fechaRequerida: item.fields['Fecha Requerida Entrega'] as string,
           formaPago: item.fields['FORMA DE PAGO'] as string,

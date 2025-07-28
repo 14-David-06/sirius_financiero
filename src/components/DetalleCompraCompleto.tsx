@@ -12,6 +12,14 @@ interface DetalleCompraCompletoProps {
 
 const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'financiero' | 'proveedor' | 'items'>('general');
+  const [updatingItems, setUpdatingItems] = useState<Record<string, boolean>>({});
+  const [itemStates, setItemStates] = useState<Record<string, string>>(() => {
+    const initialStates: Record<string, string> = {};
+    compra.items.forEach(item => {
+      initialStates[item.id] = item.estadoItem || 'Sin comprar';
+    });
+    return initialStates;
+  });
 
   const formatCurrency = (amount: number | undefined) => {
     return new Intl.NumberFormat('es-CO', {
@@ -40,9 +48,48 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
       case 'Pendiente':
         return 'bg-yellow-100 text-yellow-800';
       case 'Comprado':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-green-100 text-green-800'; // Verde para comprado
+      case 'Sin comprar':
+        return 'bg-red-100 text-red-800'; // Rojo para sin comprar
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const updateItemEstado = async (itemId: string, nuevoEstado: string) => {
+    setUpdatingItems(prev => ({ ...prev, [itemId]: true }));
+    
+    try {
+      const response = await fetch('/api/items/update-estado', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          itemId,
+          estadoItem: nuevoEstado
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al actualizar el estado');
+      }
+
+      const result = await response.json();
+      
+      // Actualizar el estado local
+      setItemStates(prev => ({ ...prev, [itemId]: nuevoEstado }));
+      
+      // Mostrar mensaje de éxito (puedes usar una librería de notificaciones aquí)
+      console.log('Estado actualizado exitosamente:', result.message);
+      
+    } catch (error) {
+      console.error('Error al actualizar estado del item:', error);
+      // Mostrar mensaje de error (puedes usar una librería de notificaciones aquí)
+      alert('Error al actualizar el estado del item: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
     }
   };
 
@@ -263,7 +310,12 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
       {compra.items.map((item: CompraItem, index: number) => (
         <Card key={item.id} className="p-4">
           <div className="flex justify-between items-start mb-3">
-            <h5 className="font-medium text-gray-800">Item #{index + 1}</h5>
+            <div className="flex items-center gap-2">
+              <h5 className="font-medium text-gray-800">Item #{index + 1}</h5>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEstadoColor(itemStates[item.id])}`}>
+                {itemStates[item.id] || 'Sin comprar'}
+              </span>
+            </div>
             <span className="text-sm text-gray-600">ID: {item.id}</span>
           </div>
           
@@ -346,6 +398,35 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
               )}
             </div>
           )}
+          
+          {/* Sección para actualizar estado del item */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <h6 className="font-medium text-gray-700 mb-3">Actualizar Estado del Item</h6>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">Estado actual:</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEstadoColor(itemStates[item.id])}`}>
+                {itemStates[item.id] || 'Sin comprar'}
+              </span>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Button
+                onClick={() => updateItemEstado(item.id, 'Sin comprar')}
+                disabled={updatingItems[item.id] || itemStates[item.id] === 'Sin comprar'}
+                size="sm"
+                variant={itemStates[item.id] === 'Sin comprar' ? 'primary' : 'secondary'}
+              >
+                {updatingItems[item.id] ? 'Actualizando...' : 'Sin comprar'}
+              </Button>
+              <Button
+                onClick={() => updateItemEstado(item.id, 'Comprado')}
+                disabled={updatingItems[item.id] || itemStates[item.id] === 'Comprado'}
+                size="sm"
+                variant={itemStates[item.id] === 'Comprado' ? 'primary' : 'secondary'}
+              >
+                {updatingItems[item.id] ? 'Actualizando...' : 'Comprado'}
+              </Button>
+            </div>
+          </div>
           
           {item.nombreProveedor && item.nombreProveedor.length > 0 && (
             <div className="mt-4 pt-4 border-t border-gray-200">

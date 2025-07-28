@@ -19,6 +19,7 @@ export interface CompraItem {
   cantidad: number;
   valorItem: number;
   compraServicio: string;
+  estadoItem?: string; // Nuevo campo para "Estado Item"
   prioridad?: string;
   fechaRequerida?: string;
   formaPago?: string;
