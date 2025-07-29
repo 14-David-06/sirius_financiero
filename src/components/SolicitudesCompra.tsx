@@ -1,4 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Employee } from '../types/compras';
+
+interface SolicitudCompraData {
+  nombreSolicitante: string;
+  areaSolicitante: string;
+  cargoSolicitante: string;
+  hasProvider: 'si' | 'no';
+  prioridadSolicitud: 'Alta' | 'Media' | 'Baja';
+  items: Array<{
+    objeto: string;
+    centroCostos: string;
+    cantidad: number;
+    valorItem: number;
+    compraServicio: 'Compras (Generales)';
+    prioridad: 'Alta' | 'Media' | 'Baja';
+    fechaRequerida?: string;
+    justificacion?: string;
+  }>;
+  razonSocialProveedor?: string;
+  descripcionIAInterpretacion?: string;
+}
 
 interface ItemData {
   id: number;
@@ -30,11 +51,18 @@ interface AudioRecorderState {
 export default function SolicitudesCompra() {
   const [selectedUser, setSelectedUser] = useState('');
   const [otroNombre, setOtroNombre] = useState('');
+  const [otroArea, setOtroArea] = useState('');
+  const [otroCargo, setOtroCargo] = useState('');
   const [hasProvider, setHasProvider] = useState('');
   const [priority, setPriority] = useState('Media'); // Valor por defecto: Media
   const [items, setItems] = useState<ItemData[]>([]);
   const [itemCounter, setItemCounter] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Estado para empleados desde la base de datos
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
   
   const [audioRecorder, setAudioRecorder] = useState<AudioRecorderState>({
     isRecording: false,
@@ -61,6 +89,7 @@ export default function SolicitudesCompra() {
     "SST": ["Administración", "Mercadeo", "Otros Gastos ADM"]
   };
 
+  // Datos de usuario de respaldo (fallback) - mantener para compatibilidad
   const datosUsuario = {
     "Santiago Amaya": { area: "Pirolisis", cargo: "Jefe de Planta" },
     "Luisa Ramirez": { area: "Gestión del Ser", cargo: "Coordinadora Líder de Gestión del Ser" },
@@ -71,12 +100,74 @@ export default function SolicitudesCompra() {
     "Pablo Acebedo": { area: "RAAS", cargo: "CTO" }
   };
 
+  // Función para cargar empleados desde la API
+  const loadEmployees = useCallback(async () => {
+    try {
+      setLoadingEmployees(true);
+      setEmployeesError(null);
+      
+      const response = await fetch('/api/get-employees');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al cargar empleados');
+      }
+      
+      if (data.success && data.employees) {
+        setEmployees(data.employees);
+        console.log(`Cargados ${data.employees.length} empleados desde la base de datos`);
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
+    } catch (error) {
+      console.error('Error cargando empleados:', error);
+      setEmployeesError(error instanceof Error ? error.message : 'Error desconocido');
+      // En caso de error, usar datos de respaldo
+      setEmployees([]);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  }, []);
+
+  // Efecto para cargar empleados al montar el componente
+  useEffect(() => {
+    loadEmployees();
+  }, [loadEmployees]);
+
   const getUserData = (username: string) => {
+    // Buscar primero en los empleados cargados desde la base de datos
+    const employee = employees.find(emp => emp.name === username);
+    if (employee) {
+      return { area: employee.area, cargo: employee.cargo };
+    }
+    
+    // Si no se encuentra, usar datos de respaldo
     return datosUsuario[username as keyof typeof datosUsuario] || { area: "", cargo: "" };
+  };
+
+  // Función para obtener la lista completa de empleados para el select
+  const getEmployeeOptions = () => {
+    if (employees.length > 0) {
+      return employees;
+    }
+    
+    // Fallback: convertir datos de respaldo al formato de Employee
+    return Object.entries(datosUsuario).map(([name, data]) => ({
+      id: name,
+      name: name,
+      cedula: '',
+      cargo: data.cargo,
+      area: data.area
+    }));
   };
 
   const getCostCenters = () => {
     if (selectedUser === "otro") {
+      // Si es otro usuario y tiene área especificada, usar centros de costo de esa área
+      if (otroArea && costCentersByArea[otroArea as keyof typeof costCentersByArea]) {
+        return costCentersByArea[otroArea as keyof typeof costCentersByArea];
+      }
+      // Si no tiene área o no es válida, mostrar todos los centros de costo
       return Object.values(costCentersByArea).flat();
     }
     const userData = getUserData(selectedUser);
@@ -279,100 +370,95 @@ export default function SolicitudesCompra() {
     }
     
     try {
-      // Obtener datos del formulario exactamente como en el HTML
+      // Validar datos requeridos
+      if (!selectedUser && !otroNombre) {
+        throw new Error('Debe seleccionar un solicitante');
+      }
+
+      if (items.length === 0) {
+        throw new Error('Debe agregar al menos un item');
+      }
+
+      // Obtener datos del usuario
+      const userData = selectedUser !== 'otro' ? getUserData(selectedUser) : { area: '', cargo: '' };
+      const nombreSolicitante = selectedUser !== 'otro' ? selectedUser : otroNombre;
+
+      // Preparar datos para la API
+      const solicitudData: SolicitudCompraData = {
+        // Datos del solicitante
+        nombreSolicitante: nombreSolicitante,
+        areaSolicitante: userData.area || (selectedUser === 'otro' ? otroArea : 'Sin especificar'),
+        cargoSolicitante: userData.cargo || (selectedUser === 'otro' ? otroCargo : 'Sin especificar'),
+        
+        // Datos de la solicitud
+        hasProvider: hasProvider as 'si' | 'no',
+        prioridadSolicitud: priority as 'Alta' | 'Media' | 'Baja',
+        
+        // Items de compra
+        items: items.map(item => ({
+          objeto: item.objeto,
+          centroCostos: item.centroCosto,
+          cantidad: item.cantidad,
+          valorItem: item.valorEstimado,
+          compraServicio: 'Compras (Generales)' as const, // Por defecto, puede ser configurable
+          prioridad: item.prioridad as 'Alta' | 'Media' | 'Baja',
+          fechaRequerida: item.fechaRequerida || undefined,
+          justificacion: item.justificacion || undefined
+        }))
+      };
+
+      // Agregar información del proveedor si existe
       const formData = new FormData(e.target as HTMLFormElement);
-      
-      // Crear objeto con los mismos nombres de variables que el HTML
-      const formDataText: Record<string, unknown> = {};
-      
-      // Datos principales del solicitante
-      formDataText["Nombre Solicitante"] = selectedUser !== 'otro' ? selectedUser : otroNombre;
-      if (selectedUser === 'otro') {
-        formDataText["Otro Nombre"] = otroNombre;
-      }
-      formDataText["Área"] = selectedUser !== 'otro' ? getUserData(selectedUser).area : '';
-      formDataText["Cargo"] = selectedUser !== 'otro' ? getUserData(selectedUser).cargo : '';
-      
-      // Prioridad de la solicitud
-      formDataText["Prioridad_Solicitud"] = priority;
-      
-      // Información del proveedor
-      formDataText["hasProvider"] = hasProvider;
       if (hasProvider === 'si') {
-        formDataText["Proveedor_Nombre"] = formData.get('Proveedor_Nombre') || '';
+        const proveedorNombre = formData.get('Proveedor_Nombre') as string;
+        if (proveedorNombre) {
+          solicitudData.razonSocialProveedor = proveedorNombre;
+        }
       }
-      
-      // Agregar datos de items con el formato exacto del HTML
-      items.forEach((item, index) => {
-        const itemNum = index + 1;
-        formDataText[`Nombre_Item_${itemNum}`] = item.objeto;
-        formDataText[`Cantidad_${itemNum}`] = item.cantidad.toString();
-        formDataText[`Precio_${itemNum}`] = item.valorEstimado.toString();
-        formDataText[`Centro_Costo_${itemNum}`] = item.centroCosto;
-      });
 
-      // Debug: verificar que la prioridad está en el objeto
+      // TODO: Implementar transcripción de audio y procesamiento con IA
+      // Por ahora, generar una descripción básica de los items
+      const descripcionItems = items.map((item, index) => 
+        `${index + 1}. ${item.objeto} - Cantidad: ${item.cantidad} - Valor: $${item.valorEstimado.toLocaleString()}`
+      ).join('\n');
+      
+      solicitudData.descripcionIAInterpretacion = `Solicitud de Compra\n\nSe solicita la adquisición de los siguientes items:\n\n${descripcionItems}`;
+
       // Debug logs solo en desarrollo
       if (process.env.NODE_ENV === 'development') {
-        console.log('📋 Datos antes de crear JSON:', formDataText);
-        console.log('🎯 Prioridad específica:', formDataText["Prioridad_Solicitud"]);
-        console.log('📄 JSON que se enviará:', JSON.stringify(formDataText, null, 2));
-      }
-
-      // Crear archivo JSON con los datos del formulario
-      const jsonBlob = new Blob([JSON.stringify(formDataText, null, 2)], { type: "application/json" });
-      const jsonFile = new File([jsonBlob], "solicitud_datos.json", { type: "application/json" });
-
-      // Crear FormData para envío
-      const submitFormData = new FormData();
-      submitFormData.append("datos_json", jsonFile);
-      
-      // Agregar audio si existe
-      if (audioRecorder.audioUrl && audioRecorder.chunks.length > 0) {
-        const mimeType = audioRecorder.mediaRecorder?.mimeType || 'audio/webm';
-        const extension = getFileExtension(mimeType);
-        const audioBlob = new Blob(audioRecorder.chunks, { type: mimeType });
-        const audioFile = new File([audioBlob], `descripcion_solicitud.${extension}`, { type: mimeType });
-        submitFormData.append("audio", audioFile);
+        console.log('🚀 Enviando solicitud a API local:', solicitudData);
       }
       
-      // Agregar cotización si existe
-      const cotizacionFile = formData.get('Proveedor_Cotizacion') as File;
-      if (cotizacionFile && cotizacionFile.size > 0) {
-        submitFormData.append("cotizacion", cotizacionFile);
-      }
-      
-      // Enviar al webhook usando variable de entorno
-      const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_URL;
-      
-      if (!webhookUrl) {
-        throw new Error('URL del webhook no configurada');
-      }
-      
-      // Debug logs solo en desarrollo
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🚀 Enviando datos al webhook:', {
-          formDataText,
-          hasAudio: audioRecorder.chunks.length > 0,
-          hasCotizacion: !!(cotizacionFile && cotizacionFile.size > 0),
-          itemsCount: items.length,
-          prioridad: priority
-        });
-      }
-      
-      const response = await fetch(webhookUrl, {
+      // Enviar a la API local
+      const response = await fetch('/api/solicitudes-compra', {
         method: 'POST',
-        body: submitFormData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(solicitudData)
       });
       
-      if (response.ok) {
-        // Mostrar mensaje de éxito igual al HTML
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || result.error || 'Error al procesar la solicitud');
+      }
+      
+      if (result.success) {
+        // Mostrar mensaje de éxito
         showSuccessAnimation();
         
-        // Reset form después de 2 segundos como en el HTML
+        // Debug logs solo en desarrollo
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ Solicitud creada exitosamente:', result.data);
+        }
+        
+        // Reset form después de 2 segundos
         setTimeout(() => {
           setSelectedUser('');
           setOtroNombre('');
+          setOtroArea('');
+          setOtroCargo('');
           setHasProvider('');
           setPriority('Media'); // Reset a valor por defecto
           setItems([]);
@@ -397,32 +483,59 @@ export default function SolicitudesCompra() {
           (e.target as HTMLFormElement).reset();
         }, 2000);
       } else {
-        alert("❌ Error al enviar solicitud.");
-        console.error("Error response:", await response.text());
+        throw new Error(result.message || 'Error desconocido');
       }
       
     } catch (error) {
-      console.error('🚫 Error al enviar solicitud:', error);
-      alert('🚫 No se pudo enviar la solicitud.');
+      console.error('Error al enviar la solicitud:', error);
+      
+      // Mostrar error al usuario
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al procesar la solicitud';
+      
+      // Crear elemento de error temporal
+      const errorDiv = document.createElement('div');
+      errorDiv.innerHTML = `
+        <div style="
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: white;
+          padding: 20px 30px;
+          border-radius: 15px;
+          box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+          z-index: 10000;
+          text-align: center;
+          max-width: 400px;
+          animation: errorSlideIn 0.3s ease-out;
+        ">
+          <div style="font-size: 48px; margin-bottom: 10px;">❌</div>
+          <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">Error al enviar solicitud</div>
+          <div style="font-size: 14px; opacity: 0.9;">${errorMessage}</div>
+        </div>
+      `;
+
+      // Agregar estilos para la animación de error
+      const errorStyle = document.createElement('style');
+      errorStyle.textContent = `
+        @keyframes errorSlideIn {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+          100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+      `;
+      document.head.appendChild(errorStyle);
+      
+      document.body.appendChild(errorDiv);
+      
+      setTimeout(() => {
+        errorDiv.remove();
+        errorStyle.remove();
+      }, 5000);
+      
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Función para obtener extensión de archivo (igual que el HTML)
-  const getFileExtension = (mimeType: string): string => {
-    const extensions: { [key: string]: string } = {
-      'audio/webm': 'webm',
-      'audio/mp4': 'm4a',
-      'audio/wav': 'wav',
-      'audio/ogg': 'ogg'
-    };
-    
-    for (const [type, ext] of Object.entries(extensions)) {
-      if (mimeType.includes(type)) return ext;
-    }
-    
-    return 'webm'; // Por defecto
   };
 
   // Función para mostrar animación de éxito (igual que el HTML)
@@ -491,20 +604,40 @@ export default function SolicitudesCompra() {
                   <label className="block text-white font-semibold mb-3 text-lg drop-shadow-md">
                     Nombre del Solicitante
                   </label>
-                  <select
-                    value={selectedUser}
-                    onChange={(e) => setSelectedUser(e.target.value)}
-                    className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
-                    required
-                  >
-                    <option value="" className="text-gray-900 bg-white">Seleccione un usuario</option>
-                    {Object.keys(datosUsuario).map(name => (
-                      <option key={name} value={name} className="text-gray-900 bg-white">
-                        {name}
-                      </option>
-                    ))}
-                    <option value="otro" className="text-gray-900 bg-white">Otro Usuario</option>
-                  </select>
+                  {loadingEmployees ? (
+                    <div className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white/70 backdrop-blur-sm">
+                      Cargando empleados...
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedUser}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                      className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
+                      required
+                    >
+                      <option value="" className="text-gray-900 bg-white">Seleccione un usuario</option>
+                      {getEmployeeOptions().map(employee => (
+                        <option key={employee.id} value={employee.name} className="text-gray-900 bg-white">
+                          {employee.name} - {employee.cargo} ({employee.area})
+                        </option>
+                      ))}
+                      <option value="otro" className="text-gray-900 bg-white">Otro Usuario</option>
+                    </select>
+                  )}
+                  {employeesError && (
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-yellow-300 text-sm">
+                        ⚠️ {employeesError} - Usando datos de respaldo
+                      </p>
+                      <button
+                        type="button"
+                        onClick={loadEmployees}
+                        className="text-blue-300 hover:text-blue-200 text-sm underline"
+                      >
+                        Reintentar
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {selectedUser === "otro" && (
@@ -529,8 +662,10 @@ export default function SolicitudesCompra() {
                   </label>
                   <input
                     type="text"
-                    value={selectedUser !== "otro" ? getUserData(selectedUser).area : ""}
+                    value={selectedUser !== "otro" ? getUserData(selectedUser).area : otroArea}
+                    onChange={selectedUser === "otro" ? (e) => setOtroArea(e.target.value) : undefined}
                     readOnly={selectedUser !== "otro"}
+                    placeholder={selectedUser === "otro" ? "Escriba el área del solicitante" : ""}
                     className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
                     required
                   />
@@ -542,8 +677,10 @@ export default function SolicitudesCompra() {
                   </label>
                   <input
                     type="text"
-                    value={selectedUser !== "otro" ? getUserData(selectedUser).cargo : ""}
+                    value={selectedUser !== "otro" ? getUserData(selectedUser).cargo : otroCargo}
+                    onChange={selectedUser === "otro" ? (e) => setOtroCargo(e.target.value) : undefined}
                     readOnly={selectedUser !== "otro"}
+                    placeholder={selectedUser === "otro" ? "Escriba el cargo del solicitante" : ""}
                     className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
                     required
                   />
