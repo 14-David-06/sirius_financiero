@@ -49,6 +49,16 @@ body {
   border-radius: 4px;
 }
 
+/* Ocultar scrollbar horizontal en tabs móviles */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }

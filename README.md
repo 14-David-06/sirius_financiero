@@ -2,6 +2,15 @@
 
 Plataforma integral para la gestión financiera empresarial con interfaz minimalista y moderna, enfocada en la optimización de procesos de compra y monitoreo de solicitudes.
 
+## 🔒 Información de Seguridad
+
+> ⚠️ **IMPORTANTE**: Este proyecto maneja información sensible. Consulta la [Guía de Seguridad](docs/guia-seguridad.md) antes de configurar.
+
+- 🛡️ **Variables de Entorno**: Todas las credenciales usan variables de entorno
+- 🚫 **Sin Credenciales Hardcodeadas**: Código fuente libre de información sensible  
+- 📋 **Configuración Segura**: Ver [Estado de Seguridad](docs/estado-seguridad.md)
+- 🔍 **Verificación Automática**: Script `scripts/security-verify.ps1` disponible
+
 ## 🎨 Diseño Minimalista
 
 - **Interfaz Limpia**: Diseño minimalista centrado en la funcionalidad

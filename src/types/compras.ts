@@ -1,5 +1,13 @@
 // Tipos para la aplicación de compras
 
+export interface Employee {
+  id: string;
+  name: string;
+  cedula: string;
+  cargo: string;
+  area: string;
+}
+
 export interface AirtableField {
   id: string;
   url: string;

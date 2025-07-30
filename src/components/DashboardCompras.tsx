@@ -224,23 +224,26 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header con información del usuario */}
-        <div className="mt-16 mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+        <div className="mt-16 mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center space-x-4 w-full sm:w-auto">
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-xl">
                   {userData.nombre.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-white truncate">
                   Bienvenido, {userData.nombre}
                 </h1>
+                <p className="text-white/70 text-sm mt-1">
+                  {userData.cargo} - {userData.area}
+                </p>
               </div>
             </div>
             <button
               onClick={onLogout}
-              className="bg-red-500/20 text-red-300 border border-red-400/30 px-6 py-2 rounded-xl font-semibold hover:bg-red-500/30 transition-all duration-300"
+              className="bg-red-500/20 text-red-300 border border-red-400/30 px-4 sm:px-6 py-2 rounded-xl font-semibold hover:bg-red-500/30 transition-all duration-300 text-sm w-full sm:w-auto"
             >
               🔐 Cerrar Sesión
             </button>
@@ -249,43 +252,43 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
 
         {/* Estadísticas principales */}
         {estadisticas && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
+            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
               <div className="text-center">
-                <div className="text-3xl font-bold text-white mb-2">{estadisticas.totalCompras}</div>
-                <p className="text-white/80 font-medium">Total Compras</p>
+                <div className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">{estadisticas.totalCompras}</div>
+                <p className="text-white/80 font-medium text-xs sm:text-sm">Total Compras</p>
               </div>
             </div>
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
+            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
               <div className="text-center">
-                <div className="text-3xl font-bold text-white mb-2">{estadisticas.totalItems}</div>
-                <p className="text-white/80 font-medium">Total Items</p>
+                <div className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">{estadisticas.totalItems}</div>
+                <p className="text-white/80 font-medium text-xs sm:text-sm">Total Items</p>
               </div>
             </div>
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
+            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-2">{formatCurrency(estadisticas.montoTotal)}</div>
-                <p className="text-white/80 font-medium">Monto Total</p>
+                <div className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2 leading-tight">{formatCurrency(estadisticas.montoTotal)}</div>
+                <p className="text-white/80 font-medium text-xs sm:text-sm">Monto Total</p>
               </div>
             </div>
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
+            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-2">{formatCurrency(estadisticas.montoTotalNeto)}</div>
-                <p className="text-white/80 font-medium">Monto Neto</p>
+                <div className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2 leading-tight">{formatCurrency(estadisticas.montoTotalNeto)}</div>
+                <p className="text-white/80 font-medium text-xs sm:text-sm">Monto Neto</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Filtros */}
-        <div className="mb-6 bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mb-6 bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-white font-semibold mb-2">Filtrar por Estado</label>
+              <label className="block text-white font-semibold mb-2 text-sm sm:text-base">Filtrar por Estado</label>
               <select
                 value={filtroEstado}
                 onChange={(e) => setFiltroEstado(e.target.value)}
-                className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400"
+                className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 text-sm sm:text-base"
               >
                 <option value="todos" className="text-gray-900 bg-white">Todos los Estados</option>
                 <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
@@ -295,11 +298,11 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
               </select>
             </div>
             <div>
-              <label className="block text-white font-semibold mb-2">Filtrar por Área</label>
+              <label className="block text-white font-semibold mb-2 text-sm sm:text-base">Filtrar por Área</label>
               <select
                 value={filtroArea}
                 onChange={(e) => setFiltroArea(e.target.value)}
-                className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400"
+                className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 text-sm sm:text-base"
               >
                 <option value="todas" className="text-gray-900 bg-white">Todas las Áreas</option>
                 {estadisticas && Object.keys(estadisticas.distribucionAreas).map(area => (
@@ -312,8 +315,8 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
 
         {/* Lista de compras */}
         <div className="bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/20">
-            <h2 className="text-xl font-bold text-white">
+          <div className="px-4 sm:px-6 py-4 border-b border-white/20">
+            <h2 className="text-lg sm:text-xl font-bold text-white">
               Solicitudes de Compra ({comprasFiltradas.length})
             </h2>
           </div>
@@ -325,108 +328,118 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
           ) : (
             <div className="divide-y divide-white/20">
               {comprasFiltradas.map((compra, index) => (
-                <div key={compra.id} className="p-6 hover:bg-white/5 transition-colors duration-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-2">
-                            <span className="text-white/80 text-sm">#{index + 1}</span>
-                            <h3 className="text-lg font-semibold text-white">
-                              {compra.nombreSolicitante}
-                            </h3>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
-                                {compra.estadoSolicitud || 'Sin estado'}
-                              </span>
-                              {compra.prioridadSolicitud && (
-                                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(compra.prioridadSolicitud)}`}>
-                                  {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
-                                </span>
-                              )}
-                              <div className="flex items-center gap-1">
-                                <select
-                                  value={compra.estadoSolicitud || ''}
-                                  onChange={(e) => updateEstado(compra.id, e.target.value)}
-                                  disabled={updatingStates.has(compra.id)}
-                                  className="text-xs px-2 py-1 bg-white/10 border border-white/30 rounded-lg text-white focus:outline-none focus:border-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
-                                  <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
-                                  <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
-                                  <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
-                                </select>
-                                {updatingStates.has(compra.id) && (
-                                  <div className="animate-spin rounded-full h-3 w-3 border-b border-white"></div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                              <p className="text-white/70 text-sm">Área:</p>
-                              <p className="text-white font-medium">{compra.areaCorrespondiente}</p>
-                            </div>
-                            <div>
-                              <p className="text-white/70 text-sm">Fecha:</p>
-                              <p className="text-white font-medium">{formatDate(compra.fechaSolicitud)}</p>
-                            </div>
-                            {compra.prioridadSolicitud && (
-                              <div>
-                                <p className="text-white/70 text-sm">🎯 Prioridad:</p>
-                                <p className={`font-medium ${
-                                  compra.prioridadSolicitud.toLowerCase() === 'alta' ? 'text-red-300' : 
-                                  compra.prioridadSolicitud.toLowerCase() === 'media' ? 'text-yellow-300' : 
-                                  'text-green-300'
-                                }`}>
-                                  {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
-                                </p>
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-white/70 text-sm">Valor Total:</p>
-                              <p className="text-white font-medium">{formatCurrency(compra.valorTotal || 0)}</p>
-                            </div>
-                            <div>
-                              <p className="text-white/70 text-sm">Items:</p>
-                              <p className="text-white font-medium">{compra.items.length} items</p>
-                            </div>
-                          </div>
-                          
-                          {compra.razonSocialProveedor && (
-                            <div className="mb-2">
-                              <p className="text-white/70 text-sm">Proveedor:</p>
-                              <p className="text-white font-medium">{compra.razonSocialProveedor}</p>
-                            </div>
-                          )}
-                      
-                      {compra.descripcionSolicitud && (
-                        <div className="bg-white/10 rounded-xl p-3 mt-3">
-                          <p className="text-white/70 text-sm mb-1">Descripción:</p>
-                          <p className="text-white text-sm line-clamp-2">
-                            {compra.descripcionSolicitud}
-                          </p>
-                        </div>
-                      )}
-                      
-                      {compra.nombresAdmin && (
-                        <div className="mt-2">
-                          <p className="text-white/70 text-sm">Aprobado/Rechazado por:</p>
-                          <p className="text-white font-medium">{compra.nombresAdmin}</p>
-                        </div>
-                      )}
-                      
-                      <div className="mt-4 flex justify-end">
-                        <button
-                          onClick={() => {
-                            setSelectedCompra(compra);
-                            setShowDetalleCompleto(true);
-                          }}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-sm"
-                        >
-                          📋 Ver Detalle Completo
-                        </button>
+                <div key={compra.id} className="p-4 sm:p-6 hover:bg-white/5 transition-colors duration-200">
+                  
+                  {/* Header de la solicitud */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <span className="text-white/80 text-sm font-medium bg-white/10 px-2 py-1 rounded-lg flex-shrink-0">
+                        #{index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base sm:text-lg font-semibold text-white truncate">
+                          {compra.nombreSolicitante}
+                        </h3>
+                        <p className="text-white/70 text-sm">
+                          {compra.areaCorrespondiente} • {formatDate(compra.fechaSolicitud)}
+                        </p>
                       </div>
                     </div>
+                    
+                    {/* Estados y badges - Stack en móvil */}
+                    <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
+                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
+                        {compra.estadoSolicitud || 'Sin estado'}
+                      </span>
+                      {compra.prioridadSolicitud && (
+                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(compra.prioridadSolicitud)}`}>
+                          {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Información principal en grid responsive */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4">
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <p className="text-white/70 text-xs sm:text-sm">Valor Total:</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">{formatCurrency(compra.valorTotal || 0)}</p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <p className="text-white/70 text-xs sm:text-sm">Items:</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">{compra.items.length} items</p>
+                    </div>
+                    {compra.prioridadSolicitud && (
+                      <div className="bg-white/5 rounded-lg p-3">
+                        <p className="text-white/70 text-xs sm:text-sm">🎯 Prioridad:</p>
+                        <p className={`font-semibold text-sm sm:text-base ${
+                          compra.prioridadSolicitud.toLowerCase() === 'alta' ? 'text-red-300' : 
+                          compra.prioridadSolicitud.toLowerCase() === 'media' ? 'text-yellow-300' : 
+                          'text-green-300'
+                        }`}>
+                          {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Proveedor si existe */}
+                  {compra.razonSocialProveedor && (
+                    <div className="bg-white/10 rounded-lg p-3 mb-3">
+                      <p className="text-white/70 text-xs sm:text-sm">Proveedor:</p>
+                      <p className="text-white font-medium text-sm sm:text-base">{compra.razonSocialProveedor}</p>
+                    </div>
+                  )}
+                  
+                  {/* Descripción si existe */}
+                  {compra.descripcionSolicitud && (
+                    <div className="bg-white/10 rounded-lg p-3 mb-3">
+                      <p className="text-white/70 text-xs sm:text-sm mb-1">Descripción:</p>
+                      <p className="text-white text-xs sm:text-sm line-clamp-2">
+                        {compra.descripcionSolicitud}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Admin info si existe */}
+                  {compra.nombresAdmin && (
+                    <div className="bg-white/5 rounded-lg p-3 mb-4">
+                      <p className="text-white/70 text-xs sm:text-sm">Aprobado/Rechazado por:</p>
+                      <p className="text-white font-medium text-sm sm:text-base">{compra.nombresAdmin}</p>
+                    </div>
+                  )}
+                  
+                  {/* Sección de acciones */}
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pt-4 border-t border-white/10">
+                    {/* Selector de estado */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-white/70 text-xs sm:text-sm whitespace-nowrap">Cambiar estado:</label>
+                      <select
+                        value={compra.estadoSolicitud || ''}
+                        onChange={(e) => updateEstado(compra.id, e.target.value)}
+                        disabled={updatingStates.has(compra.id)}
+                        className="text-xs sm:text-sm px-3 py-1.5 bg-white/10 border border-white/30 rounded-lg text-white focus:outline-none focus:border-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
+                      >
+                        <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
+                        <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
+                        <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
+                        <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
+                      </select>
+                      {updatingStates.has(compra.id) && (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b border-white"></div>
+                      )}
+                    </div>
+                    
+                    {/* Botón ver detalle */}
+                    <button
+                      onClick={() => {
+                        setSelectedCompra(compra);
+                        setShowDetalleCompleto(true);
+                      }}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-xs sm:text-sm w-full sm:w-auto"
+                    >
+                      📋 Ver Detalle Completo
+                    </button>
                   </div>
                 </div>
               ))}

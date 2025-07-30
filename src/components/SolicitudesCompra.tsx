@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Employee } from '../types/compras';
+import { Employee, AirtableField } from '../types/compras';
 
 interface SolicitudCompraData {
   nombreSolicitante: string;
@@ -18,7 +18,9 @@ interface SolicitudCompraData {
     justificacion?: string;
   }>;
   razonSocialProveedor?: string;
+  descripcionTranscripcion?: string;
   descripcionIAInterpretacion?: string;
+  cotizacionDoc?: string; // Para el archivo de cotización
 }
 
 interface ItemData {
@@ -30,22 +32,6 @@ interface ItemData {
   fechaRequerida: string;
   prioridad: string;
   justificacion: string;
-}
-
-interface AudioRecorderState {
-  isRecording: boolean;
-  mediaRecorder: MediaRecorder | null;
-  stream: MediaStream | null;
-  startTime: number | null;
-  timerInterval: NodeJS.Timeout | null;
-  chunks: Blob[];
-  audioContext: AudioContext | null;
-  analyser: AnalyserNode | null;
-  microphone: MediaStreamAudioSourceNode | null;
-  dataArray: Uint8Array | null;
-  animationId: number | null;
-  audioUrl: string | null;
-  recordingTime: number;
 }
 
 export default function SolicitudesCompra() {
@@ -64,22 +50,18 @@ export default function SolicitudesCompra() {
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [employeesError, setEmployeesError] = useState<string | null>(null);
   
-  const [audioRecorder, setAudioRecorder] = useState<AudioRecorderState>({
-    isRecording: false,
-    mediaRecorder: null,
-    stream: null,
-    startTime: null,
-    timerInterval: null,
-    chunks: [],
-    audioContext: null,
-    analyser: null,
-    microphone: null,
-    dataArray: null,
-    animationId: null,
-    audioUrl: null,
-    recordingTime: 0
-  });
-
+  // Estados para grabación de audio y transcripción
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioTranscription, setAudioTranscription] = useState('');
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  
+  // Estados para archivo de cotización
+  const [cotizacionFile, setCotizacionFile] = useState<File | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [cotizacionAttachment, setCotizacionAttachment] = useState<AirtableField | null>(null);
+  
   const costCentersByArea = {
     "Laboratorio": ["Hongos", "Bacterias", "Análisis"],
     "Pirolisis": ["Mantenimiento", "Novedades", "Blend"],
@@ -128,6 +110,130 @@ export default function SolicitudesCompra() {
       setLoadingEmployees(false);
     }
   }, []);
+
+  // Funciones para manejar grabación de audio
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+        transcribeAudio(audioBlob);
+        
+        // Detener el stream para liberar el micrófono
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accediendo al micrófono:', error);
+      alert('Error accediendo al micrófono. Verifique los permisos.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      const response = await fetch('/api/transcribe-audio', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setAudioTranscription(result.transcription);
+      } else {
+        console.error('Error en transcripción:', result.error);
+        alert('Error al transcribir el audio: ' + (result.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error transcribiendo audio:', error);
+      alert('Error al transcribir el audio. Inténtelo de nuevo.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const clearAudioTranscription = () => {
+    setAudioBlob(null);
+    setAudioTranscription('');
+  };
+
+  // Funciones para manejar archivos de cotización
+  const handleFileUpload = async (file: File) => {
+    setIsUploadingFile(true);
+    try {
+      // Obtener información del proveedor y solicitante
+      const proveedorNombre = (document.querySelector('input[name="Proveedor_Nombre"]') as HTMLInputElement)?.value || 'SinProveedor';
+      const solicitanteNombre = selectedUser !== "otro" ? selectedUser : otroNombre || 'SinNombre';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('proveedorNombre', proveedorNombre);
+      formData.append('solicitanteNombre', solicitanteNombre);
+
+      const response = await fetch('/api/upload-file', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setCotizacionAttachment({
+          id: result.fileId || crypto.randomUUID(),
+          url: result.fileUrl,
+          filename: result.fileName,
+          type: file.type,
+          size: file.size
+        });
+        setCotizacionFile(file);
+        console.log('Archivo subido exitosamente a S3:', result.fileUrl);
+      } else {
+        console.error('Error subiendo archivo:', result.error);
+        alert('Error al subir el archivo: ' + (result.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error subiendo archivo:', error);
+      alert('Error al subir el archivo. Inténtelo de nuevo.');
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const clearCotizacionFile = () => {
+    setCotizacionFile(null);
+    setCotizacionAttachment(null);
+  };
 
   // Efecto para cargar empleados al montar el componente
   useEffect(() => {
@@ -180,8 +286,8 @@ export default function SolicitudesCompra() {
       id: newId,
       objeto: '',
       centroCosto: getCostCenters()[0] || '',
-      cantidad: 1,
-      valorEstimado: 0,
+      cantidad: 0, // Empieza en 0 para mostrar campo vacío
+      valorEstimado: 0, // Empieza en 0 para mostrar campo vacío
       fechaRequerida: '',
       prioridad: 'Media',
       justificacion: ''
@@ -200,174 +306,9 @@ export default function SolicitudesCompra() {
     ));
   };
 
-  // Audio recording functions
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const checkAudioCompatibility = async (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        resolve(false);
-        return;
-      }
-
-      if (!window.MediaRecorder) {
-        resolve(false);
-        return;
-      }
-
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-          stream.getTracks().forEach(track => track.stop());
-          resolve(true);
-        })
-        .catch(() => resolve(false));
-    });
-  };
-
-  const getMediaRecorderOptions = () => {
-    const mimeTypes = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/mp4',
-      'audio/wav',
-      'audio/ogg;codecs=opus'
-    ];
-
-    for (const mimeType of mimeTypes) {
-      if (MediaRecorder.isTypeSupported(mimeType)) {
-        return { mimeType };
-      }
-    }
-
-    return {};
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-
-      const options = getMediaRecorderOptions();
-      const mediaRecorder = new MediaRecorder(stream, options);
-      const chunks: Blob[] = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        const audioBlob = new Blob(chunks, { type: mimeType });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        
-        setAudioRecorder(prev => ({
-          ...prev,
-          audioUrl,
-          chunks
-        }));
-
-        cleanupAudioResources();
-      };
-
-      mediaRecorder.start(100);
-      
-      const timerInterval = setInterval(() => {
-        setAudioRecorder(prev => ({
-          ...prev,
-          recordingTime: prev.recordingTime + 1
-        }));
-      }, 1000);
-
-      setAudioRecorder(prev => ({
-        ...prev,
-        isRecording: true,
-        mediaRecorder,
-        stream,
-        startTime: Date.now(),
-        timerInterval,
-        chunks
-      }));
-
-    } catch (error) {
-      console.error('Error al iniciar grabación:', error);
-      alert('Error al acceder al micrófono. Verifique los permisos.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (audioRecorder.mediaRecorder && audioRecorder.mediaRecorder.state === 'recording') {
-      audioRecorder.mediaRecorder.stop();
-    }
-
-    if (audioRecorder.timerInterval) {
-      clearInterval(audioRecorder.timerInterval);
-    }
-
-    setAudioRecorder(prev => ({
-      ...prev,
-      isRecording: false,
-      timerInterval: null
-    }));
-  };
-
-  const cleanupAudioResources = useCallback(() => {
-    if (audioRecorder.stream) {
-      audioRecorder.stream.getTracks().forEach(track => track.stop());
-    }
-
-    if (audioRecorder.audioContext && audioRecorder.audioContext.state !== 'closed') {
-      audioRecorder.audioContext.close();
-    }
-
-    setAudioRecorder(prev => ({
-      ...prev,
-      stream: null,
-      audioContext: null,
-      analyser: null,
-      microphone: null,
-      dataArray: null,
-      mediaRecorder: null
-    }));
-  }, [audioRecorder.stream, audioRecorder.audioContext]);
-
-  const grabarDescripcion = async () => {
-    if (audioRecorder.isRecording) {
-      stopRecording();
-    } else {
-      const isCompatible = await checkAudioCompatibility();
-      if (!isCompatible) {
-        const warningElement = document.getElementById('compatibilityWarning');
-        if (warningElement) {
-          warningElement.style.display = 'block';
-        }
-        return;
-      }
-      
-      setAudioRecorder(prev => ({ ...prev, recordingTime: 0 }));
-      await startRecording();
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    // Detener grabación si está activa
-    if (audioRecorder.isRecording) {
-      stopRecording();
-      await new Promise(resolve => setTimeout(resolve, 500)); // Esperar a que termine
-    }
     
     try {
       // Validar datos requeridos
@@ -377,6 +318,20 @@ export default function SolicitudesCompra() {
 
       if (items.length === 0) {
         throw new Error('Debe agregar al menos un item');
+      }
+
+      // Validar que todos los items tengan cantidad y precio
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item.objeto.trim()) {
+          throw new Error(`El item ${i + 1} debe tener una descripción`);
+        }
+        if (item.cantidad <= 0) {
+          throw new Error(`El item ${i + 1} debe tener una cantidad mayor a 0`);
+        }
+        if (item.valorEstimado <= 0) {
+          throw new Error(`El item ${i + 1} debe tener un precio mayor a 0`);
+        }
       }
 
       // Obtener datos del usuario
@@ -414,15 +369,33 @@ export default function SolicitudesCompra() {
         if (proveedorNombre) {
           solicitudData.razonSocialProveedor = proveedorNombre;
         }
+        
+        // Agregar archivo de cotización si existe
+        if (cotizacionAttachment) {
+          solicitudData.cotizacionDoc = cotizacionAttachment.url;
+        }
       }
 
-      // TODO: Implementar transcripción de audio y procesamiento con IA
-      // Por ahora, generar una descripción básica de los items
+      // Generar descripción básica de los items para IA
       const descripcionItems = items.map((item, index) => 
         `${index + 1}. ${item.objeto} - Cantidad: ${item.cantidad} - Valor: $${item.valorEstimado.toLocaleString()}`
       ).join('\n');
       
-      solicitudData.descripcionIAInterpretacion = `Solicitud de Compra\n\nSe solicita la adquisición de los siguientes items:\n\n${descripcionItems}`;
+      // Enviar la transcripción por separado
+      if (audioTranscription.trim()) {
+        solicitudData.descripcionTranscripcion = audioTranscription;
+      }
+      
+      // Combinar descripción del usuario con transcripción de audio y descripción de items para IA
+      let descripcionCompleta = '';
+      
+      if (audioTranscription.trim()) {
+        descripcionCompleta += `Descripción de la solicitud:\n${audioTranscription}\n\n`;
+      }
+      
+      descripcionCompleta += `Items solicitados:\n${descripcionItems}`;
+      
+      solicitudData.descripcionIAInterpretacion = descripcionCompleta;
 
       // Debug logs solo en desarrollo
       if (process.env.NODE_ENV === 'development') {
@@ -446,7 +419,7 @@ export default function SolicitudesCompra() {
       
       if (result.success) {
         // Mostrar mensaje de éxito
-        showSuccessAnimation();
+        showSuccessAnimation(result.data);
         
         // Debug logs solo en desarrollo
         if (process.env.NODE_ENV === 'development') {
@@ -463,21 +436,17 @@ export default function SolicitudesCompra() {
           setPriority('Media'); // Reset a valor por defecto
           setItems([]);
           setItemCounter(0);
-          setAudioRecorder({
-            isRecording: false,
-            mediaRecorder: null,
-            stream: null,
-            startTime: null,
-            timerInterval: null,
-            chunks: [],
-            audioContext: null,
-            analyser: null,
-            microphone: null,
-            dataArray: null,
-            animationId: null,
-            audioUrl: null,
-            recordingTime: 0
-          });
+          
+          // Limpiar campos de audio
+          setAudioTranscription('');
+          setAudioBlob(null);
+          setIsRecording(false);
+          setIsTranscribing(false);
+          
+          // Limpiar campos de archivo
+          setCotizacionFile(null);
+          setCotizacionAttachment(null);
+          setIsUploadingFile(false);
           
           // Limpiar formulario HTML
           (e.target as HTMLFormElement).reset();
@@ -538,16 +507,40 @@ export default function SolicitudesCompra() {
     }
   };
 
-  // Función para mostrar animación de éxito (igual que el HTML)
-  const showSuccessAnimation = () => {
+  // Función para mostrar animación de éxito
+  const showSuccessAnimation = (data?: { id?: string; [key: string]: unknown }) => {
     const successDiv = document.createElement('div');
-    successDiv.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white p-12 rounded-3xl shadow-2xl text-center border-4 border-green-500';
+    successDiv.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white p-12 rounded-3xl shadow-2xl text-center border-4 border-green-500 max-w-md';
     successDiv.style.animation = 'successPop 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-    successDiv.innerHTML = `
+    
+    let innerHTML = `
       <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
       <h3 style="color: #10b981; margin-bottom: 0.5rem; font-size: 1.5rem; font-weight: bold;">¡Solicitud Enviada!</h3>
-      <p style="color: #64748b;">Tu solicitud ha sido procesada correctamente</p>
+      <p style="color: #64748b; margin-bottom: 1rem;">Tu solicitud ha sido procesada correctamente</p>
     `;
+    
+    if (data) {
+      innerHTML += `
+        <div style="text-align: left; background-color: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem;">
+          <p style="margin: 0.25rem 0;"><strong>ID:</strong> ${data.solicitudId || 'N/A'}</p>
+          <p style="margin: 0.25rem 0;"><strong>Items:</strong> ${data.itemsCreados || 0}</p>
+          <p style="margin: 0.25rem 0;"><strong>Total:</strong> $${data.valorTotal?.toLocaleString() || '0'}</p>
+        </div>
+      `;
+      
+      if (data.pdfUrl) {
+        innerHTML += `
+          <div style="margin-top: 1rem;">
+            <a href="${data.pdfUrl}" target="_blank" 
+               style="display: inline-block; padding: 8px 16px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-size: 0.875rem; font-weight: bold;">
+              📄 Descargar PDF
+            </a>
+          </div>
+        `;
+      }
+    }
+    
+    successDiv.innerHTML = innerHTML;
     
     // Agregar estilos de animación
     const style = document.createElement('style');
@@ -572,13 +565,6 @@ export default function SolicitudesCompra() {
       style.remove();
     }, 3000);
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cleanupAudioResources();
-    };
-  }, [cleanupAudioResources]);
 
   return (
     <div 
@@ -687,69 +673,68 @@ export default function SolicitudesCompra() {
                 </div>
               </div>
 
-              {/* Audio Recording Section */}
+              {/* Request Description Section */}
               <div className="space-y-6">
-                <div>
-                  <label className="block text-white font-semibold mb-3 text-lg drop-shadow-md">
-                    🎙️ Descripción de la Solicitud (Audio)
-                  </label>
-                  <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 space-y-4">
-                    <button
-                      type="button"
-                      onClick={() => grabarDescripcion()}
-                      className={`w-full p-4 border border-white/30 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg backdrop-blur-sm ${
-                        audioRecorder.isRecording 
-                          ? 'bg-gradient-to-r from-red-500 to-pink-500 text-white animate-pulse' 
-                          : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600'
-                      }`}
-                    >
-                      {audioRecorder.isRecording ? '⏹️ Detener Grabación' : '🎤 Iniciar Grabación'}
-                    </button>
+                <h3 className="text-2xl font-bold text-white drop-shadow-lg flex items-center">
+                  📝 Descripción de la Solicitud
+                  <div className="flex-1 ml-4 h-0.5 bg-gradient-to-r from-blue-400 to-purple-400 opacity-60"></div>
+                </h3>
+                
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 space-y-4">
+                  <p className="text-white/80 text-sm">
+                    Agregue una descripción detallada de su solicitud. Puede escribir directamente o grabar un mensaje de voz que será transcrito automáticamente.
+                  </p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    {!isRecording ? (
+                      <button
+                        type="button"
+                        onClick={startRecording}
+                        disabled={isTranscribing}
+                        className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="text-lg">🎤</span>
+                        Grabar Descripción
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="flex items-center gap-2 px-6 py-3 bg-red-800 hover:bg-red-900 text-white rounded-2xl font-semibold transition-all duration-300 animate-pulse"
+                      >
+                        <span className="text-lg">⏹️</span>
+                        Detener Grabación
+                      </button>
+                    )}
                     
-                    {audioRecorder.isRecording && (
-                      <div className="flex items-center justify-center space-x-4">
-                        <div className="bg-blue-500/20 px-4 py-2 rounded-xl border border-white/20">
-                          <span className="text-white font-semibold">
-                            {formatTime(audioRecorder.recordingTime)}
-                          </span>
-                        </div>
+                    {audioBlob && (
+                      <button
+                        type="button"
+                        onClick={clearAudioTranscription}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-medium transition-all duration-300"
+                      >
+                        🗑️ Limpiar
+                      </button>
+                    )}
+                    
+                    {isTranscribing && (
+                      <div className="flex items-center gap-2 text-white">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span>Transcribiendo...</span>
                       </div>
                     )}
-
-                    {audioRecorder.isRecording && (
-                      <div className="w-full h-16 bg-blue-500/5 rounded-2xl border border-white/20 flex items-center justify-center">
-                        <div className="flex items-center space-x-1">
-                          {[...Array(20)].map((_, i) => (
-                            <div
-                              key={i}
-                              className="w-1 bg-blue-500 rounded-full transition-all duration-100 animate-pulse"
-                              style={{
-                                height: `${Math.random() * 40 + 4}px`,
-                                animationDelay: `${i * 0.1}s`
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {audioRecorder.audioUrl && (
-                      <div className="mt-4">
-                        <audio
-                          controls
-                          src={audioRecorder.audioUrl}
-                          className="w-full rounded-2xl"
-                        />
-                      </div>
-                    )}
-
-                    <div 
-                      className="text-yellow-400 text-sm bg-yellow-400/10 p-3 rounded-xl border border-yellow-400/30" 
-                      style={{ display: 'none' }} 
-                      id="compatibilityWarning"
-                    >
-                      ⚠️ Su navegador no soporta grabación de audio. Por favor, use un navegador compatible como Chrome, Firefox o Edge.
-                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="block text-white font-semibold text-sm">
+                      Descripción de la solicitud:
+                    </label>
+                    <textarea
+                      value={audioTranscription}
+                      onChange={(e) => setAudioTranscription(e.target.value)}
+                      placeholder="Escriba aquí la descripción de su solicitud o utilice el botón de grabación para dictar..."
+                      className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 min-h-[120px] resize-vertical"
+                    />
                   </div>
                 </div>
               </div>
@@ -818,9 +803,10 @@ export default function SolicitudesCompra() {
                             type="number"
                             name={`item_quantity_${item.id}`}
                             min="1"
-                            placeholder="1"
-                            value={item.cantidad}
-                            onChange={(e) => updateItem(item.id, 'cantidad', parseInt(e.target.value) || 1)}
+                            placeholder="Ingrese cantidad"
+                            value={item.cantidad === 0 ? '' : item.cantidad}
+                            onChange={(e) => updateItem(item.id, 'cantidad', parseInt(e.target.value) || 0)}
+                            onFocus={(e) => e.target.select()}
                             className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
                             required
                           />
@@ -835,9 +821,10 @@ export default function SolicitudesCompra() {
                             name={`item_price_${item.id}`}
                             min="0"
                             step="0.01"
-                            placeholder="0.00"
-                            value={item.valorEstimado}
+                            placeholder="Ingrese precio"
+                            value={item.valorEstimado === 0 ? '' : item.valorEstimado}
                             onChange={(e) => updateItem(item.id, 'valorEstimado', parseFloat(e.target.value) || 0)}
+                            onFocus={(e) => e.target.select()}
                             className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
                             required
                           />
@@ -912,12 +899,47 @@ export default function SolicitudesCompra() {
                       <label className="block text-white font-semibold mb-3 text-lg drop-shadow-md">
                         Cotización (PDF/IMG)
                       </label>
-                      <input
-                        type="file"
-                        name="Proveedor_Cotizacion"
-                        accept=".pdf,image/*"
-                        className="w-full p-4 bg-white/15 border-2 border-dashed border-white/30 rounded-2xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-white file:bg-blue-500 hover:file:bg-blue-600 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
-                      />
+                      
+                      {!cotizacionFile ? (
+                        <div className="space-y-3">
+                          <input
+                            type="file"
+                            onChange={handleFileChange}
+                            accept=".pdf,image/*"
+                            disabled={isUploadingFile}
+                            className="w-full p-4 bg-white/15 border-2 border-dashed border-white/30 rounded-2xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-white file:bg-blue-500 hover:file:bg-blue-600 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 disabled:opacity-50"
+                          />
+                          {isUploadingFile && (
+                            <div className="flex items-center gap-2 text-white/80 text-sm">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              <span>Subiendo archivo...</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-white/10 rounded-2xl p-4 border border-white/20">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">
+                                {cotizacionFile.type.includes('pdf') ? '📄' : '🖼️'}
+                              </span>
+                              <div>
+                                <p className="text-white font-medium">{cotizacionFile.name}</p>
+                                <p className="text-white/70 text-sm">
+                                  {(cotizacionFile.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={clearCotizacionFile}
+                              className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-all duration-300"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

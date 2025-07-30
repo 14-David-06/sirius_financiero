@@ -135,7 +135,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (data.cotizacionDoc) {
-      solicitudRecord.fields['Cotizacion Doc'] = data.cotizacionDoc;
+      // Si es una URL de S3, guardarla directamente
+      if (data.cotizacionDoc.startsWith('https://')) {
+        solicitudRecord.fields['Cotizacion Doc'] = data.cotizacionDoc;
+      } else {
+        try {
+          const attachmentData = JSON.parse(data.cotizacionDoc);
+          solicitudRecord.fields['Cotizacion Doc'] = attachmentData;
+        } catch (error) {
+          console.error('Error parsing cotization document:', error);
+          // Si no es JSON válido, guardarlo como texto
+          solicitudRecord.fields['Cotizacion Doc'] = data.cotizacionDoc;
+        }
+      }
     }
 
     const solicitudResponse = await fetch(
@@ -192,13 +204,81 @@ export async function POST(request: NextRequest) {
 
     console.log(`Solicitud de compra creada exitosamente: ${solicitudId} con ${itemsCreados.length} items`);
 
+    // Generar PDF de la solicitud
+    let pdfUrl = null;
+    try {
+      // Obtener la URL base del servidor (para desarrollo local)
+      const baseUrl = 'http://localhost:3000'; // URL fija para desarrollo
+      
+      console.log('🔥 Intentando generar PDF usando URL:', `${baseUrl}/api/generate-pdf`);
+      
+      const pdfResponse = await fetch(`${baseUrl}/api/generate-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          solicitudData: data,
+          solicitudId: solicitudId
+        })
+      });
+
+      if (pdfResponse.ok) {
+        const pdfResult = await pdfResponse.json();
+        console.log('Respuesta del API de PDF:', pdfResult);
+        if (pdfResult.success) {
+          pdfUrl = pdfResult.pdfUrl;
+          console.log('PDF generado exitosamente:', pdfUrl);
+          
+          // Actualizar el registro de Airtable con el URL del PDF
+          try {
+            console.log('Actualizando registro de Airtable con PDF URL...');
+            const updateResponse = await fetch(
+              `https://api.airtable.com/v0/${baseId}/${comprasTableId}/${solicitudId}`,
+              {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  fields: {
+                    'Documento Solicitud': pdfUrl
+                  }
+                })
+              }
+            );
+
+            if (updateResponse.ok) {
+              console.log('✅ Registro de Airtable actualizado con el URL del PDF');
+            } else {
+              const updateError = await updateResponse.json();
+              console.error('❌ Error actualizando registro con PDF URL:', updateError);
+            }
+          } catch (updateError) {
+            console.error('❌ Error actualizando registro con PDF URL:', updateError);
+          }
+        } else {
+          console.error('❌ Error en la generación de PDF:', pdfResult);
+        }
+      } else {
+        const errorResponse = await pdfResponse.text();
+        console.error('❌ Error en la respuesta del API de PDF:', errorResponse);
+        console.warn('No se pudo generar el PDF, pero la solicitud fue creada exitosamente');
+      }
+    } catch (pdfError) {
+      console.warn('Error generando PDF (solicitud creada exitosamente):', pdfError);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Solicitud de compra registrada exitosamente',
       data: {
         solicitudId: solicitudId,
         itemsCreados: itemsCreados.length,
-        valorTotal: data.items.reduce((total, item) => total + (item.valorItem * item.cantidad), 0)
+        valorTotal: data.items.reduce((total, item) => total + (item.valorItem * item.cantidad), 0),
+        pdfUrl: pdfUrl,
+        pdfGenerated: !!pdfUrl
       }
     });
 

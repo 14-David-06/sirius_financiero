@@ -106,7 +106,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
 
   const renderGeneralTab = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div>
           <h4 className="font-semibold text-gray-800 mb-2">Información de la Solicitud</h4>
           <div className="space-y-2">
@@ -192,7 +192,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
 
   const renderFinancieroTab = () => (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div>
           <h4 className="font-semibold text-gray-800 mb-2">Información Financiera</h4>
           <div className="space-y-2">
@@ -319,7 +319,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
             <span className="text-sm text-gray-600">ID: {item.id}</span>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <div className="space-y-2">
                 <div>
@@ -445,21 +445,21 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex justify-between items-center p-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800">
-            Detalle Completo de Compra - {compra.nombreSolicitante}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden mx-2 sm:mx-0">
+        <div className="flex justify-between items-center p-3 sm:p-4 border-b border-gray-200">
+          <h2 className="text-base sm:text-xl font-bold text-gray-800 truncate mr-2">
+            Detalle Completo - {compra.nombreSolicitante}
           </h2>
-          <Button onClick={onClose} variant="ghost" size="sm">
+          <Button onClick={onClose} variant="ghost" size="sm" className="flex-shrink-0">
             ✕
           </Button>
         </div>
         
-        <div className="flex border-b border-gray-200">
+        <div className="flex overflow-x-auto border-b border-gray-200 scrollbar-hide">
           <button
             onClick={() => setActiveTab('general')}
-            className={`px-4 py-2 font-medium text-sm ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
               activeTab === 'general'
                 ? 'bg-blue-500 text-white'
                 : 'text-gray-600 hover:text-gray-800'
@@ -469,7 +469,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
           </button>
           <button
             onClick={() => setActiveTab('financiero')}
-            className={`px-4 py-2 font-medium text-sm ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
               activeTab === 'financiero'
                 ? 'bg-blue-500 text-white'
                 : 'text-gray-600 hover:text-gray-800'
@@ -479,7 +479,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
           </button>
           <button
             onClick={() => setActiveTab('proveedor')}
-            className={`px-4 py-2 font-medium text-sm ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
               activeTab === 'proveedor'
                 ? 'bg-blue-500 text-white'
                 : 'text-gray-600 hover:text-gray-800'
@@ -489,7 +489,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
           </button>
           <button
             onClick={() => setActiveTab('items')}
-            className={`px-4 py-2 font-medium text-sm ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
               activeTab === 'items'
                 ? 'bg-blue-500 text-white'
                 : 'text-gray-600 hover:text-gray-800'
@@ -499,7 +499,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
           </button>
         </div>
         
-        <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+        <div className="p-3 sm:p-4 overflow-y-auto max-h-[calc(95vh-140px)] sm:max-h-[calc(90vh-140px)]">
           {activeTab === 'general' && renderGeneralTab()}
           {activeTab === 'financiero' && renderFinancieroTab()}
           {activeTab === 'proveedor' && renderProveedorTab()}
