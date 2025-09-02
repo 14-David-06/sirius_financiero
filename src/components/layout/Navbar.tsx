@@ -92,12 +92,9 @@ export default function Navbar() {
             ) : (
               <button
                 onClick={() => {
+                  // Usar localStorage para indicar que se debe mostrar login
+                  localStorage.setItem('showLogin', 'true');
                   window.location.href = '/';
-                  // Si hay alguna función global para mostrar login, activarla
-                  setTimeout(() => {
-                    const loginButton = document.querySelector('[data-login-trigger]') as HTMLButtonElement;
-                    if (loginButton) loginButton.click();
-                  }, 100);
                 }}
                 className="inline-flex items-center justify-center px-6 py-2 text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600/80 to-purple-600/80 hover:from-blue-700/90 hover:to-purple-700/90 transition-all duration-300 transform hover:scale-105 backdrop-blur-sm border border-white/20 shadow-xl drop-shadow-lg"
               >
@@ -175,7 +172,10 @@ export default function Navbar() {
               </>
             ) : (
               <button
-                onClick={() => window.location.href = '/'}
+                onClick={() => {
+                  localStorage.setItem('showLogin', 'true');
+                  window.location.href = '/';
+                }}
                 className="text-white/90 hover:text-white hover:bg-blue-500/20 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 text-center bg-gradient-to-r from-blue-600/80 to-purple-600/80"
               >
                 Acceder al Sistema

@@ -9,6 +9,15 @@ export default function LandingPage() {
   const { isAuthenticated, userData, isLoading, login } = useAuthSession();
   const [showLogin, setShowLogin] = useState(false);
 
+  // Verificar si se debe mostrar login automáticamente
+  useEffect(() => {
+    const shouldShowLogin = localStorage.getItem('showLogin');
+    if (shouldShowLogin === 'true') {
+      setShowLogin(true);
+      localStorage.removeItem('showLogin'); // Limpiar después de usar
+    }
+  }, []);
+
   const handleLoginSuccess = (userData: any) => {
     // Primero actualizar el estado local
     login(userData);

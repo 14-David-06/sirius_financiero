@@ -241,12 +241,6 @@ export default function DashboardCompras({ userData, onLogout }: DashboardCompra
                 </p>
               </div>
             </div>
-            <button
-              onClick={onLogout}
-              className="bg-red-500/20 text-red-300 border border-red-400/30 px-4 sm:px-6 py-2 rounded-xl font-semibold hover:bg-red-500/30 transition-all duration-300 text-sm w-full sm:w-auto"
-            >
-              🔐 Cerrar Sesión
-            </button>
           </div>
         </div>
 
