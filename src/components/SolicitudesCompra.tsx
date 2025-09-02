@@ -573,7 +573,7 @@ export default function SolicitudesCompra() {
         backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
       }}
     >
-      <div className="min-h-screen flex flex-col justify-center py-20 px-4">
+      <div className="min-h-screen flex flex-col justify-center py-20 px-4 pt-24">
         <div className="max-w-2xl mx-auto w-full">
           {/* Header */}
           <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">

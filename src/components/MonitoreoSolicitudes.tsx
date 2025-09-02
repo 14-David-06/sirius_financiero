@@ -88,7 +88,7 @@ export default function MonitoreoSolicitudes() {
       }}
     >
       <div className="absolute inset-0 bg-black/50 min-h-full"></div>
-      <div className="relative z-10">
+      <div className="relative z-10 pt-20">
         <div className="bg-black/50 min-h-screen">
           <DashboardCompras
             userData={userData}

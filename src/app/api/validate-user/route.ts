@@ -104,17 +104,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Usuario encontrado
       const user = data.records[0].fields;
       
+      // Verificar estado del usuario
+      if (user['Estado Usuario'] !== 'Activo') {
+        secureLog('⚠️ Intento de acceso con usuario inactivo');
+        return new NextResponse(
+          JSON.stringify({
+            valid: false,
+            inactive: true,
+            message: `Usuario inactivo. Estado actual: ${user['Estado Usuario']}. Contacte al administrador para reactivar su cuenta.`
+          }),
+          {
+            status: 200,
+            headers: securityHeaders
+          }
+        );
+      }
+
+      // Verificar si necesita configurar contraseña
+      const needsPasswordSetup = !user.Hash || !user.Salt;
+      
       secureLog('✅ Usuario validado exitosamente');
       
       return new NextResponse(
         JSON.stringify({
           valid: true,
+          needsPasswordSetup,
           user: {
             cedula: sanitizeInput(user.Cedula || ''),
             nombre: sanitizeInput(user.Nombre || 'No disponible'),
-            cargo: sanitizeInput(user.Cargo || 'No disponible'),
-            area: sanitizeInput(user.Area || 'No disponible'),
-            email: sanitizeInput(user.Email || 'No disponible'),
+            categoria: sanitizeInput(user['Categoria Usuario'] || 'No disponible'),
+            idChat: sanitizeInput(user.ID_Chat || 'No disponible'),
           }
         }),
         {
