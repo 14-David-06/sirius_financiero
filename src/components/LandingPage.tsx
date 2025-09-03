@@ -88,19 +88,63 @@ export default function LandingPage() {
 
             {/* Action Buttons */}
             {isAuthenticated ? (
-              <div className="flex flex-col sm:flex-row gap-6 justify-center">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 justify-center max-w-6xl mx-auto px-4">
                 <Link
                   href="/solicitudes-compra"
-                  className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-blue-600/80 to-purple-600/80 hover:from-blue-700/90 hover:to-purple-700/90 transition-all duration-300 transform hover:scale-105 backdrop-blur-sm border border-white/20 shadow-xl drop-shadow-lg"
+                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/20 hover:bg-white/30 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
                 >
-                  Solicitudes de Compra
+                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                    Solicitudes de Compra
+                  </span>
+                </Link>
+                <Link
+                  href="/mis-solicitudes"
+                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/20 hover:bg-white/30 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
+                >
+                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                    Mis Solicitudes
+                  </span>
+                </Link>
+                <Link
+                  href="/movimientos-bancarios"
+                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/20 hover:bg-white/30 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
+                >
+                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                    Movimientos Bancarios
+                  </span>
+                </Link>
+                <Link
+                  href="/monitoreo-cartera"
+                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/20 hover:bg-white/30 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
+                >
+                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                    Monitoreo Cartera
+                  </span>
+                </Link>
+                <Link
+                  href="/monitoreo-facturas"
+                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/20 hover:bg-white/30 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
+                >
+                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                    Monitoreo Facturas
+                  </span>
+                </Link>
+                <Link
+                  href="/simulador-proyecciones"
+                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/20 hover:bg-white/30 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
+                >
+                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                    Simulador de Proyecciones
+                  </span>
                 </Link>
                 {userData?.categoria && ['Administrador', 'Gerencia', 'Desarrollador'].includes(userData.categoria) && (
                   <Link
                     href="/monitoreo-solicitudes"
-                    className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold rounded-2xl text-white bg-white/15 hover:bg-white/25 transition-all duration-300 backdrop-blur-sm border border-white/30 shadow-xl"
+                    className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-white/15 hover:bg-white/25 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-white/30 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px] sm:col-span-2 lg:col-span-1 lg:col-start-2"
                   >
-                    Monitoreo de Solicitudes
+                    <span className="group-hover:scale-105 transition-transform duration-200 text-center">
+                      Monitoreo de Solicitudes
+                    </span>
                   </Link>
                 )}
               </div>
