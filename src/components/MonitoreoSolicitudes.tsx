@@ -1,16 +1,9 @@
-'use client';
+"use client";
 
 import ValidacionUsuario from './ValidacionUsuario';
 import DashboardCompras from './DashboardCompras';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-
-interface UserData {
-  cedula: string;
-  nombre: string;
-  cargo: string;
-  area: string;
-  email: string;
-}
+import { UserData } from '@/types/compras';
 
 export default function MonitoreoSolicitudes() {
   const { isAuthenticated, userData, isLoading, login, logout } = useAuthSession();

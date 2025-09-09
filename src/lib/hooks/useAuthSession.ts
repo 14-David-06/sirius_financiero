@@ -1,13 +1,7 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
-
-interface UserData {
-  cedula: string;
-  nombre: string;
-  categoria: string;
-  idChat: string;
-}
+import { UserData } from '@/types/compras';
 
 interface AuthSession {
   user: UserData;

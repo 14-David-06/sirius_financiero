@@ -121,6 +121,8 @@ export interface UserData {
   cargo: string;
   area: string;
   email: string;
+  categoria?: string;
+  idChat?: string;
 }
 
 export interface ApiResponse {

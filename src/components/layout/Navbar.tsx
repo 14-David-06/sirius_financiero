@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import SessionIndicator from '../SessionIndicator';
-import { LogOut, User, ChevronDown, Menu, X } from 'lucide-react';
+import { LogOut, User, ChevronDown } from 'lucide-react';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

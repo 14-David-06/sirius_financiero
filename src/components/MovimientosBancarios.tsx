@@ -332,7 +332,7 @@ export default function MovimientosBancarios() {
                 <label className="block text-white/90 text-sm font-medium mb-2">Tipo</label>
                 <select
                   value={filtros.tipo}
-                  onChange={(e) => setFiltros({...filtros, tipo: e.target.value as any})}
+                  onChange={(e) => setFiltros({...filtros, tipo: e.target.value as "ingreso" | "egreso" | "todos"})}
                   className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 >
                   <option value="todos">Todos</option>
@@ -345,7 +345,7 @@ export default function MovimientosBancarios() {
                 <label className="block text-white/90 text-sm font-medium mb-2">Estado</label>
                 <select
                   value={filtros.estado}
-                  onChange={(e) => setFiltros({...filtros, estado: e.target.value as any})}
+                  onChange={(e) => setFiltros({...filtros, estado: e.target.value as "pendiente" | "confirmado" | "rechazado" | "todos"})}
                   className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 >
                   <option value="todos">Todos</option>

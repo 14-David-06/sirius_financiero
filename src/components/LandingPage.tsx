@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
+import { UserData } from '@/types/compras';
 import LoginComponent from './LoginComponent';
 
 export default function LandingPage() {
@@ -18,7 +19,7 @@ export default function LandingPage() {
     }
   }, []);
 
-  const handleLoginSuccess = (userData: any) => {
+  const handleLoginSuccess = (userData: UserData) => {
     // Primero actualizar el estado local
     login(userData);
     setShowLogin(false);

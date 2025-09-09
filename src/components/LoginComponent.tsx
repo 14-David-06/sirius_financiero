@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { Eye, EyeOff, User, Lock, LogIn } from 'lucide-react';
+import { UserData } from '@/types/compras';
 
 interface LoginComponentProps {
-  onLoginSuccess: (userData: any) => void;
+  onLoginSuccess: (userData: UserData) => void;
   onBack?: () => void;
 }
 
@@ -17,7 +18,7 @@ export default function LoginComponent({ onLoginSuccess, onBack }: LoginComponen
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
 
   const handleCedulaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

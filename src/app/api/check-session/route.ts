@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { securityHeaders, secureLog } from '@/lib/security/validation';
+import { securityHeaders } from '@/lib/security/validation';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -20,10 +20,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // Verificar token JWT
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+  const decodedUnknown = jwt.verify(token, JWT_SECRET) as unknown;
 
-    // Verificar si el token no ha expirado
-    if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+  // Narrow the type safely before using
+  const decoded = typeof decodedUnknown === 'object' && decodedUnknown !== null ? decodedUnknown as Record<string, unknown> : {};
+
+  // Verificar si el token no ha expirado
+  const exp = typeof decoded.exp === 'number' ? decoded.exp : undefined;
+  if (exp && exp < Math.floor(Date.now() / 1000)) {
       // Token expirado
       const response = new NextResponse(
         JSON.stringify({ authenticated: false, message: 'Token expirado' }),
@@ -41,9 +45,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       JSON.stringify({
         authenticated: true,
         user: {
-          cedula: decoded.cedula,
-          nombre: decoded.nombre,
-          categoria: decoded.categoria
+          cedula: typeof decoded.cedula === 'string' ? decoded.cedula : '',
+          nombre: typeof decoded.nombre === 'string' ? decoded.nombre : '',
+          categoria: typeof decoded.categoria === 'string' ? decoded.categoria : ''
         }
       }),
       {
