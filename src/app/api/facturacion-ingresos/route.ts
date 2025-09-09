@@ -4,8 +4,9 @@ import base from '@/lib/airtable';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const filterByFormula = searchParams.get('filterByFormula') || '';
-  const maxRecords = searchParams.get('maxRecords') || '100';
-  const sort = searchParams.get('sort') || '';
+  const maxRecords = searchParams.get('maxRecords') || '1000'; // Aumentar límite por defecto
+  const sortField = searchParams.get('sortField') || 'Factura No.';
+  const sortDirection = searchParams.get('sortDirection') || 'asc';
 
   const tableId = process.env.AIRTABLE_FACTURACION_INGRESOS_TABLE_ID;
   if (!tableId) {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     const records = await base(tableId).select({
       filterByFormula: filterByFormula || '',
       maxRecords: parseInt(maxRecords),
-      sort: sort ? [{ field: sort, direction: 'desc' }] : [],
+      sort: [{ field: sortField, direction: sortDirection === 'desc' ? 'desc' : 'asc' }],
     }).all();
 
     const data = records.map(record => ({
