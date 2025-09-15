@@ -127,7 +127,7 @@ export default function LandingPage() {
                   className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-red-500/30 to-pink-600/30 hover:from-red-500/50 hover:to-pink-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-red-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
                 >
                   <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Monitoreo Facturas
+                    Facturacion 
                   </span>
                 </Link>
                 <Link
