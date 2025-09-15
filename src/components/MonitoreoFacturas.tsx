@@ -102,11 +102,8 @@ export default function MonitoreoFacturas() {
       {/* Header (match other pages visual) */}
       <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
         <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
-          Monitoreo de Facturas — Egresos e Ingresos · Sirius Financiero
+          Facturacion
         </h1>
-        <p className="text-white/80 mt-2">
-          Visión consolidada y seguimiento en tiempo real de facturas de salida (egresos) y entrada (ingresos).
-        </p>
       </div>
 
       {/* Selector card */}
@@ -137,11 +134,6 @@ export default function MonitoreoFacturas() {
           <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
             <h2 className="text-xl font-semibold text-white">Monitoreo de Facturas de Egresos</h2>
             <p className="text-white/80 text-sm">Control y seguimiento de las facturas de salida: pagos, vencimientos y conciliación.</p>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
-            {/* Placeholder: reemplazar con tabla o componentes reales */}
-            <p className="text-white/80">(Vista de egresos) — Contenido personalizado según la selección.</p>
           </div>
         </section>
       )}

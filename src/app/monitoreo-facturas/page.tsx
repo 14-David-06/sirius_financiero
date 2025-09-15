@@ -8,7 +8,7 @@ export default function MonitoreoFacturasPage() {
     <div
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
       }}
     >
       <div className="min-h-screen flex flex-col justify-center py-20 px-4">
