@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import Airtable from 'airtable';
 
 // Configuración de Airtable para Flujo de Caja
@@ -9,7 +9,7 @@ const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
 
 const MOVIMIENTOS_TABLE_ID = process.env.AIRTABLE_MOVIMIENTOS_TABLE_ID || '';
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   try {
     // Validar configuración
     if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !MOVIMIENTOS_TABLE_ID) {
