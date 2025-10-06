@@ -5,15 +5,6 @@ const CENTRALIZACION_TABLE_ID = process.env.AIRTABLE_CENTRALIZACION_TABLE_ID || 
 
 export async function GET(request: NextRequest) {
   try {
-    // Validar configuración
-    if (!CENTRALIZACION_TABLE_ID) {
-      console.error('❌ Falta la variable de entorno AIRTABLE_CENTRALIZACION_TABLE_ID');
-      return NextResponse.json(
-        { success: false, error: 'Configuración incompleta del servidor' },
-        { status: 500 }
-      );
-    }
-
     const searchParams = request.nextUrl.searchParams;
     const año = searchParams.get('año');
     const mes = searchParams.get('mes');

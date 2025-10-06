@@ -230,6 +230,13 @@ export default function ResumenGerencial() {
         Utilidad: item.totalIngresos + item.totalEgresos,
       })).reverse();
     } else if (viewMode === 'mensual') {
+      interface GroupedData {
+        periodo: string;
+        numeroMes: number;
+        Ingresos: number;
+        Egresos: number;
+      }
+      
       const grouped = data.reduce((acc, item) => {
         const key = item.mes;
         if (!acc[key]) {
@@ -243,7 +250,7 @@ export default function ResumenGerencial() {
         acc[key].Ingresos += item.totalIngresos;
         acc[key].Egresos += Math.abs(item.totalEgresos);
         return acc;
-      }, {} as Record<string, { periodo: string; numeroMes: number; Ingresos: number; Egresos: number }>);
+      }, {} as Record<string, GroupedData>);
 
       return Object.values(grouped)
         .sort((a, b) => a.numeroMes - b.numeroMes)
@@ -1235,9 +1242,10 @@ export default function ResumenGerencial() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry) => {
-                      const percent = entry.percent as number;
-                      return `${entry.name}: ${(percent * 100).toFixed(0)}%`;
+                    label={(props) => {
+                      const percent = Number(props.percent || 0);
+                      const name = String(props.name || '');
+                      return `${name}: ${(percent * 100).toFixed(0)}%`;
                     }}
                     outerRadius={100}
                     fill="#8884d8"
@@ -1271,9 +1279,10 @@ export default function ResumenGerencial() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry) => {
-                      const percent = entry.percent as number;
-                      return `${entry.name}: ${(percent * 100).toFixed(0)}%`;
+                    label={(props) => {
+                      const percent = Number(props.percent || 0);
+                      const name = String(props.name || '');
+                      return `${name}: ${(percent * 100).toFixed(0)}%`;
                     }}
                     outerRadius={100}
                     fill="#8884d8"
