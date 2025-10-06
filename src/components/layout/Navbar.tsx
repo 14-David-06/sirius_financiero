@@ -116,6 +116,13 @@ export default function Navbar() {
                       >
                         <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de Facturas</span>
                       </Link>
+                      <Link
+                        href="/indicadores-produccion"
+                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                        onClick={closeDropdowns}
+                      >
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">Indicadores de Producción</span>
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -142,23 +149,28 @@ export default function Navbar() {
                   )}
                 </div>
 
-                {/* Administración (solo para ciertos roles) */}
-                {userData?.categoria && ['Administrador', 'Gerencia', 'Desarrollador'].includes(userData.categoria) && (
-                  <div className="relative">
-                    <button
-                      onClick={() => toggleDropdown('admin')}
-                      className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
-                    >
-                      <span>Administración</span>
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    {activeDropdown === 'admin' && (
-                      <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-gray-900/95 to-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
-                      </div>
-                    )}
-                  </div>
-                )}
-                
+                {/* Resumen Gerencial */}
+                <div className="relative">
+                  <button
+                    onClick={() => toggleDropdown('resumen')}
+                    className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
+                  >
+                    <span>Resumen Gerencial</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  {activeDropdown === 'resumen' && (
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-amber-900/95 to-orange-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
+                      <Link
+                        href="/resumen-gerencial"
+                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                        onClick={closeDropdowns}
+                      >
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">Dashboard Ejecutivo</span>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
                 {/* Session Indicator */}
                 <SessionIndicator 
                   getRemainingTime={getRemainingTime}
@@ -304,6 +316,14 @@ export default function Navbar() {
                       <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
                       <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de Facturas</span>
                     </Link>
+                    <Link
+                      href="/indicadores-produccion"
+                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">Indicadores de Producción</span>
+                    </Link>
                   </div>
 
                   {/* Proyecciones Section */}
@@ -322,15 +342,21 @@ export default function Navbar() {
                     </Link>
                   </div>
 
-                  {/* Administración Section */}
-                  {userData?.categoria && ['Administrador', 'Gerencia', 'Desarrollador'].includes(userData.categoria) && (
-                    <div className="space-y-2">
-                      <div className="flex items-center px-4 py-2 bg-gradient-to-r from-gray-800/30 to-gray-700/30 rounded-xl">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full mr-3"></div>
-                        <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Administración</h3>
-                      </div>
+                  {/* Resumen Gerencial Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-800/30 to-amber-700/30 rounded-xl">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full mr-3"></div>
+                      <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Resumen Gerencial</h3>
                     </div>
-                  )}
+                    <Link
+                      href="/resumen-gerencial"
+                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">Dashboard Ejecutivo</span>
+                    </Link>
+                  </div>
 
                   {/* Session Indicator Mobile */}
                   <div className="px-2 py-2">

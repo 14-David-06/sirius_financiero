@@ -42,6 +42,7 @@ export function useAuthSession() {
       window.removeEventListener('authStateChanged', handleAuthStateChange as EventListener);
       window.removeEventListener('forceAuthCheck', handleForceAuthCheck);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkExistingSession = async () => {
@@ -91,12 +92,12 @@ export function useAuthSession() {
             console.log('Sesión del servidor encontrada, sincronizada localmente');
           }
         }
-      } catch (error) {
+      } catch {
         console.log('No hay sesión del servidor válida');
       }
 
-    } catch (error) {
-      console.error('Error al verificar sesión existente:', error);
+    } catch {
+      console.error('Error al verificar sesión existente');
       localStorage.removeItem(STORAGE_KEY);
     } finally {
       setIsLoading(false);

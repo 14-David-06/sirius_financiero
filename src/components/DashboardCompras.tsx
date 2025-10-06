@@ -9,7 +9,7 @@ interface DashboardComprasProps {
   onLogout: () => void;
 }
 
-export default function DashboardCompras({ userData, onLogout: _onLogout }: DashboardComprasProps) {
+export default function DashboardCompras({ userData }: DashboardComprasProps) {
   const [comprasData, setComprasData] = useState<CompraCompleta[]>([]);
   const [estadisticas, setEstadisticas] = useState<EstadisticasData | null>(null);
   const [isLoading, setIsLoading] = useState(true);

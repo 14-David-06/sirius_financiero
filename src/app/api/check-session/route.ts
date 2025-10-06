@@ -56,7 +56,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     );
 
-  } catch (error) {
+  } catch {
     // Token inválido
     const response = new NextResponse(
       JSON.stringify({ authenticated: false, message: 'Token inválido' }),

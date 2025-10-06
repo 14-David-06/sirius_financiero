@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { UserData } from '@/types/compras';
 import LoginComponent from './LoginComponent';
@@ -63,93 +62,35 @@ export default function LandingPage() {
       
       {/* Hero Section */}
       <section className="relative z-10 pt-20 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto min-h-[calc(100vh-5rem)] flex flex-col justify-center">
-          <div className="text-center">
-            {/* Header Card - Solo mostrar si NO está mostrando login */}
+        <div className="max-w-4xl mx-auto min-h-[calc(100vh-5rem)] flex flex-col justify-center items-center">
+          <div className="text-center w-full">
+            {/* Header Card */}
             {!showLogin && (
-              <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 mb-12 border border-white/20 shadow-2xl">
-                <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 drop-shadow-lg">
+              <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 sm:p-12 border border-white/20 shadow-2xl">
+                <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 drop-shadow-lg">
                   Sirius Financiero
                 </h1>
-                <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto drop-shadow-md">
+                <p className="text-xl md:text-2xl lg:text-3xl text-white/90 max-w-3xl mx-auto drop-shadow-md">
                   Plataforma integral para la gestión de solicitudes de compra y monitoreo financiero empresarial
                 </p>
                 {isAuthenticated && userData && (
-                  <div className="bg-green-500/20 backdrop-blur-md rounded-2xl p-4 mt-6 border border-green-500/30">
-                    <p className="text-white/90 text-lg">
+                  <div className="bg-green-500/20 backdrop-blur-md rounded-2xl p-6 mt-8 border border-green-500/30">
+                    <p className="text-white/90 text-xl md:text-2xl">
                       ¡Bienvenido, <strong>{userData.nombre}</strong>!
                     </p>
-                    <p className="text-white/70 text-sm">
+                    <p className="text-white/70 text-base md:text-lg mt-2">
                       {userData.categoria} • Sesión activa
+                    </p>
+                    <p className="text-white/60 text-sm md:text-base mt-4">
+                      Utiliza el menú de navegación para acceder a todas las funcionalidades del sistema
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Action Buttons */}
-            {isAuthenticated ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 justify-center max-w-6xl mx-auto px-4">
-                <Link
-                  href="/solicitudes-compra"
-                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-blue-500/30 to-indigo-600/30 hover:from-blue-500/50 hover:to-indigo-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-blue-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
-                >
-                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Solicitudes de Compra
-                  </span>
-                </Link>
-                <Link
-                  href="/mis-solicitudes"
-                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-emerald-500/30 to-teal-600/30 hover:from-emerald-500/50 hover:to-teal-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-emerald-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
-                >
-                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Mis Solicitudes
-                  </span>
-                </Link>
-                <Link
-                  href="/movimientos-bancarios"
-                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-amber-500/30 to-orange-600/30 hover:from-amber-500/50 hover:to-orange-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-amber-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
-                >
-                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Movimientos Bancarios
-                  </span>
-                </Link>
-                <Link
-                  href="/monitoreo-cartera"
-                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-purple-500/30 to-violet-600/30 hover:from-purple-500/50 hover:to-violet-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-purple-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
-                >
-                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Monitoreo Cartera
-                  </span>
-                </Link>
-                <Link
-                  href="/monitoreo-facturas"
-                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-red-500/30 to-pink-600/30 hover:from-red-500/50 hover:to-pink-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-red-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
-                >
-                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Facturacion 
-                  </span>
-                </Link>
-                <Link
-                  href="/simulador-proyecciones"
-                  className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-cyan-500/30 to-sky-600/30 hover:from-cyan-500/50 hover:to-sky-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-cyan-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px]"
-                >
-                  <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                    Simulador de Proyecciones
-                  </span>
-                </Link>
-                {userData?.categoria && ['Administrador', 'Gerencia', 'Desarrollador'].includes(userData.categoria) && (
-                  <Link
-                    href="/monitoreo-solicitudes"
-                    className="group inline-flex items-center justify-center px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-semibold rounded-2xl text-white bg-gradient-to-r from-rose-500/30 to-fuchsia-600/30 hover:from-rose-500/50 hover:to-fuchsia-600/50 transition-all duration-300 transform hover:scale-105 backdrop-blur-md border border-rose-300/40 shadow-xl drop-shadow-lg min-h-[60px] sm:min-h-[70px] sm:col-span-2 lg:col-span-1 lg:col-start-2"
-                  >
-                    <span className="group-hover:scale-105 transition-transform duration-200 text-center">
-                      Monitoreo de Solicitudes
-                    </span>
-                  </Link>
-                )}
-              </div>
-            ) : (
+            {/* Login Section */}
+            {!isAuthenticated && (
               // Mostrar formulario de login o botón para acceder
               showLogin ? (
                 <LoginComponent 

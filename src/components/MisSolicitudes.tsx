@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-import { FileText, Calendar, DollarSign, User, AlertCircle, CheckCircle, Clock, Eye } from 'lucide-react';
+import { FileText, Calendar, AlertCircle, Eye } from 'lucide-react';
 
 interface SolicitudCompra {
   id: string;
@@ -32,6 +32,7 @@ export default function MisSolicitudes() {
     if (isAuthenticated && userData) {
       fetchMisSolicitudes();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userData]);
 
   const fetchMisSolicitudes = async () => {

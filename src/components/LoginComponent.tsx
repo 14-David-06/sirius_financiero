@@ -48,7 +48,7 @@ export default function LoginComponent({ onLoginSuccess, onBack }: LoginComponen
       } else {
         setError('Cédula no encontrada en el sistema. Contacte al administrador.');
       }
-    } catch (error) {
+    } catch {
       setError('Error de conexión. Intente nuevamente.');
     } finally {
       setLoading(false);
@@ -88,7 +88,7 @@ export default function LoginComponent({ onLoginSuccess, onBack }: LoginComponen
       } else {
         setError(data.error || 'Error al configurar la contraseña');
       }
-    } catch (error) {
+    } catch {
       setError('Error de conexión. Intente nuevamente.');
     } finally {
       setLoading(false);
@@ -119,7 +119,7 @@ export default function LoginComponent({ onLoginSuccess, onBack }: LoginComponen
       } else {
         setError(data.error || 'Credenciales incorrectas');
       }
-    } catch (error) {
+    } catch {
       setError('Error de conexión. Intente nuevamente.');
     } finally {
       setLoading(false);

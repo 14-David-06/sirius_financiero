@@ -2,24 +2,14 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  CreditCard,
   DollarSign,
-  TrendingUp,
-  TrendingDown,
   AlertTriangle,
   Users,
-  Clock,
   Search,
-  Filter,
-  Download,
   Eye,
-  Calendar,
-  BarChart3,
-  PieChart,
-  Activity,
   Target,
-  CheckCircle,
-  XCircle
+  XCircle,
+  Download
 } from 'lucide-react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 
@@ -142,7 +132,7 @@ const clientesEjemplo: ClienteCartera[] = [
 ];
 
 export default function MonitoreoCartera() {
-  const { isAuthenticated, userData } = useAuthSession();
+  const { isAuthenticated } = useAuthSession();
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');

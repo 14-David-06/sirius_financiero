@@ -6,12 +6,8 @@ import {
   CreditCard, 
   TrendingUp, 
   TrendingDown, 
-  Calendar, 
   DollarSign, 
-  Building, 
   Search, 
-  Filter,
-  Download,
   Eye,
   AlertCircle,
   RefreshCw,
@@ -122,6 +118,7 @@ export default function MovimientosBancarios() {
     if (isAuthenticated && userData) {
       fetchMovimientos();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userData]);
 
   const fetchMovimientos = async () => {

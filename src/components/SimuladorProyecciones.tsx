@@ -11,7 +11,6 @@ import {
   BarChart3, 
   AlertCircle, 
   Download,
-  RefreshCw,
   Target,
   Percent
 } from 'lucide-react';
@@ -32,7 +31,7 @@ interface ScenarioConfig {
 }
 
 export default function SimuladorProyecciones() {
-  const { isAuthenticated, userData, isLoading } = useAuthSession();
+  const { isAuthenticated, isLoading } = useAuthSession();
   const [ingresosIniciales, setIngresosIniciales] = useState<number>(0);
   const [gastosIniciales, setGastosIniciales] = useState<number>(0);
   const [mesesProyeccion, setMesesProyeccion] = useState<number>(12);
@@ -66,6 +65,7 @@ export default function SimuladorProyecciones() {
     if (ingresosIniciales > 0 || gastosIniciales > 0) {
       calcularProyecciones();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ingresosIniciales, gastosIniciales, mesesProyeccion, crecimientoIngresos, crecimientoGastos]);
 
   const calcularProyecciones = () => {
