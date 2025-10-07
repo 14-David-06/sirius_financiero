@@ -93,6 +93,30 @@ interface CentralizacionData {
   cantidadKilogramosDeberia: number;
 }
 
+interface MovimientoBancarioData {
+  id: string;
+  fecha: string;
+  descripcion: string;
+  clasificacion: string;
+  valor: number;
+  saldoBancarioAnterior: number;
+  saldoBancarioActual: number;
+  tipoMovimiento: string;
+  centroResultados: string;
+  centroCostos: string;
+  unidadNegocio: string;
+  fijoVariable: string;
+  naturalezaContable: string;
+  legalizada: string;
+  afecta: string;
+  grupo: string;
+  clase: string;
+  grupoPrueba: string;
+  clasePrueba: string;
+  cuenta: string;
+  subCuenta: string;
+}
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function ResumenGerencial() {
@@ -108,6 +132,10 @@ export default function ResumenGerencial() {
     current: CentralizacionData | null;
     next: CentralizacionData | null;
   }>({ previous: null, current: null, next: null });
+  
+  // Estados para movimientos bancarios Bancolombia
+  const [movimientosBancarios, setMovimientosBancarios] = useState<MovimientoBancarioData[]>([]);
+  const [loadingMovimientos, setLoadingMovimientos] = useState(true);
   
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
@@ -139,12 +167,46 @@ export default function ResumenGerencial() {
     }
   }, [selectedYear, selectedMonth, selectedWeek]);
 
+  const fetchMovimientosBancarios = useCallback(async () => {
+    try {
+      setLoadingMovimientos(true);
+      let url = `/api/movimientos-bancarios-bancolombia?año=${selectedYear}`;
+      if (selectedMonth) {
+        url += `&mes=${selectedMonth}`;
+      }
+      
+      console.log('Fetching movimientos bancarios from:', url);
+      
+      const response = await fetch(url);
+      const result = await response.json();
+      
+      console.log('Respuesta API movimientos bancarios:', result);
+      
+      if (result.success) {
+        setMovimientosBancarios(result.data);
+        console.log(`Frontend - Total movimientos recibidos: ${result.data.length}`);
+        
+        // Debugging adicional de los primeros registros
+        if (result.data.length > 0) {
+          console.log('Primeros 3 movimientos:', result.data.slice(0, 3));
+        }
+      } else {
+        console.error('Error en respuesta API:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching movimientos bancarios:', error);
+    } finally {
+      setLoadingMovimientos(false);
+    }
+  }, [selectedYear, selectedMonth]);
+
   // Fetch data
   useEffect(() => {
     if (!isAuthenticated) return;
     
     fetchData();
-  }, [isAuthenticated, fetchData]);
+    fetchMovimientosBancarios();
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -228,6 +290,166 @@ export default function ResumenGerencial() {
       saldoProyectado,
     };
   }, [data]);
+
+  // Cálculos de movimientos bancarios
+  const movimientosMetrics = useMemo(() => {
+    console.log('=== INICIANDO CÁLCULO DE MÉTRICAS ===');
+    console.log(`Total movimientos bancarios disponibles: ${movimientosBancarios.length}`);
+    
+    if (movimientosBancarios.length === 0) {
+      console.log('No hay movimientos bancarios para procesar');
+      return null;
+    }
+
+    // Debugging: ver todos los valores únicos de GRUPO y CLASE
+    const gruposUnicos = [...new Set(movimientosBancarios.map(mov => mov.grupo))];
+    const clasesUnicas = [...new Set(movimientosBancarios.map(mov => mov.clase))];
+    
+    console.log('Grupos únicos encontrados:', gruposUnicos);
+    console.log('Clases únicas encontradas:', clasesUnicas);
+
+    // Totalizador de ingresos operacionales (GRUPO = "Ingreso" y CLASE = "Operacional")
+    // CAPTURA TODOS ABSOLUTAMENTE TODOS LOS REGISTROS QUE CUMPLAN ESTA CONDICIÓN
+    const registrosIngresosOperacionales = movimientosBancarios.filter(mov => {
+      // Verificación exhaustiva de la condición
+      const grupoEsIngreso = mov.grupo === 'Ingreso';
+      const claseEsOperacional = mov.clase === 'Operacional';
+      
+      // Debugging detallado para cada registro
+      if (grupoEsIngreso || claseEsOperacional) {
+        console.log(`Evaluando registro ${mov.id}:`, {
+          grupo: mov.grupo,
+          clase: mov.clase,
+          grupoEsIngreso,
+          claseEsOperacional,
+          cumpleCondicion: grupoEsIngreso && claseEsOperacional,
+          valor: mov.valor,
+          descripcion: mov.descripcion.substring(0, 50)
+        });
+      }
+      
+      return grupoEsIngreso && claseEsOperacional;
+    });
+
+    const ingresosOperacionales = registrosIngresosOperacionales
+      .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
+
+    // Totalizador de costos operacionales (GRUPO PRUEBA = "Costo" y CLASE PRUEBA = "Operacional")
+    const registrosCostosOperacionales = movimientosBancarios.filter(mov => {
+      const grupoLimpio = mov.grupoPrueba?.toString().trim();
+      const claseLimpia = mov.clasePrueba?.toString().trim();
+      
+      const grupoEsCosto = grupoLimpio === 'Costo';
+      const claseEsOperacional = claseLimpia === 'Operacional';
+      
+      // Debugging detallado para costos operacionales
+      if (grupoEsCosto || claseEsOperacional) {
+        console.log(`Evaluando costo operacional ${mov.id}:`, {
+          grupoPrueba: mov.grupoPrueba,
+          clasePrueba: mov.clasePrueba,
+          grupoPruebaLimpio: grupoLimpio,
+          clasePruebaLimpia: claseLimpia,
+          grupoEsCosto,
+          claseEsOperacional,
+          cumpleCondicion: grupoEsCosto && claseEsOperacional,
+          valor: mov.valor,
+          descripcion: mov.descripcion.substring(0, 50)
+        });
+      }
+      
+      return grupoEsCosto && claseEsOperacional;
+    });
+
+    const costosOperacionales = registrosCostosOperacionales
+      .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
+
+    // Totalizador de gastos de administración (GRUPO PRUEBA = "Gasto" y CLASE PRUEBA = "Administración")
+    const registrosGastosAdministracion = movimientosBancarios.filter(mov => {
+      const grupoLimpio = mov.grupoPrueba?.toString().trim();
+      const claseLimpia = mov.clasePrueba?.toString().trim();
+      
+      // Filtro EXACTO: solo "Gasto" y "Administración", sin palabras adicionales
+      return grupoLimpio === 'Gasto' && claseLimpia === 'Administración';
+    }).filter((mov, index, arr) => 
+      // Eliminar duplicados por ID para coincidir exactamente con Airtable
+      arr.findIndex(m => m.id === mov.id) === index
+    );
+
+    const gastosAdministracion = registrosGastosAdministracion
+      .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
+
+    // Log para debugging - ver exactamente cuántos registros se están capturando
+    console.log(`=== RESULTADO INGRESOS OPERACIONALES ===`);
+    console.log(`Total registros encontrados: ${registrosIngresosOperacionales.length}`);
+    console.log(`Valor total: $${ingresosOperacionales.toLocaleString('es-CO')}`);
+    
+    console.log(`=== RESULTADO COSTOS OPERACIONALES ===`);
+    console.log(`Total registros encontrados: ${registrosCostosOperacionales.length}`);
+    console.log(`Valor total: $${costosOperacionales.toLocaleString('es-CO')}`);
+    
+    console.log(`=== RESULTADO GASTOS ADMINISTRACIÓN ===`);
+    console.log(`Total registros encontrados: ${registrosGastosAdministracion.length}`);
+    console.log(`Valor total: $${gastosAdministracion.toLocaleString('es-CO')}`);
+    console.log(`🎯 OBJETIVO AIRTABLE: 702 registros`);
+    console.log(`📊 DIFERENCIA: ${registrosGastosAdministracion.length - 702} registros`);
+    
+    console.log('Registros de ingresos capturados:', registrosIngresosOperacionales.map(r => ({
+      id: r.id,
+      fecha: r.fecha,
+      descripcion: r.descripcion,
+      valor: r.valor,
+      grupo: r.grupo,
+      clase: r.clase
+    })));
+    
+    console.log('Registros de costos capturados:', registrosCostosOperacionales.map(r => ({
+      id: r.id,
+      fecha: r.fecha,
+      descripcion: r.descripcion,
+      valor: r.valor,
+      grupoPrueba: r.grupoPrueba,
+      clasePrueba: r.clasePrueba
+    })));
+    
+    console.log('Registros de gastos administración capturados:', registrosGastosAdministracion.map(r => ({
+      id: r.id,
+      fecha: r.fecha,
+      descripcion: r.descripcion,
+      valor: r.valor,
+      grupoPrueba: r.grupoPrueba,
+      clasePrueba: r.clasePrueba
+    })));
+
+    // Otros cálculos por clasificación
+    const movimientoPorClasificacion = movimientosBancarios.reduce((acc, mov) => {
+      if (!acc[mov.clasificacion]) {
+        acc[mov.clasificacion] = 0;
+      }
+      acc[mov.clasificacion] += mov.valor;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Movimientos por unidad de negocio
+    const movimientoPorUnidad = movimientosBancarios.reduce((acc, mov) => {
+      if (!acc[mov.unidadNegocio]) {
+        acc[mov.unidadNegocio] = 0;
+      }
+      acc[mov.unidadNegocio] += mov.valor;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return {
+      ingresosOperacionales,
+      registrosIngresosOperacionales: registrosIngresosOperacionales.length,
+      costosOperacionales,
+      registrosCostosOperacionales: registrosCostosOperacionales.length,
+      gastosAdministracion,
+      registrosGastosAdministracion: registrosGastosAdministracion.length,
+      movimientoPorClasificacion,
+      movimientoPorUnidad,
+      totalMovimientos: movimientosBancarios.length
+    };
+  }, [movimientosBancarios]);
 
   // Datos para gráficos
   const chartDataIngresos = useMemo(() => {
@@ -404,7 +626,8 @@ export default function ResumenGerencial() {
 
   // Función para exportar a Excel
   const exportarAExcel = () => {
-    const csvContent = [
+    // Datos de flujo de caja
+    const csvContentFlujoCaja = [
       ['Semana', 'Saldo Final Proyectado', 'Minimo Saldo', 'Caja Cero'],
       ...chartDataFlujoCajaProyectado.map(item => [
         item.semana,
@@ -414,15 +637,46 @@ export default function ResumenGerencial() {
       ])
     ].map(row => row.join(',')).join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `flujo_caja_proyectado_${selectedYear}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Datos de movimientos bancarios
+    const csvContentMovimientos = [
+      [
+        'ID', 'Fecha', 'Descripción', 'Clasificación', 'Valor', 
+        'Saldo Anterior', 'Saldo Actual', 'Tipo Movimiento', 'Centro Resultados',
+        'Centro Costos', 'Unidad Negocio', 'Fijo/Variable', 'Naturaleza Contable',
+        'Legalizada', 'Afecta', 'Grupo', 'Clase', 'Cuenta', 'Sub-Cuenta'
+      ],
+      ...movimientosBancarios.map(mov => [
+        mov.id, mov.fecha, mov.descripcion, mov.clasificacion, mov.valor,
+        mov.saldoBancarioAnterior, mov.saldoBancarioActual, mov.tipoMovimiento,
+        mov.centroResultados, mov.centroCostos, mov.unidadNegocio, mov.fijoVariable,
+        mov.naturalezaContable, mov.legalizada, mov.afecta, mov.grupo, mov.clase,
+        mov.cuenta, mov.subCuenta
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    // Crear archivos separados
+    const blobFlujoCaja = new Blob([csvContentFlujoCaja], { type: 'text/csv;charset=utf-8;' });
+    const blobMovimientos = new Blob([csvContentMovimientos], { type: 'text/csv;charset=utf-8;' });
+    
+    // Descargar flujo de caja
+    const linkFlujoCaja = document.createElement('a');
+    const urlFlujoCaja = URL.createObjectURL(blobFlujoCaja);
+    linkFlujoCaja.setAttribute('href', urlFlujoCaja);
+    linkFlujoCaja.setAttribute('download', `flujo_caja_proyectado_${selectedYear}.csv`);
+    linkFlujoCaja.style.visibility = 'hidden';
+    document.body.appendChild(linkFlujoCaja);
+    linkFlujoCaja.click();
+    document.body.removeChild(linkFlujoCaja);
+
+    // Descargar movimientos bancarios
+    const linkMovimientos = document.createElement('a');
+    const urlMovimientos = URL.createObjectURL(blobMovimientos);
+    linkMovimientos.setAttribute('href', urlMovimientos);
+    linkMovimientos.setAttribute('download', `movimientos_bancarios_${selectedYear}_${selectedMonth || 'todos'}.csv`);
+    linkMovimientos.style.visibility = 'hidden';
+    document.body.appendChild(linkMovimientos);
+    linkMovimientos.click();
+    document.body.removeChild(linkMovimientos);
   };
 
   if (authLoading || loading) {
@@ -430,7 +684,7 @@ export default function ResumenGerencial() {
       <div 
         className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat flex items-center justify-center"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
+          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096901/DSC_4015_aikkb6.jpg)'
         }}
       >
         <div className="absolute inset-0 bg-black/50"></div>
@@ -451,7 +705,7 @@ export default function ResumenGerencial() {
       <div 
         className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat flex items-center justify-center"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
+          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096901/DSC_4015_aikkb6.jpg)'
         }}
       >
         <div className="absolute inset-0 bg-black/50"></div>
@@ -485,10 +739,10 @@ export default function ResumenGerencial() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
+        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096901/DSC_4015_aikkb6.jpg)'
       }}
     >
-      <div className="absolute inset-0 bg-slate-900/95 min-h-screen"></div>
+      <div className="absolute inset-0 bg-slate-900/20 min-h-screen"></div>
       <div className="relative z-10 pt-20">
         <div className="container mx-auto px-4 py-8">
           {/* Análisis Comparativo de 3 Semanas */}
@@ -533,7 +787,7 @@ export default function ResumenGerencial() {
                       <div className="bg-white/20 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Inicio:</span>
-                          <span className="text-white font-bold text-lg">
+                          <span className="text-white font-bold text-3xl">
                             {formatCurrency(weekComparison.previous.saldoInicialBancos)}
                           </span>
                         </div>
@@ -543,23 +797,23 @@ export default function ResumenGerencial() {
                     {/* 2. Ingresos */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Ingresos</h4>
-                      <div className="space-y-2 bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between text-sm">
                           <span className="text-white/80">Operacionales:</span>
-                          <span className="text-green-400 font-medium">
+                          <span className="text-green-400 font-medium text-3xl">
                             {formatCurrency(weekComparison.previous.ingresosOperacionales)}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-white/80">No Operacionales:</span>
-                          <span className="text-green-400 font-medium">
+                          <span className="text-green-400 font-medium text-3xl">
                             {formatCurrency(weekComparison.previous.ingresosNoOperacionales)}
                           </span>
                         </div>
                         <div className="pt-2 border-t border-white/30">
                           <div className="flex justify-between">
                             <span className="text-white/80 font-semibold text-sm">Total:</span>
-                            <span className="text-green-400 font-bold">
+                            <span className="text-green-400 font-bold text-3xl">
                               {formatCurrency(weekComparison.previous.totalIngresos)}
                             </span>
                           </div>
@@ -570,29 +824,29 @@ export default function ResumenGerencial() {
                     {/* 3. Egresos */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Egresos</h4>
-                      <div className="space-y-2 bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between text-sm">
                           <span className="text-white/80">Costos:</span>
-                          <span className="text-red-400 font-medium">
+                          <span className="text-red-400 font-medium text-3xl">
                             {formatCurrency(Math.abs(weekComparison.previous.movimientoCostos))}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-white/80">Gastos:</span>
-                          <span className="text-red-400 font-medium">
+                          <span className="text-red-400 font-medium text-3xl">
                             {formatCurrency(Math.abs(weekComparison.previous.movimientoGastos))}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-white/80">Inversiones:</span>
-                          <span className="text-red-400 font-medium">
+                          <span className="text-red-400 font-medium text-3xl">
                             {formatCurrency(Math.abs(weekComparison.previous.movimientoInversion))}
                           </span>
                         </div>
                         <div className="pt-2 border-t border-white/30">
                           <div className="flex justify-between">
                             <span className="text-white/80 font-semibold text-sm">Total:</span>
-                            <span className="text-red-400 font-bold">
+                            <span className="text-red-400 font-bold text-3xl">
                               {formatCurrency(Math.abs(weekComparison.previous.totalEgresos))}
                             </span>
                           </div>
@@ -606,7 +860,7 @@ export default function ResumenGerencial() {
                       <div className="bg-white/20 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Final:</span>
-                          <span className="text-white font-bold text-lg">
+                          <span className="text-white font-bold text-3xl">
                             {formatCurrency(weekComparison.previous.saldoFinalBancos)}
                           </span>
                         </div>
@@ -619,7 +873,7 @@ export default function ResumenGerencial() {
                       <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Semanal:</span>
-                          <span className={`font-bold text-xl ${weekComparison.previous.netoSemanalBancos >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span className={`font-bold text-3xl ${weekComparison.previous.netoSemanalBancos >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {formatCurrency(weekComparison.previous.netoSemanalBancos)}
                           </span>
                         </div>
@@ -652,7 +906,7 @@ export default function ResumenGerencial() {
                       <div className="bg-white/20 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Inicio (Real):</span>
-                          <span className="text-white font-bold text-lg">
+                          <span className="text-white font-bold text-3xl">
                             {formatCurrency(weekComparison.previous ? weekComparison.previous.saldoFinalBancos : weekComparison.current.saldoInicialBancos)}
                           </span>
                         </div>
@@ -662,10 +916,10 @@ export default function ResumenGerencial() {
                     {/* 2. Ingresos Estimados */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Ingresos Estimados</h4>
-                      <div className="space-y-2 bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between">
                           <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
-                          <span className="text-green-400 font-bold">
+                          <span className="text-green-400 font-bold text-3xl">
                             {formatCurrency(weekComparison.current.ingresosEstimados)}
                           </span>
                         </div>
@@ -673,7 +927,7 @@ export default function ResumenGerencial() {
                           <div className="pt-2 border-t border-white/30">
                             <div className="flex justify-between text-xs">
                               <span className="text-white/50">Ingresos Reales:</span>
-                              <span className="text-green-300">
+                              <span className="text-green-300 text-3xl">
                                 {formatCurrency(weekComparison.current.totalIngresos)}
                               </span>
                             </div>
@@ -685,10 +939,10 @@ export default function ResumenGerencial() {
                     {/* 3. Egresos Estimados */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Egresos Estimados</h4>
-                      <div className="space-y-2 bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between">
                           <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
-                          <span className="text-red-400 font-bold">
+                          <span className="text-red-400 font-bold text-3xl">
                             {formatCurrency(Math.abs(weekComparison.current.egresosEstimados))}
                           </span>
                         </div>
@@ -696,7 +950,7 @@ export default function ResumenGerencial() {
                           <div className="pt-2 border-t border-white/30">
                             <div className="flex justify-between text-xs">
                               <span className="text-white/50">Egresos Reales:</span>
-                              <span className="text-red-300">
+                              <span className="text-red-300 text-3xl">
                                 {formatCurrency(Math.abs(weekComparison.current.totalEgresos))}
                               </span>
                             </div>
@@ -708,10 +962,10 @@ export default function ResumenGerencial() {
                     {/* 4. Saldo Final Estimado */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Final</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="bg-white/20 rounded-lg p-3 border border-white/90">
                         <div className="flex justify-between items-center">
-                          <span className="text-white/80 text-sm">Final Proyectado:</span>
-                          <span className="text-white font-bold text-lg">
+                          <span className="text-white/100 text-sm">Final Proyectado:</span>
+                          <span className="text-white font-bold text-3xl">
                             {formatCurrency(weekComparison.current.saldoFinalProyectado)}
                           </span>
                         </div>
@@ -724,7 +978,7 @@ export default function ResumenGerencial() {
                       <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Proyectado:</span>
-                          <span className={`font-bold text-xl ${weekComparison.current.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span className={`font-bold text-3xl ${weekComparison.current.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {formatCurrency(weekComparison.current.netoSemanalProyectado)}
                           </span>
                         </div>
@@ -757,8 +1011,8 @@ export default function ResumenGerencial() {
                       <div className="bg-white/20 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Inicio Proyectado:</span>
-                          <span className="text-white font-bold text-lg">
-                            {formatCurrency(weekComparison.next.saldoInicioProyectado)}
+                          <span className="text-white font-bold text-3xl">
+                            {formatCurrency(weekComparison.current ? weekComparison.current.saldoFinalProyectado : weekComparison.next.saldoInicioProyectado)}
                           </span>
                         </div>
                       </div>
@@ -767,10 +1021,10 @@ export default function ResumenGerencial() {
                     {/* 2. Ingresos Estimados */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Ingresos Estimados</h4>
-                      <div className="space-y-2 bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between">
                           <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
-                          <span className="text-green-400 font-bold">
+                          <span className="text-green-400 font-bold text-3xl">
                             {formatCurrency(weekComparison.next.ingresosEstimados)}
                           </span>
                         </div>
@@ -780,10 +1034,10 @@ export default function ResumenGerencial() {
                     {/* 3. Egresos Estimados */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Egresos Estimados</h4>
-                      <div className="space-y-2 bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between">
                           <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
-                          <span className="text-red-400 font-bold">
+                          <span className="text-red-400 font-bold text-3xl">
                             {formatCurrency(Math.abs(weekComparison.next.egresosEstimados))}
                           </span>
                         </div>
@@ -796,7 +1050,7 @@ export default function ResumenGerencial() {
                       <div className="bg-white/20 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Final Proyectado:</span>
-                          <span className={`font-bold text-lg ${weekComparison.next.saldoFinalProyectado < 0 ? 'text-red-400' : 'text-white'}`}>
+                          <span className={`font-bold text-3xl ${weekComparison.next.saldoFinalProyectado < 0 ? 'text-red-400' : 'text-white'}`}>
                             {formatCurrency(weekComparison.next.saldoFinalProyectado)}
                           </span>
                         </div>
@@ -809,7 +1063,7 @@ export default function ResumenGerencial() {
                       <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Proyectado:</span>
-                          <span className={`font-bold text-xl ${weekComparison.next.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span className={`font-bold text-3xl ${weekComparison.next.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {formatCurrency(weekComparison.next.netoSemanalProyectado)}
                           </span>
                         </div>
@@ -886,7 +1140,7 @@ export default function ResumenGerencial() {
                   <div className="flex gap-4 flex-wrap">
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Promedio</p>
-                      <p className="text-lg font-bold text-white">
+                      <p className="text-3xl font-bold text-white">
                         {formatCurrency(
                           chartDataFlujoCajaProyectado.reduce((sum, item) => sum + item['Saldo Final Semana/Proyectado'], 0) / chartDataFlujoCajaProyectado.length
                         )}
@@ -894,7 +1148,7 @@ export default function ResumenGerencial() {
                     </div>
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Máximo</p>
-                      <p className="text-lg font-bold text-green-300">
+                      <p className="text-3xl font-bold text-green-300">
                         {formatCurrency(
                           Math.max(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado']))
                         )}
@@ -902,7 +1156,7 @@ export default function ResumenGerencial() {
                     </div>
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Mínimo</p>
-                      <p className="text-lg font-bold text-red-300">
+                      <p className="text-3xl font-bold text-red-300">
                         {formatCurrency(
                           Math.min(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado']))
                         )}
@@ -917,12 +1171,12 @@ export default function ResumenGerencial() {
                     {alertasFlujoCaja.map((alerta, index) => (
                       <div
                         key={index}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 backdrop-blur-sm transition-all duration-300 hover:scale-105 ${
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-md transition-all duration-300 hover:scale-105 ${
                           alerta.tipo === 'danger'
-                            ? 'bg-red-500/20 border-red-400/50 text-red-100'
+                            ? 'bg-orange-500/15 border-orange-400/30 text-orange-100 hover:bg-orange-500/20'
                             : alerta.tipo === 'warning'
-                            ? 'bg-yellow-500/20 border-yellow-400/50 text-yellow-100'
-                            : 'bg-green-500/20 border-green-400/50 text-green-100'
+                            ? 'bg-amber-500/15 border-amber-400/30 text-amber-100 hover:bg-amber-500/20'
+                            : 'bg-emerald-500/15 border-emerald-400/30 text-emerald-100 hover:bg-emerald-500/20'
                         }`}
                       >
                         <span className="text-2xl">{alerta.icono}</span>
@@ -1087,6 +1341,133 @@ export default function ResumenGerencial() {
           <p className="text-white drop-shadow-md">Centralización General - Indicadores Financieros y Operativos</p>
         </div>
 
+        {/* Movimientos Bancarios Bancolombia - Capital de Trabajo */}
+        <div className="bg-white/15 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Banknote className="w-7 h-7 text-slate-200" />
+              Movimientos Bancarios Bancolombia (Capital de Trabajo)
+            </h2>
+            <div className="text-right">
+              <p className="text-sm text-white/70">Total de registros</p>
+              <p className="text-white font-bold text-3xl">
+                {movimientosMetrics?.totalMovimientos || 0}
+              </p>
+              <p className="text-xs text-green-300 font-semibold">
+                📋 TODOS los registros incluidos
+              </p>
+            </div>
+          </div>
+
+          {loadingMovimientos ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+              <span className="ml-2 text-white">Cargando movimientos bancarios...</span>
+            </div>
+          ) : movimientosMetrics ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Totalizador de Ingresos Operacionales */}
+              <div className="bg-gradient-to-br from-green-500/30 to-green-600/30 backdrop-blur-sm rounded-lg p-4 border border-green-400/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium mb-1">
+                      Ingresos Operacionales
+                    </p>
+                    <p className="text-3xl font-bold">
+                      ${movimientosMetrics.ingresosOperacionales.toLocaleString('es-CO')}
+                    </p>
+                    <p className="text-green-200 text-xs mt-1">
+                      GRUPO: Ingreso | CLASE: Operacional
+                    </p>
+                    <p className="text-green-200 text-xs mt-1 font-semibold">
+                      📊 {movimientosMetrics.registrosIngresosOperacionales} registros encontrados
+                    </p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-green-300" />
+                </div>
+              </div>
+
+              {/* Totalizador de Costos Operacionales */}
+              <div className="bg-gradient-to-br from-red-500/30 to-red-600/30 backdrop-blur-sm rounded-lg p-4 border border-red-400/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-red-100 text-sm font-medium mb-1">
+                      Costo Operacional
+                    </p>
+                    <p className="text-3xl font-bold">
+                      ${movimientosMetrics.costosOperacionales.toLocaleString('es-CO')}
+                    </p>
+                    <p className="text-red-200 text-xs mt-1">
+                      GRUPO PRUEBA: Costo | CLASE PRUEBA: Operacional
+                    </p>
+                    <p className="text-red-200 text-xs mt-1 font-semibold">
+                      📊 {movimientosMetrics.registrosCostosOperacionales} registros encontrados
+                    </p>
+                  </div>
+                  <TrendingDown className="w-8 h-8 text-red-300" />
+                </div>
+              </div>
+
+              {/* Totalizador de Gastos Administración */}
+              <div className="bg-gradient-to-br from-purple-500/30 to-purple-600/30 backdrop-blur-sm rounded-lg p-4 border border-purple-400/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium mb-1">
+                      Gasto Administración
+                    </p>
+                    <p className="text-3xl font-bold">
+                      ${movimientosMetrics.gastosAdministracion.toLocaleString('es-CO')}
+                    </p>
+                    <p className="text-purple-200 text-xs mt-1">
+                      GRUPO PRUEBA: Gasto | CLASE PRUEBA: Administración
+                    </p>
+                    <p className="text-purple-200 text-xs mt-1 font-semibold">
+                      🎯 {movimientosMetrics.registrosGastosAdministracion} de 702 registros
+                    </p>
+                  </div>
+                  <Briefcase className="w-8 h-8 text-purple-300" />
+                </div>
+              </div>
+
+              {/* Top 1 Clasificación por Valor */}
+              {Object.entries(movimientosMetrics.movimientoPorClasificacion)
+                .sort(([,a], [,b]) => Math.abs(b) - Math.abs(a))
+                .slice(0, 1)
+                .map(([clasificacion, valor], index) => (
+                  <div 
+                    key={clasificacion}
+                    className={`bg-gradient-to-br ${
+                      valor > 0 
+                        ? 'from-blue-500/30 to-blue-600/30 border-blue-400/40' 
+                        : 'from-orange-500/30 to-orange-600/30 border-orange-400/40'
+                    } backdrop-blur-sm rounded-lg p-4 border`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={`${valor > 0 ? 'text-blue-100' : 'text-orange-100'} text-sm font-medium mb-1`}>
+                          {clasificacion}
+                        </p>
+                        <p className="text-white text-3xl font-bold">
+                          ${Math.abs(valor).toLocaleString('es-CO')}
+                        </p>
+                      </div>
+                      {valor > 0 ? (
+                        <TrendingUp className="w-6 h-6 text-blue-300" />
+                      ) : (
+                        <TrendingDown className="w-6 h-6 text-orange-300" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-white/50 mx-auto mb-2" />
+              <p className="text-white/70">No hay datos de movimientos bancarios disponibles</p>
+            </div>
+          )}
+        </div>
+
         {/* Filtros */}
         <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
           <div className="flex flex-wrap items-center gap-4">
@@ -1170,7 +1551,10 @@ export default function ResumenGerencial() {
             </div>
 
             <button
-              onClick={fetchData}
+              onClick={() => {
+                fetchData();
+                fetchMovimientosBancarios();
+              }}
               className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm rounded-lg flex items-center gap-2 transition-colors border border-white/30"
             >
               <RefreshCw className="w-4 h-4" />
@@ -1215,20 +1599,20 @@ export default function ResumenGerencial() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Saldo Inicial:</span>
-                      <span className="text-white font-bold text-lg">
+                      <span className="text-white font-bold text-3xl">
                         {formatCurrency(weekData.saldoInicialBancos)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Saldo Final:</span>
-                      <span className="text-white font-bold text-lg">
+                      <span className="text-white font-bold text-3xl">
                         {formatCurrency(weekData.saldoFinalBancos)}
                       </span>
                     </div>
                     <div className="pt-3 border-t border-white/20">
                       <div className="flex justify-between items-center">
                         <span className="text-white/90 font-semibold">Neto Semanal:</span>
-                        <span className={`font-bold text-xl ${weekData.netoSemanalBancos >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`font-bold text-3xl ${weekData.netoSemanalBancos >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {formatCurrency(weekData.netoSemanalBancos)}
                         </span>
                       </div>
@@ -1245,20 +1629,20 @@ export default function ResumenGerencial() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Saldo Inicial:</span>
-                      <span className="text-white font-bold text-lg">
+                      <span className="text-white font-bold text-3xl">
                         {formatCurrency(weekData.saldoInicioProyectado)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Saldo Final:</span>
-                      <span className={`font-bold text-lg ${weekData.saldoFinalProyectado < 0 ? 'text-red-400' : 'text-white'}`}>
+                      <span className={`font-bold text-3xl ${weekData.saldoFinalProyectado < 0 ? 'text-red-400' : 'text-white'}`}>
                         {formatCurrency(weekData.saldoFinalProyectado)}
                       </span>
                     </div>
                     <div className="pt-3 border-t border-white/20">
                       <div className="flex justify-between items-center">
                         <span className="text-white/90 font-semibold">Neto Semanal:</span>
-                        <span className={`font-bold text-xl ${weekData.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`font-bold text-3xl ${weekData.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {formatCurrency(weekData.netoSemanalProyectado)}
                         </span>
                       </div>
@@ -1275,20 +1659,20 @@ export default function ResumenGerencial() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Total Ingresos:</span>
-                      <span className="text-green-400 font-bold text-lg">
+                      <span className="text-green-400 font-bold text-3xl">
                         {formatCurrency(weekData.totalIngresos)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Total Egresos:</span>
-                      <span className="text-red-400 font-bold text-lg">
+                      <span className="text-red-400 font-bold text-3xl">
                         {formatCurrency(Math.abs(weekData.totalEgresos))}
                       </span>
                     </div>
                     <div className="pt-3 border-t border-white/20">
                       <div className="flex justify-between items-center">
                         <span className="text-white/90 font-semibold">Resultado:</span>
-                        <span className={`font-bold text-xl ${(weekData.totalIngresos + weekData.totalEgresos) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`font-bold text-3xl ${(weekData.totalIngresos + weekData.totalEgresos) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {formatCurrency(weekData.totalIngresos + weekData.totalEgresos)}
                         </span>
                       </div>
@@ -1305,20 +1689,20 @@ export default function ResumenGerencial() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Ingresos Estimados:</span>
-                      <span className="text-green-400 font-bold text-lg">
+                      <span className="text-green-400 font-bold text-3xl">
                         {formatCurrency(weekData.ingresosEstimados)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-white/80">Egresos Estimados:</span>
-                      <span className="text-red-400 font-bold text-lg">
+                      <span className="text-red-400 font-bold text-3xl">
                         {formatCurrency(Math.abs(weekData.egresosEstimados))}
                       </span>
                     </div>
                     <div className="pt-3 border-t border-white/20">
                       <div className="flex justify-between items-center">
                         <span className="text-white/90 font-semibold">Resultado:</span>
-                        <span className={`font-bold text-xl ${(weekData.ingresosEstimados + weekData.egresosEstimados) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`font-bold text-3xl ${(weekData.ingresosEstimados + weekData.egresosEstimados) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {formatCurrency(weekData.ingresosEstimados + weekData.egresosEstimados)}
                         </span>
                       </div>
@@ -1343,7 +1727,7 @@ export default function ResumenGerencial() {
                               <Package className="w-5 h-5 text-blue-400" />
                               <span className="text-white/80 text-sm">Productos Biológicos</span>
                             </div>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-3xl font-bold text-white">
                               {weekData.cantidadLitrosDeberia.toLocaleString('es-CO', {
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 2
@@ -1360,7 +1744,7 @@ export default function ResumenGerencial() {
                               <Factory className="w-5 h-5 text-green-400" />
                               <span className="text-white/80 text-sm">Biochar</span>
                             </div>
-                            <p className="text-2xl font-bold text-white">
+                            <p className="text-3xl font-bold text-white">
                               {weekData.cantidadKilogramosDeberia.toLocaleString('es-CO', {
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 2
@@ -1398,53 +1782,53 @@ export default function ResumenGerencial() {
         {metrics && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Total Ingresos */}
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="bg-emerald-500/20 border border-emerald-400/30 backdrop-blur-md rounded-xl shadow-xl p-6 text-white">
               <div className="flex items-center justify-between mb-4">
-                <DollarSign className="w-8 h-8 opacity-80" />
-                <TrendingUp className="w-6 h-6" />
+                <DollarSign className="w-8 h-8 text-emerald-300" />
+                <TrendingUp className="w-6 h-6 text-emerald-300" />
               </div>
-              <h3 className="text-sm font-medium opacity-90 mb-1">Total Ingresos</h3>
-              <p className="text-3xl font-bold">{formatCurrency(metrics.totalIngresos)}</p>
-              <div className="mt-2 text-sm opacity-80">
+              <h3 className="text-sm font-medium text-emerald-100 mb-1">Total Ingresos</h3>
+              <p className="text-4xl font-bold text-white">{formatCurrency(metrics.totalIngresos)}</p>
+              <div className="mt-2 text-sm text-emerald-200">
                 UNB: {formatCurrency(metrics.ingresosUNB)} | UNP: {formatCurrency(metrics.ingresosUNP)}
               </div>
             </div>
 
             {/* Total Egresos */}
-            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="backdrop-blur-md rounded-xl shadow-xl p-6 text-white border" style={{ backgroundColor: '#FF9500' + '33', borderColor: '#FF9500' + '4D' }}>
               <div className="flex items-center justify-between mb-4">
-                <TrendingDown className="w-8 h-8 opacity-80" />
-                <Briefcase className="w-6 h-6" />
+                <TrendingDown className="w-8 h-8" style={{ color: '#FF9500' }} />
+                <Briefcase className="w-6 h-6" style={{ color: '#FF9500' }} />
               </div>
-              <h3 className="text-sm font-medium opacity-90 mb-1">Total Egresos</h3>
-              <p className="text-3xl font-bold">{formatCurrency(metrics.totalEgresos)}</p>
-              <div className="mt-2 text-sm opacity-80">
+              <h3 className="text-sm font-medium text-white/90 mb-1">Total Egresos</h3>
+              <p className="text-4xl font-bold text-white">{formatCurrency(metrics.totalEgresos)}</p>
+              <div className="mt-2 text-sm text-white/80">
                 Costos: {formatCurrency(metrics.totalCostos)}
               </div>
             </div>
 
             {/* Utilidad Neta */}
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="bg-blue-500/20 border border-blue-400/30 backdrop-blur-md rounded-xl shadow-xl p-6 text-white">
               <div className="flex items-center justify-between mb-4">
-                <Activity className="w-8 h-8 opacity-80" />
-                <Target className="w-6 h-6" />
+                <Activity className="w-8 h-8 text-blue-300" />
+                <Target className="w-6 h-6 text-blue-300" />
               </div>
-              <h3 className="text-sm font-medium opacity-90 mb-1">Utilidad Neta</h3>
-              <p className="text-3xl font-bold">{formatCurrency(metrics.utilidadNeta)}</p>
-              <div className="mt-2 text-sm opacity-80">
+              <h3 className="text-sm font-medium text-blue-100 mb-1">Utilidad Neta</h3>
+              <p className="text-4xl font-bold text-white">{formatCurrency(metrics.utilidadNeta)}</p>
+              <div className="mt-2 text-sm text-blue-200">
                 Margen: {formatPercent(metrics.margenNeto)}
               </div>
             </div>
 
             {/* Saldo Bancario */}
-            <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg shadow-lg p-6 text-white border border-white/30">
+            <div className="bg-slate-500/20 border border-slate-400/30 backdrop-blur-md rounded-xl shadow-xl p-6 text-white">
               <div className="flex items-center justify-between mb-4">
-                <Banknote className="w-8 h-8 opacity-80" />
-                <Factory className="w-6 h-6" />
+                <Banknote className="w-8 h-8 text-slate-300" />
+                <Factory className="w-6 h-6 text-slate-300" />
               </div>
-              <h3 className="text-sm font-medium text-white mb-1">Saldo Bancario Actual</h3>
-              <p className="text-3xl font-bold text-white">{formatCurrency(metrics.saldoActual)}</p>
-              <div className="mt-2 text-sm text-white/80">
+              <h3 className="text-sm font-medium text-slate-100 mb-1">Saldo Bancario Actual</h3>
+              <p className="text-4xl font-bold text-white">{formatCurrency(metrics.saldoActual)}</p>
+              <div className="mt-2 text-sm text-slate-200">
                 Proyectado: {formatCurrency(metrics.saldoProyectado)}
               </div>
             </div>
