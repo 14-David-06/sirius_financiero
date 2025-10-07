@@ -1357,19 +1357,6 @@ export default function ResumenGerencial() {
         {/* Movimientos Bancarios Bancolombia - Capital de Trabajo */}
         <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <Banknote className="w-7 h-7 text-slate-200" />
-              Movimientos Bancarios Bancolombia (Capital de Trabajo)
-            </h2>
-            <div className="text-right">
-              <p className="text-sm text-white/70">Total de registros</p>
-              <p className="text-white font-bold text-3xl">
-                {movimientosMetrics?.totalMovimientos || 0}
-              </p>
-              <p className="text-xs text-green-300 font-semibold">
-                📋 TODOS los registros incluidos
-              </p>
-            </div>
           </div>
 
           {loadingMovimientos ? (
@@ -1380,107 +1367,62 @@ export default function ResumenGerencial() {
           ) : movimientosMetrics ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Totalizador de Ingresos Operacionales */}
-              <div className="bg-gradient-to-br from-green-500/30 to-green-600/30 backdrop-blur-sm rounded-lg p-4 border border-green-400/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm font-medium mb-1">
-                      Ingresos Operacionales
-                    </p>
-                    <p className="text-3xl font-bold">
-                      ${movimientosMetrics.ingresosOperacionales.toLocaleString('es-CO')}
-                    </p>
-                    <p className="text-green-200 text-xs mt-1">
-                      GRUPO: Ingreso | CLASE: Operacional
-                    </p>
-                    <p className="text-green-200 text-xs mt-1 font-semibold">
-                      📊 {movimientosMetrics.registrosIngresosOperacionales} registros encontrados
-                    </p>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-green-300" />
+              <div className="bg-slate-800/40 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <div>
+                  <p className="text-white/80 text-sm font-medium mb-1">
+                    Ingresos Operacionales
+                  </p>
+                  <p className="text-white text-3xl font-bold">
+                    ${movimientosMetrics.ingresosOperacionales.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                  </p>
                 </div>
               </div>
 
               {/* Totalizador de Costos Operacionales */}
-              <div className="bg-gradient-to-br from-red-500/30 to-red-600/30 backdrop-blur-sm rounded-lg p-4 border border-red-400/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-red-100 text-sm font-medium mb-1">
-                      Costo Operacional
-                    </p>
-                    <p className="text-3xl font-bold">
-                      ${movimientosMetrics.costosOperacionales.toLocaleString('es-CO')}
-                    </p>
-                    <p className="text-red-200 text-xs mt-1">
-                      GRUPO PRUEBA: Costo | CLASE PRUEBA: Operacional
-                    </p>
-                    <p className="text-red-200 text-xs mt-1 font-semibold">
-                      📊 {movimientosMetrics.registrosCostosOperacionales} registros encontrados
-                    </p>
-                  </div>
-                  <TrendingDown className="w-8 h-8 text-red-300" />
+              <div className="bg-slate-800/40 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <div>
+                  <p className="text-white/80 text-sm font-medium mb-1">
+                    Costo Operacional
+                  </p>
+                  <p className="text-white text-3xl font-bold">
+                    ${movimientosMetrics.costosOperacionales.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                  </p>
                 </div>
               </div>
 
               {/* Totalizador de Gastos Administración */}
-              <div className="bg-gradient-to-br from-purple-500/30 to-purple-600/30 backdrop-blur-sm rounded-lg p-4 border border-purple-400/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-100 text-sm font-medium mb-1">
-                      Gasto Administración
-                    </p>
-                    <p className="text-3xl font-bold">
-                      ${movimientosMetrics.gastosAdministracion.toLocaleString('es-CO')}
-                    </p>
-                    <p className="text-purple-200 text-xs mt-1">
-                      GRUPO PRUEBA: Gasto | CLASE PRUEBA: Administración
-                    </p>
-                    <p className="text-purple-200 text-xs mt-1 font-semibold">
-                      🎯 {movimientosMetrics.registrosGastosAdministracion} de 702 registros
-                    </p>
-                  </div>
-                  <Briefcase className="w-8 h-8 text-purple-300" />
+              <div className="bg-slate-800/40 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <div>
+                  <p className="text-white/80 text-sm font-medium mb-1">
+                    Gasto Administración
+                  </p>
+                  <p className="text-white text-3xl font-bold">
+                    ${movimientosMetrics.gastosAdministracion.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                  </p>
                 </div>
               </div>
 
               {/* Totalizador de Gastos de Ventas */}
-              <div className="bg-gradient-to-br from-blue-500/30 to-blue-600/30 backdrop-blur-sm rounded-lg p-4 border border-blue-400/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm font-medium mb-1">
-                      Gasto de ventas
-                    </p>
-                    <p className="text-3xl font-bold">
-                      ${movimientosMetrics.gastosVentas.toLocaleString('es-CO')}
-                    </p>
-                    <p className="text-blue-200 text-xs mt-1">
-                      GRUPO PRUEBA: Gasto | CLASE PRUEBA: Ventas
-                    </p>
-                    <p className="text-blue-200 text-xs mt-1 font-semibold">
-                      📊 {movimientosMetrics.registrosGastosVentas} registros encontrados
-                    </p>
-                  </div>
-                  <TrendingDown className="w-8 h-8 text-blue-300" />
+              <div className="bg-slate-800/40 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <div>
+                  <p className="text-white/80 text-sm font-medium mb-1">
+                    Gasto de ventas
+                  </p>
+                  <p className="text-white text-3xl font-bold">
+                    ${movimientosMetrics.gastosVentas.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                  </p>
                 </div>
               </div>
 
               {/* Totalizador de Gastos No Operacionales */}
-              <div className="bg-gradient-to-br from-indigo-500/30 to-indigo-600/30 backdrop-blur-sm rounded-lg p-4 border border-indigo-400/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-indigo-100 text-sm font-medium mb-1">
-                      Gasto No Operacional
-                    </p>
-                    <p className="text-3xl font-bold">
-                      ${movimientosMetrics.gastosNoOperacionales.toLocaleString('es-CO')}
-                    </p>
-                    <p className="text-indigo-200 text-xs mt-1">
-                      GRUPO PRUEBA: Gasto | CLASE PRUEBA: No Operacional
-                    </p>
-                    <p className="text-indigo-200 text-xs mt-1 font-semibold">
-                      📊 {movimientosMetrics.registrosGastosNoOperacionales} registros encontrados
-                    </p>
-                  </div>
-                  <TrendingDown className="w-8 h-8 text-indigo-300" />
+              <div className="bg-slate-800/40 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <div>
+                  <p className="text-white/80 text-sm font-medium mb-1">
+                    Gasto No Operacional
+                  </p>
+                  <p className="text-white text-3xl font-bold">
+                    ${movimientosMetrics.gastosNoOperacionales.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                  </p>
                 </div>
               </div>
             </div>
