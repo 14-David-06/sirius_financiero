@@ -17,7 +17,9 @@ import {
   Banknote,
   Target,
   Briefcase,
-  Factory
+  Factory,
+  Download,
+  TrendingUpIcon
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -109,6 +111,7 @@ export default function ResumenGerencial() {
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
   const [showCajaCero, setShowCajaCero] = useState(true);
+  const [showTendencia, setShowTendencia] = useState(false);
   const [rangoSemanas, setRangoSemanas] = useState<'todas' | 'trimestre' | 'semestre'>('todas');
 
   const fetchData = useCallback(async () => {
@@ -327,13 +330,79 @@ export default function ResumenGerencial() {
     // Calcular el valor mínimo para la línea de "Mínimo Saldo" (puede ser un valor fijo o calculado)
     const minimoSaldo = 100000000; // $100M como ejemplo de saldo mínimo requerido
 
-    return semanasOrdenadas.map(item => ({
+    // Calcular línea de tendencia (regresión lineal simple)
+    let tendenciaData: number[] = [];
+    if (showTendencia && semanasOrdenadas.length > 1) {
+      const n = semanasOrdenadas.length;
+      const sumX = semanasOrdenadas.reduce((sum, item, idx) => sum + idx, 0);
+      const sumY = semanasOrdenadas.reduce((sum, item) => sum + item.saldoFinalProyectado, 0);
+      const sumXY = semanasOrdenadas.reduce((sum, item, idx) => sum + (idx * item.saldoFinalProyectado), 0);
+      const sumX2 = semanasOrdenadas.reduce((sum, item, idx) => sum + (idx * idx), 0);
+      
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+      
+      tendenciaData = semanasOrdenadas.map((_, idx) => slope * idx + intercept);
+    }
+
+    return semanasOrdenadas.map((item, idx) => ({
       semana: item.semana,
       'Saldo Final Semana/Proyectado': item.saldoFinalProyectado,
       'Minimo Saldo': showMinimoSaldo ? minimoSaldo : null,
       'Caja Cero': showCajaCero ? 0 : null,
+      'Tendencia': showTendencia ? tendenciaData[idx] : null,
     }));
-  }, [data, selectedYear, rangoSemanas, showMinimoSaldo, showCajaCero]);
+  }, [data, selectedYear, rangoSemanas, showMinimoSaldo, showCajaCero, showTendencia]);
+
+  // Alertas inteligentes del flujo de caja
+  const alertasFlujoCaja = useMemo(() => {
+    const alertas = [];
+    const minimoSaldo = 100000000;
+    
+    // Verificar semanas con saldo por debajo del mínimo
+    const semanasBajoMinimo = chartDataFlujoCajaProyectado.filter(
+      item => item['Saldo Final Semana/Proyectado'] < minimoSaldo
+    );
+    
+    if (semanasBajoMinimo.length > 0) {
+      alertas.push({
+        tipo: 'warning',
+        mensaje: `${semanasBajoMinimo.length} semana(s) con saldo por debajo del mínimo`,
+        icono: '⚠️'
+      });
+    }
+    
+    // Verificar semanas con flujo negativo (saldo < 0)
+    const semanasNegativas = chartDataFlujoCajaProyectado.filter(
+      item => item['Saldo Final Semana/Proyectado'] < 0
+    );
+    
+    if (semanasNegativas.length > 0) {
+      alertas.push({
+        tipo: 'danger',
+        mensaje: `¡Alerta! ${semanasNegativas.length} semana(s) con saldo negativo`,
+        icono: '🚨'
+      });
+    }
+    
+    // Verificar si hay mejora constante
+    if (chartDataFlujoCajaProyectado.length > 3) {
+      const ultimas3Semanas = chartDataFlujoCajaProyectado.slice(-3);
+      const enCrecimiento = ultimas3Semanas.every((item, idx) => 
+        idx === 0 || item['Saldo Final Semana/Proyectado'] >= ultimas3Semanas[idx - 1]['Saldo Final Semana/Proyectado']
+      );
+      
+      if (enCrecimiento) {
+        alertas.push({
+          tipo: 'success',
+          mensaje: 'Tendencia positiva: Crecimiento sostenido últimas 3 semanas',
+          icono: '📈'
+        });
+      }
+    }
+    
+    return alertas;
+  }, [chartDataFlujoCajaProyectado]);
 
   if (authLoading || loading) {
     return (
@@ -750,8 +819,8 @@ export default function ResumenGerencial() {
 
         {/* Gráfico de Comportamiento Flujo de Caja Proyectado */}
         {chartDataFlujoCajaProyectado.length > 0 && (
-          <div className="mb-8">
-            <div className="bg-gradient-to-br from-white/30 via-white/25 to-white/20 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+          <div className="mb-8 animate-fade-in">
+            <div className="bg-gradient-to-br from-white/30 via-white/25 to-white/20 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/50 overflow-hidden transition-all duration-500 hover:shadow-3xl hover:scale-[1.01]">
               {/* Header del Gráfico */}
               <div className="bg-gradient-to-r from-slate-800/50 to-slate-700/50 px-8 py-6 border-b border-white/30">
                 <div className="flex items-center justify-between flex-wrap gap-4">
@@ -766,8 +835,34 @@ export default function ResumenGerencial() {
                     </p>
                   </div>
                   
+                  {/* Botón de Exportar */}
+                  <button
+                    onClick={() => {
+                      // Preparar datos para Excel
+                      const csvContent = [
+                        ['Semana', 'Saldo Final Proyectado', 'Mínimo Saldo', 'Caja Cero'],
+                        ...chartDataFlujoCajaProyectado.map(item => [
+                          item.semana,
+                          item['Saldo Final Semana/Proyectado'],
+                          100000000,
+                          0
+                        ])
+                      ].map(row => row.join(',')).join('\n');
+                      
+                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                      const link = document.createElement('a');
+                      link.href = URL.createObjectURL(blob);
+                      link.download = `flujo_caja_proyectado_${selectedYear}.csv`;
+                      link.click();
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all duration-200 hover:scale-105 shadow-lg"
+                  >
+                    <Download className="w-5 h-5" />
+                    Exportar Excel
+                  </button>
+                  
                   {/* Estadísticas Rápidas */}
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 flex-wrap">
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Promedio</p>
                       <p className="text-lg font-bold text-white">
@@ -794,6 +889,27 @@ export default function ResumenGerencial() {
                     </div>
                   </div>
                 </div>
+                
+                {/* Alertas Inteligentes */}
+                {alertasFlujoCaja.length > 0 && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {alertasFlujoCaja.map((alerta, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 backdrop-blur-sm transition-all duration-300 hover:scale-105 ${
+                          alerta.tipo === 'danger'
+                            ? 'bg-red-500/20 border-red-400/50 text-red-100'
+                            : alerta.tipo === 'warning'
+                            ? 'bg-yellow-500/20 border-yellow-400/50 text-yellow-100'
+                            : 'bg-green-500/20 border-green-400/50 text-green-100'
+                        }`}
+                      >
+                        <span className="text-2xl">{alerta.icono}</span>
+                        <p className="text-sm font-medium">{alerta.mensaje}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Filtros del Gráfico */}
