@@ -19,7 +19,8 @@ import {
   Briefcase,
   Factory,
   Download,
-  TrendingUpIcon
+  AlertTriangle,
+  CheckCircle
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -356,53 +357,73 @@ export default function ResumenGerencial() {
 
   // Alertas inteligentes del flujo de caja
   const alertasFlujoCaja = useMemo(() => {
-    const alertas = [];
-    const minimoSaldo = 100000000;
+    const alertas: Array<{
+      tipo: 'warning' | 'danger' | 'success';
+      mensaje: string;
+      icono: string;
+    }> = [];
+    const minimoSaldo = 100000000; // $100M
     
-    // Verificar semanas con saldo por debajo del mínimo
-    const semanasBajoMinimo = chartDataFlujoCajaProyectado.filter(
+    if (chartDataFlujoCajaProyectado.length === 0) return alertas;
+
+    // Alerta: Saldo por debajo del mínimo
+    const saldosBajos = chartDataFlujoCajaProyectado.filter(
       item => item['Saldo Final Semana/Proyectado'] < minimoSaldo
     );
-    
-    if (semanasBajoMinimo.length > 0) {
+    if (saldosBajos.length > 0) {
       alertas.push({
         tipo: 'warning',
-        mensaje: `${semanasBajoMinimo.length} semana(s) con saldo por debajo del mínimo`,
+        mensaje: `${saldosBajos.length} semanas con saldo inferior a $100M`,
         icono: '⚠️'
       });
     }
-    
-    // Verificar semanas con flujo negativo (saldo < 0)
-    const semanasNegativas = chartDataFlujoCajaProyectado.filter(
+
+    // Alerta: Flujo negativo
+    const flujoNegativo = chartDataFlujoCajaProyectado.filter(
       item => item['Saldo Final Semana/Proyectado'] < 0
     );
-    
-    if (semanasNegativas.length > 0) {
+    if (flujoNegativo.length > 0) {
       alertas.push({
         tipo: 'danger',
-        mensaje: `¡Alerta! ${semanasNegativas.length} semana(s) con saldo negativo`,
+        mensaje: `${flujoNegativo.length} semanas con saldo negativo`,
         icono: '🚨'
       });
     }
-    
-    // Verificar si hay mejora constante
-    if (chartDataFlujoCajaProyectado.length > 3) {
-      const ultimas3Semanas = chartDataFlujoCajaProyectado.slice(-3);
-      const enCrecimiento = ultimas3Semanas.every((item, idx) => 
-        idx === 0 || item['Saldo Final Semana/Proyectado'] >= ultimas3Semanas[idx - 1]['Saldo Final Semana/Proyectado']
-      );
-      
-      if (enCrecimiento) {
-        alertas.push({
-          tipo: 'success',
-          mensaje: 'Tendencia positiva: Crecimiento sostenido últimas 3 semanas',
-          icono: '📈'
-        });
-      }
+
+    // Alerta positiva: Buen desempeño
+    if (alertas.length === 0) {
+      alertas.push({
+        tipo: 'success',
+        mensaje: 'Todas las proyecciones mantienen saldos positivos',
+        icono: '✅'
+      });
     }
-    
+
     return alertas;
   }, [chartDataFlujoCajaProyectado]);
+
+  // Función para exportar a Excel
+  const exportarAExcel = () => {
+    const csvContent = [
+      ['Semana', 'Saldo Final Proyectado', 'Minimo Saldo', 'Caja Cero'],
+      ...chartDataFlujoCajaProyectado.map(item => [
+        item.semana,
+        item['Saldo Final Semana/Proyectado'],
+        item['Minimo Saldo'] || '',
+        item['Caja Cero'] || ''
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `flujo_caja_proyectado_${selectedYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (authLoading || loading) {
     return (
@@ -1050,10 +1071,19 @@ export default function ResumenGerencial() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3 drop-shadow-lg">
-            <BarChart3 className="w-10 h-10 text-slate-200" />
-            Dashboard Gerencial
-          </h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-4xl font-bold text-white flex items-center gap-3 drop-shadow-lg">
+              <BarChart3 className="w-10 h-10 text-slate-200" />
+              Dashboard Gerencial
+            </h1>
+            <button
+              onClick={exportarAExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600/80 hover:bg-green-500/80 text-white rounded-lg backdrop-blur-sm border border-green-400/50 transition-all duration-300 hover:scale-105 shadow-lg"
+            >
+              <Download className="w-4 h-4" />
+              Exportar Datos
+            </button>
+          </div>
           <p className="text-white drop-shadow-md">Centralización General - Indicadores Financieros y Operativos</p>
         </div>
 
