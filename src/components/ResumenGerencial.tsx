@@ -378,6 +378,36 @@ export default function ResumenGerencial() {
     const gastosAdministracion = registrosGastosAdministracion
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
 
+    // Totalizador de gastos de ventas (GRUPO PRUEBA = "Gasto" y CLASE PRUEBA = "Ventas")
+    const registrosGastosVentas = movimientosBancarios.filter(mov => {
+      const grupoLimpio = mov.grupoPrueba?.toString().trim();
+      const claseLimpia = mov.clasePrueba?.toString().trim();
+      
+      // Filtro EXACTO: solo "Gasto" y "Ventas", sin palabras adicionales
+      return grupoLimpio === 'Gasto' && claseLimpia === 'Ventas';
+    }).filter((mov, index, arr) => 
+      // Eliminar duplicados por ID para coincidir exactamente con Airtable
+      arr.findIndex(m => m.id === mov.id) === index
+    );
+
+    const gastosVentas = registrosGastosVentas
+      .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
+
+    // Totalizador de gastos no operacionales (GRUPO PRUEBA = "Gasto" y CLASE PRUEBA = "No Operacional")
+    const registrosGastosNoOperacionales = movimientosBancarios.filter(mov => {
+      const grupoLimpio = mov.grupoPrueba?.toString().trim();
+      const claseLimpia = mov.clasePrueba?.toString().trim();
+      
+      // Filtro EXACTO: solo "Gasto" y "No Operacional", sin palabras adicionales
+      return grupoLimpio === 'Gasto' && claseLimpia === 'No Operacional';
+    }).filter((mov, index, arr) => 
+      // Eliminar duplicados por ID para coincidir exactamente con Airtable
+      arr.findIndex(m => m.id === mov.id) === index
+    );
+
+    const gastosNoOperacionales = registrosGastosNoOperacionales
+      .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
+
     // Log para debugging - ver exactamente cuántos registros se están capturando
     console.log(`=== RESULTADO INGRESOS OPERACIONALES ===`);
     console.log(`Total registros encontrados: ${registrosIngresosOperacionales.length}`);
@@ -392,6 +422,16 @@ export default function ResumenGerencial() {
     console.log(`Valor total: $${gastosAdministracion.toLocaleString('es-CO')}`);
     console.log(`🎯 OBJETIVO AIRTABLE: 702 registros`);
     console.log(`📊 DIFERENCIA: ${registrosGastosAdministracion.length - 702} registros`);
+    
+    console.log(`=== RESULTADO GASTOS DE VENTAS ===`);
+    console.log(`Total registros encontrados: ${registrosGastosVentas.length}`);
+    console.log(`Valor total: $${gastosVentas.toLocaleString('es-CO')}`);
+    console.log(`📊 GRUPO PRUEBA: Gasto | CLASE PRUEBA: Ventas`);
+    
+    console.log(`=== RESULTADO GASTOS NO OPERACIONALES ===`);
+    console.log(`Total registros encontrados: ${registrosGastosNoOperacionales.length}`);
+    console.log(`Valor total: $${gastosNoOperacionales.toLocaleString('es-CO')}`);
+    console.log(`📊 GRUPO PRUEBA: Gasto | CLASE PRUEBA: No Operacional`);
     
     console.log('Registros de ingresos capturados:', registrosIngresosOperacionales.map(r => ({
       id: r.id,
@@ -412,6 +452,24 @@ export default function ResumenGerencial() {
     })));
     
     console.log('Registros de gastos administración capturados:', registrosGastosAdministracion.map(r => ({
+      id: r.id,
+      fecha: r.fecha,
+      descripcion: r.descripcion,
+      valor: r.valor,
+      grupoPrueba: r.grupoPrueba,
+      clasePrueba: r.clasePrueba
+    })));
+    
+    console.log('Registros de gastos de ventas capturados:', registrosGastosVentas.map(r => ({
+      id: r.id,
+      fecha: r.fecha,
+      descripcion: r.descripcion,
+      valor: r.valor,
+      grupoPrueba: r.grupoPrueba,
+      clasePrueba: r.clasePrueba
+    })));
+    
+    console.log('Registros de gastos no operacionales capturados:', registrosGastosNoOperacionales.map(r => ({
       id: r.id,
       fecha: r.fecha,
       descripcion: r.descripcion,
@@ -445,6 +503,10 @@ export default function ResumenGerencial() {
       registrosCostosOperacionales: registrosCostosOperacionales.length,
       gastosAdministracion,
       registrosGastosAdministracion: registrosGastosAdministracion.length,
+      gastosVentas,
+      registrosGastosVentas: registrosGastosVentas.length,
+      gastosNoOperacionales,
+      registrosGastosNoOperacionales: registrosGastosNoOperacionales.length,
       movimientoPorClasificacion,
       movimientoPorUnidad,
       totalMovimientos: movimientosBancarios.length
@@ -596,7 +658,7 @@ export default function ResumenGerencial() {
       alertas.push({
         tipo: 'warning',
         mensaje: `${saldosBajos.length} semanas con saldo inferior a $100M`,
-        icono: '⚠️'
+        icono: ''
       });
     }
 
@@ -608,7 +670,7 @@ export default function ResumenGerencial() {
       alertas.push({
         tipo: 'danger',
         mensaje: `${flujoNegativo.length} semanas con saldo negativo`,
-        icono: '🚨'
+        icono: ''
       });
     }
 
@@ -750,7 +812,7 @@ export default function ResumenGerencial() {
           <div className="mb-8">
             {/* Título centrado y separado */}
             <div className="flex justify-center mb-6">
-              <div className="bg-white/25 backdrop-blur-md rounded-xl shadow-2xl px-8 py-4 border border-white/40 inline-block">
+              <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-4 border border-white/30 inline-block">
                 <h2 className="text-3xl font-bold text-white flex items-center gap-3 justify-center">
                   <TrendingUp className="w-8 h-8 text-slate-200" />
                   Análisis del Flujo de Caja Semanal
@@ -765,7 +827,7 @@ export default function ResumenGerencial() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* SEMANA PASADA - Datos Reales */}
               {weekComparison.previous && (
-                <div className="bg-white/20 backdrop-blur-md rounded-xl p-5 border-2 border-white/40 shadow-xl">
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -784,7 +846,7 @@ export default function ResumenGerencial() {
                     {/* 1. Saldo Inicial */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Inicial</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Inicio:</span>
                           <span className="text-white font-bold text-3xl">
@@ -857,7 +919,7 @@ export default function ResumenGerencial() {
                     {/* 4. Saldo Final */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Final</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Final:</span>
                           <span className="text-white font-bold text-3xl">
@@ -870,7 +932,7 @@ export default function ResumenGerencial() {
                     {/* 5. Flujo Neto */}
                     <div>
                       <h4 className="text-sm font-semibold text-white mb-2">Flujo Neto</h4>
-                      <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Semanal:</span>
                           <span className={`font-bold text-3xl ${weekComparison.previous.netoSemanalBancos >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -884,7 +946,7 @@ export default function ResumenGerencial() {
 
                 {/* SEMANA ACTUAL - Datos Reales/Prioritarios */}
                 {weekComparison.current && (
-                  <div className="bg-white/20 backdrop-blur-md rounded-xl p-5 border-2 border-white/50 shadow-xl">
+                  <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -903,7 +965,7 @@ export default function ResumenGerencial() {
                     {/* 1. Saldo Inicial */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Inicial</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Inicio (Real):</span>
                           <span className="text-white font-bold text-3xl">
@@ -962,7 +1024,7 @@ export default function ResumenGerencial() {
                     {/* 4. Saldo Final Estimado */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Final</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/90">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/100 text-sm">Final Proyectado:</span>
                           <span className="text-white font-bold text-3xl">
@@ -975,7 +1037,7 @@ export default function ResumenGerencial() {
                     {/* 5. Flujo Neto Proyectado */}
                     <div>
                       <h4 className="text-sm font-semibold text-white mb-2">Flujo Neto</h4>
-                      <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Proyectado:</span>
                           <span className={`font-bold text-3xl ${weekComparison.current.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -989,7 +1051,7 @@ export default function ResumenGerencial() {
 
                 {/* SEMANA FUTURA - Proyecciones */}
                 {weekComparison.next && (
-                  <div className="bg-white/20 backdrop-blur-md rounded-xl p-5 border-2 border-white/40 shadow-xl">
+                  <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1008,7 +1070,7 @@ export default function ResumenGerencial() {
                     {/* 1. Saldo Inicial Proyectado */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Inicial</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Inicio Proyectado:</span>
                           <span className="text-white font-bold text-3xl">
@@ -1047,7 +1109,7 @@ export default function ResumenGerencial() {
                     {/* 4. Saldo Final Proyectado */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Final</h4>
-                      <div className="bg-white/20 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 text-sm">Final Proyectado:</span>
                           <span className={`font-bold text-3xl ${weekComparison.next.saldoFinalProyectado < 0 ? 'text-red-400' : 'text-white'}`}>
@@ -1060,7 +1122,7 @@ export default function ResumenGerencial() {
                     {/* 5. Flujo Neto Proyectado */}
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Flujo Neto</h4>
-                      <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
+                      <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Proyectado:</span>
                           <span className={`font-bold text-3xl ${weekComparison.next.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -1095,7 +1157,7 @@ export default function ResumenGerencial() {
         {/* Gráfico de Comportamiento Flujo de Caja Proyectado */}
         {chartDataFlujoCajaProyectado.length > 0 && (
           <div className="mb-8 animate-fade-in">
-            <div className="bg-gradient-to-br from-white/30 via-white/25 to-white/20 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/50 overflow-hidden transition-all duration-500 hover:shadow-3xl hover:scale-[1.01]">
+            <div className="bg-slate-800/40 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/50 overflow-hidden transition-all duration-500 hover:shadow-3xl hover:scale-[1.01]">
               {/* Header del Gráfico */}
               <div className="bg-gradient-to-r from-slate-800/50 to-slate-700/50 px-8 py-6 border-b border-white/30">
                 <div className="flex items-center justify-between flex-wrap gap-4">
@@ -1110,35 +1172,9 @@ export default function ResumenGerencial() {
                     </p>
                   </div>
                   
-                  {/* Botón de Exportar */}
-                  <button
-                    onClick={() => {
-                      // Preparar datos para Excel
-                      const csvContent = [
-                        ['Semana', 'Saldo Final Proyectado', 'Mínimo Saldo', 'Caja Cero'],
-                        ...chartDataFlujoCajaProyectado.map(item => [
-                          item.semana,
-                          item['Saldo Final Semana/Proyectado'],
-                          100000000,
-                          0
-                        ])
-                      ].map(row => row.join(',')).join('\n');
-                      
-                      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                      const link = document.createElement('a');
-                      link.href = URL.createObjectURL(blob);
-                      link.download = `flujo_caja_proyectado_${selectedYear}.csv`;
-                      link.click();
-                    }}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all duration-200 hover:scale-105 shadow-lg"
-                  >
-                    <Download className="w-5 h-5" />
-                    Exportar Excel
-                  </button>
-                  
                   {/* Estadísticas Rápidas */}
                   <div className="flex gap-4 flex-wrap">
-                    <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
+                    <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Promedio</p>
                       <p className="text-3xl font-bold text-white">
                         {formatCurrency(
@@ -1146,7 +1182,7 @@ export default function ResumenGerencial() {
                         )}
                       </p>
                     </div>
-                    <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
+                    <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Máximo</p>
                       <p className="text-3xl font-bold text-green-300">
                         {formatCurrency(
@@ -1154,7 +1190,7 @@ export default function ResumenGerencial() {
                         )}
                       </p>
                     </div>
-                    <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
+                    <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
                       <p className="text-xs text-white/70">Mínimo</p>
                       <p className="text-3xl font-bold text-red-300">
                         {formatCurrency(
@@ -1188,7 +1224,7 @@ export default function ResumenGerencial() {
               </div>
 
               {/* Filtros del Gráfico */}
-              <div className="bg-white/10 backdrop-blur-sm px-8 py-4 border-b border-white/20">
+              <div className="bg-slate-800/30 backdrop-blur-sm px-8 py-4 border-b border-white/30">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-4">
                     <span className="text-white font-semibold flex items-center gap-2">
@@ -1203,7 +1239,7 @@ export default function ResumenGerencial() {
                         className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                           rangoSemanas === 'todas'
                             ? 'bg-blue-500 text-white shadow-lg scale-105'
-                            : 'bg-white/20 text-white hover:bg-white/30'
+                            : 'bg-slate-800/40 text-white hover:bg-slate-800/50'
                         }`}
                       >
                         Todo el Año
@@ -1213,7 +1249,7 @@ export default function ResumenGerencial() {
                         className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                           rangoSemanas === 'trimestre'
                             ? 'bg-blue-500 text-white shadow-lg scale-105'
-                            : 'bg-white/20 text-white hover:bg-white/30'
+                            : 'bg-slate-800/40 text-white hover:bg-slate-800/50'
                         }`}
                       >
                         Próximas 13 Semanas
@@ -1223,7 +1259,7 @@ export default function ResumenGerencial() {
                         className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                           rangoSemanas === 'semestre'
                             ? 'bg-blue-500 text-white shadow-lg scale-105'
-                            : 'bg-white/20 text-white hover:bg-white/30'
+                            : 'bg-slate-800/40 text-white hover:bg-slate-800/50'
                         }`}
                       >
                         Próximas 26 Semanas
@@ -1233,7 +1269,7 @@ export default function ResumenGerencial() {
 
                   {/* Toggles de Líneas */}
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors">
+                    <label className="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/50 px-3 py-2 rounded-lg transition-colors">
                       <input
                         type="checkbox"
                         checked={showMinimoSaldo}
@@ -1243,7 +1279,7 @@ export default function ResumenGerencial() {
                       <span className="text-white text-sm font-medium">Mínimo Saldo</span>
                       <div className="w-6 h-0.5 bg-orange-500"></div>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors">
+                    <label className="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/50 px-3 py-2 rounded-lg transition-colors">
                       <input
                         type="checkbox"
                         checked={showCajaCero}
@@ -1264,12 +1300,10 @@ export default function ResumenGerencial() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                   <XAxis 
                     dataKey="semana" 
-                    label={{ value: 'Semana', position: 'insideBottom', offset: -5, fill: '#fff' }}
                     stroke="#fff"
                     tick={{ fill: '#fff' }}
                   />
                   <YAxis 
-                    label={{ value: 'COP', angle: -90, position: 'insideLeft', fill: '#fff' }}
                     tickFormatter={(value: number) => `$${(value / 1000000).toFixed(0)}M`}
                     stroke="#fff"
                     tick={{ fill: '#fff' }}
@@ -1323,26 +1357,8 @@ export default function ResumenGerencial() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-4xl font-bold text-white flex items-center gap-3 drop-shadow-lg">
-              <BarChart3 className="w-10 h-10 text-slate-200" />
-              Dashboard Gerencial
-            </h1>
-            <button
-              onClick={exportarAExcel}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600/80 hover:bg-green-500/80 text-white rounded-lg backdrop-blur-sm border border-green-400/50 transition-all duration-300 hover:scale-105 shadow-lg"
-            >
-              <Download className="w-4 h-4" />
-              Exportar Datos
-            </button>
-          </div>
-          <p className="text-white drop-shadow-md">Centralización General - Indicadores Financieros y Operativos</p>
-        </div>
-
         {/* Movimientos Bancarios Bancolombia - Capital de Trabajo */}
-        <div className="bg-white/15 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/20">
+        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
               <Banknote className="w-7 h-7 text-slate-200" />
@@ -1365,7 +1381,7 @@ export default function ResumenGerencial() {
               <span className="ml-2 text-white">Cargando movimientos bancarios...</span>
             </div>
           ) : movimientosMetrics ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Totalizador de Ingresos Operacionales */}
               <div className="bg-gradient-to-br from-green-500/30 to-green-600/30 backdrop-blur-sm rounded-lg p-4 border border-green-400/40">
                 <div className="flex items-center justify-between">
@@ -1429,36 +1445,47 @@ export default function ResumenGerencial() {
                 </div>
               </div>
 
-              {/* Top 1 Clasificación por Valor */}
-              {Object.entries(movimientosMetrics.movimientoPorClasificacion)
-                .sort(([,a], [,b]) => Math.abs(b) - Math.abs(a))
-                .slice(0, 1)
-                .map(([clasificacion, valor], index) => (
-                  <div 
-                    key={clasificacion}
-                    className={`bg-gradient-to-br ${
-                      valor > 0 
-                        ? 'from-blue-500/30 to-blue-600/30 border-blue-400/40' 
-                        : 'from-orange-500/30 to-orange-600/30 border-orange-400/40'
-                    } backdrop-blur-sm rounded-lg p-4 border`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className={`${valor > 0 ? 'text-blue-100' : 'text-orange-100'} text-sm font-medium mb-1`}>
-                          {clasificacion}
-                        </p>
-                        <p className="text-white text-3xl font-bold">
-                          ${Math.abs(valor).toLocaleString('es-CO')}
-                        </p>
-                      </div>
-                      {valor > 0 ? (
-                        <TrendingUp className="w-6 h-6 text-blue-300" />
-                      ) : (
-                        <TrendingDown className="w-6 h-6 text-orange-300" />
-                      )}
-                    </div>
+              {/* Totalizador de Gastos de Ventas */}
+              <div className="bg-gradient-to-br from-blue-500/30 to-blue-600/30 backdrop-blur-sm rounded-lg p-4 border border-blue-400/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium mb-1">
+                      Gasto de ventas
+                    </p>
+                    <p className="text-3xl font-bold">
+                      ${movimientosMetrics.gastosVentas.toLocaleString('es-CO')}
+                    </p>
+                    <p className="text-blue-200 text-xs mt-1">
+                      GRUPO PRUEBA: Gasto | CLASE PRUEBA: Ventas
+                    </p>
+                    <p className="text-blue-200 text-xs mt-1 font-semibold">
+                      📊 {movimientosMetrics.registrosGastosVentas} registros encontrados
+                    </p>
                   </div>
-                ))}
+                  <TrendingDown className="w-8 h-8 text-blue-300" />
+                </div>
+              </div>
+
+              {/* Totalizador de Gastos No Operacionales */}
+              <div className="bg-gradient-to-br from-indigo-500/30 to-indigo-600/30 backdrop-blur-sm rounded-lg p-4 border border-indigo-400/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-indigo-100 text-sm font-medium mb-1">
+                      Gasto No Operacional
+                    </p>
+                    <p className="text-3xl font-bold">
+                      ${movimientosMetrics.gastosNoOperacionales.toLocaleString('es-CO')}
+                    </p>
+                    <p className="text-indigo-200 text-xs mt-1">
+                      GRUPO PRUEBA: Gasto | CLASE PRUEBA: No Operacional
+                    </p>
+                    <p className="text-indigo-200 text-xs mt-1 font-semibold">
+                      📊 {movimientosMetrics.registrosGastosNoOperacionales} registros encontrados
+                    </p>
+                  </div>
+                  <TrendingDown className="w-8 h-8 text-indigo-300" />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="text-center py-8">
@@ -1469,7 +1496,7 @@ export default function ResumenGerencial() {
         </div>
 
         {/* Filtros */}
-        <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
+        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-white" />
@@ -1555,7 +1582,7 @@ export default function ResumenGerencial() {
                 fetchData();
                 fetchMovimientosBancarios();
               }}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm rounded-lg flex items-center gap-2 transition-colors border border-white/30"
+              className="px-4 py-2 bg-slate-800/40 hover:bg-slate-800/50 text-white backdrop-blur-sm rounded-lg flex items-center gap-2 transition-colors border border-white/30"
             >
               <RefreshCw className="w-4 h-4" />
               Actualizar
@@ -1566,7 +1593,7 @@ export default function ResumenGerencial() {
         {/* Comportamiento Semanal Detallado */}
         {weekData && selectedWeek && (
           <div className="mb-8">
-            <div className="bg-white/25 backdrop-blur-md rounded-xl shadow-2xl p-6 border border-white/30 mb-6">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl p-6 border border-white/30 mb-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-3xl font-bold text-white flex items-center gap-3">
@@ -1591,7 +1618,7 @@ export default function ResumenGerencial() {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* SITUACIÓN BANCARIA REAL */}
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-5 border border-white/30">
+                <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-5 border border-white/30">
                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <Banknote className="w-5 h-5 text-green-400" />
                     Situación Bancaria Real
@@ -1621,7 +1648,7 @@ export default function ResumenGerencial() {
                 </div>
 
                 {/* SITUACIÓN PROYECTADA */}
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-5 border border-white/30">
+                <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-5 border border-white/30">
                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <Target className="w-5 h-5 text-slate-300" />
                     Situación Proyectada
@@ -1651,7 +1678,7 @@ export default function ResumenGerencial() {
                 </div>
 
                 {/* FLUJOS REALES */}
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-5 border border-white/30">
+                <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-5 border border-white/30">
                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <Activity className="w-5 h-5 text-blue-400" />
                     Flujos Reales
@@ -1681,7 +1708,7 @@ export default function ResumenGerencial() {
                 </div>
 
                 {/* FLUJOS ESTIMADOS */}
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-5 border border-white/30">
+                <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-5 border border-white/30">
                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-yellow-400" />
                     Flujos Estimados
@@ -1722,7 +1749,7 @@ export default function ResumenGerencial() {
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {weekData.cantidadLitrosDeberia > 0 && (
-                          <div className="bg-white/20 rounded-lg p-4">
+                          <div className="bg-slate-800/30 rounded-lg p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <Package className="w-5 h-5 text-blue-400" />
                               <span className="text-white/80 text-sm">Productos Biológicos</span>
@@ -1739,7 +1766,7 @@ export default function ResumenGerencial() {
                           </div>
                         )}
                         {weekData.cantidadKilogramosDeberia > 0 && (
-                          <div className="bg-white/20 rounded-lg p-4">
+                          <div className="bg-slate-800/30 rounded-lg p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <Factory className="w-5 h-5 text-green-400" />
                               <span className="text-white/80 text-sm">Biochar</span>
@@ -1838,7 +1865,7 @@ export default function ResumenGerencial() {
         {/* Gráficos */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Gráfico de Ingresos vs Egresos */}
-          <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-blue-400" />
               Ingresos vs Egresos
@@ -1863,7 +1890,7 @@ export default function ResumenGerencial() {
           </div>
 
           {/* Gráfico de Utilidad */}
-          <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Activity className="w-6 h-6 text-blue-400" />
               Utilidad por Período
@@ -1887,7 +1914,7 @@ export default function ResumenGerencial() {
           </div>
 
           {/* Distribución de Ingresos por Producto */}
-          <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <PieChart className="w-6 h-6 text-blue-400" />
               Ingresos por Línea de Producto
@@ -1924,7 +1951,7 @@ export default function ResumenGerencial() {
           </div>
 
           {/* Distribución de Egresos */}
-          <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <PieChart className="w-6 h-6 text-red-400" />
               Distribución de Egresos
@@ -1963,7 +1990,7 @@ export default function ResumenGerencial() {
 
         {/* Saldos Bancarios */}
         {viewMode === 'semanal' && chartDataSaldos.length > 0 && (
-          <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 mb-8 border border-white/30">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-8 border border-white/30">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Banknote className="w-6 h-6 text-slate-300" />
               Evolución de Saldos Bancarios
@@ -1983,14 +2010,14 @@ export default function ResumenGerencial() {
         )}
 
         {/* Tabla de Resumen */}
-        <div className="bg-white/20 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
+        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
           <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
             <Calendar className="w-6 h-6 text-blue-400" />
             Detalle por Período
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-white/10">
+              <thead className="bg-slate-800/30">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-white">Período</th>
                   <th className="px-4 py-3 text-right font-semibold text-white">Ingresos</th>
