@@ -7,7 +7,7 @@ const TABLE_ID = process.env.AIRTABLE_MOVIMIENTOS_TABLE_ID;
 interface AirtableRecord {
   id: string;
   fields: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -39,8 +39,7 @@ export async function GET(request: NextRequest) {
         : mesFormula;
     }
 
-    // Construir URL de Airtable
-    let airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${TABLE_ID}`;
+    // Construir parámetros de consulta para Airtable
     const params = new URLSearchParams();
     
     if (filterFormula) {
@@ -49,10 +48,6 @@ export async function GET(request: NextRequest) {
     params.append('sort[0][field]', 'Fecha');
     params.append('sort[0][direction]', 'desc');
     // Removemos maxRecords para obtener TODOS los registros sin límite
-
-    if (params.toString()) {
-      airtableUrl += `?${params.toString()}`;
-    }
 
     // Hacer la petición a Airtable con paginación para obtener TODOS los registros
     let allRecords: AirtableRecord[] = [];
@@ -171,7 +166,7 @@ export async function GET(request: NextRequest) {
         console.log(`Registro ${index + 1}:`, {
           id: mov.id,
           fecha: mov.fecha,
-          descripcion: mov.descripcion.substring(0, 50),
+          descripcion: typeof mov.descripcion === 'string' ? mov.descripcion.substring(0, 50) : mov.descripcion,
           valor: mov.valor,
           grupo: mov.grupo,
           clase: mov.clase,
@@ -238,7 +233,7 @@ export async function GET(request: NextRequest) {
         return acc;
       }, {} as Record<string, number>);
       
-      const duplicados = Object.entries(conteoIds).filter(([id, count]) => count > 1);
+      const duplicados = Object.entries(conteoIds).filter(([_id, count]) => count > 1);
       console.log('IDs duplicados:', duplicados);
       
       // Mostrar detalles de registros duplicados
@@ -255,7 +250,7 @@ export async function GET(request: NextRequest) {
         console.log(`${index + 1}. ID: ${mov.id}`);
         console.log(`   GRUPO PRUEBA: "${mov.grupoPrueba}" (length: ${mov.grupoPrueba?.length || 0})`);
         console.log(`   CLASE PRUEBA: "${mov.clasePrueba}" (length: ${mov.clasePrueba?.length || 0})`);
-        console.log(`   Descripción: "${mov.descripcion.substring(0, 30)}..."`);
+        console.log(`   Descripción: "${typeof mov.descripcion === 'string' ? mov.descripcion.substring(0, 30) : mov.descripcion}..."`);
         console.log(`   Fecha: ${mov.fecha}`);
         console.log(`   ---`);
       }
@@ -297,7 +292,7 @@ export async function GET(request: NextRequest) {
         return acc;
       }, {} as Record<string, number>);
       
-      const duplicados = Object.entries(conteoIds).filter(([id, count]) => count > 1);
+      const duplicados = Object.entries(conteoIds).filter(([_id, count]) => count > 1);
       console.log('IDs duplicados:', duplicados);
     }
     

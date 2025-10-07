@@ -17,10 +17,7 @@ import {
   Banknote,
   Target,
   Briefcase,
-  Factory,
-  Download,
-  AlertTriangle,
-  CheckCircle
+  Factory
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -140,7 +137,7 @@ export default function ResumenGerencial() {
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
   const [showCajaCero, setShowCajaCero] = useState(true);
-  const [showTendencia, setShowTendencia] = useState(false);
+  const [showTendencia, _setShowTendencia] = useState(false);
   const [rangoSemanas, setRangoSemanas] = useState<'todas' | 'trimestre' | 'semestre'>('todas');
 
   const fetchData = useCallback(async () => {
@@ -686,8 +683,8 @@ export default function ResumenGerencial() {
     return alertas;
   }, [chartDataFlujoCajaProyectado]);
 
-  // Función para exportar a Excel
-  const exportarAExcel = () => {
+  // Función para exportar a Excel (preparada para uso futuro)
+  const _exportarAExcel = () => {
     // Datos de flujo de caja
     const csvContentFlujoCaja = [
       ['Semana', 'Saldo Final Proyectado', 'Minimo Saldo', 'Caja Cero'],
