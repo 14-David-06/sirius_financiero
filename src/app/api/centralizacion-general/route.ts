@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
       
       // Saldos Proyectados
       saldoInicioProyectado: record.get('Saldo Inicio Semana/Proyectado') || 0,
-      saldoFinalProyectado: record.get('fld8ma9lWVBPZS87o') || 0, // Saldo Final Semana/Proyectado
+      saldoFinalProyectado: record.get('Saldo Final Semana/Proyectado') || 0,
       netoSemanalProyectado: record.get('Neto Semanal/Proyectado') || 0,
       
       // Metas de ventas

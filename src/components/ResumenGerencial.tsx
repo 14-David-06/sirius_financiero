@@ -105,6 +105,11 @@ export default function ResumenGerencial() {
     current: CentralizacionData | null;
     next: CentralizacionData | null;
   }>({ previous: null, current: null, next: null });
+  
+  // Estados para filtros del gráfico de flujo de caja
+  const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
+  const [showCajaCero, setShowCajaCero] = useState(true);
+  const [rangoSemanas, setRangoSemanas] = useState<'todas' | 'trimestre' | 'semestre'>('todas');
 
   const fetchData = useCallback(async () => {
     try {
@@ -296,6 +301,39 @@ export default function ResumenGerencial() {
     }
     return [];
   }, [data, viewMode]);
+
+  // Datos para el gráfico de flujo de caja proyectado (todas las semanas del año)
+  const chartDataFlujoCajaProyectado = useMemo(() => {
+    // Obtener todas las semanas del año seleccionado, ordenadas
+    let semanasOrdenadas = data
+      .filter(item => item.año === selectedYear)
+      .sort((a, b) => a.semana - b.semana);
+
+    // Aplicar filtro de rango de semanas
+    if (rangoSemanas === 'trimestre') {
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+      const currentWeek = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+      semanasOrdenadas = semanasOrdenadas.filter(item => item.semana <= currentWeek + 13);
+    } else if (rangoSemanas === 'semestre') {
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+      const currentWeek = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+      semanasOrdenadas = semanasOrdenadas.filter(item => item.semana <= currentWeek + 26);
+    }
+
+    // Calcular el valor mínimo para la línea de "Mínimo Saldo" (puede ser un valor fijo o calculado)
+    const minimoSaldo = 100000000; // $100M como ejemplo de saldo mínimo requerido
+
+    return semanasOrdenadas.map(item => ({
+      semana: item.semana,
+      'Saldo Final Semana/Proyectado': item.saldoFinalProyectado,
+      'Minimo Saldo': showMinimoSaldo ? minimoSaldo : null,
+      'Caja Cero': showCajaCero ? 0 : null,
+    }));
+  }, [data, selectedYear, rangoSemanas, showMinimoSaldo, showCajaCero]);
 
   if (authLoading || loading) {
     return (
@@ -582,27 +620,22 @@ export default function ResumenGerencial() {
                       <h4 className="text-sm font-semibold text-white mb-2">Saldo Final</h4>
                       <div className="bg-white/20 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
-                          <span className="text-white/80 text-sm">Final Estimado:</span>
+                          <span className="text-white/80 text-sm">Final Proyectado:</span>
                           <span className="text-white font-bold text-lg">
-                            {(() => {
-                              const saldoInicial = weekComparison.previous ? weekComparison.previous.saldoFinalBancos : weekComparison.current.saldoInicialBancos;
-                              const flujoNeto = weekComparison.current.ingresosEstimados + weekComparison.current.egresosEstimados;
-                              const saldoFinal = saldoInicial + flujoNeto;
-                              return formatCurrency(saldoFinal);
-                            })()}
+                            {formatCurrency(weekComparison.current.saldoFinalProyectado)}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* 5. Flujo Neto Estimado */}
+                    {/* 5. Flujo Neto Proyectado */}
                     <div>
                       <h4 className="text-sm font-semibold text-white mb-2">Flujo Neto</h4>
                       <div className="bg-gradient-to-r from-white/15 to-white/25 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
-                          <span className="text-white/80 font-semibold">Neto Estimado:</span>
-                          <span className={`font-bold text-xl ${(weekComparison.current.ingresosEstimados + weekComparison.current.egresosEstimados) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatCurrency(weekComparison.current.ingresosEstimados + weekComparison.current.egresosEstimados)}
+                          <span className="text-white/80 font-semibold">Neto Proyectado:</span>
+                          <span className={`font-bold text-xl ${weekComparison.current.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatCurrency(weekComparison.current.netoSemanalProyectado)}
                           </span>
                         </div>
                       </div>
@@ -712,95 +745,190 @@ export default function ResumenGerencial() {
                   </div>
                 )}
             </div>
+          </div>
+        )}
 
-            {/* Comparativo de Variaciones */}
-            {weekComparison.previous && weekComparison.current && (
-              <div className="bg-white/25 backdrop-blur-md rounded-xl shadow-2xl p-6 border border-white/40">
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg p-5 border border-white/30">
-                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-blue-400" />
-                    Variaciones Estimadas (vs Semana Pasada Real)
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* Variación Flujo Neto */}
-                    {(() => {
-                      const flujoNetoActual = weekComparison.current.ingresosEstimados + weekComparison.current.egresosEstimados;
-                      const variacion = weekComparison.previous.netoSemanalBancos !== 0
-                        ? ((flujoNetoActual - weekComparison.previous.netoSemanalBancos) / Math.abs(weekComparison.previous.netoSemanalBancos)) * 100
-                        : 0;
-                      return (
-                        <div className="bg-white/20 rounded-lg p-3 border border-white/30">
-                          <p className="text-xs text-white/80 mb-1">Flujo Neto Estimado</p>
-                          <p className={`text-xl font-bold ${variacion >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {variacion >= 0 ? '+' : ''}{variacion.toFixed(1)}%
-                          </p>
-                          <p className="text-xs text-white/40 mt-1">
-                            {formatCurrency(flujoNetoActual)}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Variación Ingresos */}
-                    {(() => {
-                      const variacion = weekComparison.previous.totalIngresos !== 0
-                        ? ((weekComparison.current.ingresosEstimados - weekComparison.previous.totalIngresos) / weekComparison.previous.totalIngresos) * 100
-                        : 0;
-                      return (
-                        <div className="bg-white/20 rounded-lg p-3 border border-white/30">
-                          <p className="text-xs text-white/80 mb-1">Ingresos Estimados</p>
-                          <p className={`text-xl font-bold ${variacion >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {variacion >= 0 ? '+' : ''}{variacion.toFixed(1)}%
-                          </p>
-                          <p className="text-xs text-white/40 mt-1">
-                            {formatCurrency(weekComparison.current.ingresosEstimados)}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Variación Egresos */}
-                    {(() => {
-                      const variacion = weekComparison.previous.totalEgresos !== 0
-                        ? ((Math.abs(weekComparison.current.egresosEstimados) - Math.abs(weekComparison.previous.totalEgresos)) / Math.abs(weekComparison.previous.totalEgresos)) * 100
-                        : 0;
-                      return (
-                        <div className="bg-white/20 rounded-lg p-3 border border-white/30">
-                          <p className="text-xs text-white/80 mb-1">Egresos Estimados</p>
-                          <p className={`text-xl font-bold ${variacion <= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {variacion >= 0 ? '+' : ''}{variacion.toFixed(1)}%
-                          </p>
-                          <p className="text-xs text-white/40 mt-1">
-                            {formatCurrency(Math.abs(weekComparison.current.egresosEstimados))}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Variación Saldo Final */}
-                    {(() => {
-                      const saldoInicialActual = weekComparison.previous.saldoFinalBancos;
-                      const flujoNetoActual = weekComparison.current.ingresosEstimados + weekComparison.current.egresosEstimados;
-                      const saldoFinalEstimado = saldoInicialActual + flujoNetoActual;
-                      const variacion = weekComparison.previous.saldoFinalBancos !== 0
-                        ? ((saldoFinalEstimado - weekComparison.previous.saldoFinalBancos) / weekComparison.previous.saldoFinalBancos) * 100
-                        : 0;
-                      return (
-                        <div className="bg-white/20 rounded-lg p-3 border border-white/30">
-                          <p className="text-xs text-white/80 mb-1">Saldo Final Estimado</p>
-                          <p className={`text-xl font-bold ${variacion >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {variacion >= 0 ? '+' : ''}{variacion.toFixed(1)}%
-                          </p>
-                          <p className="text-xs text-white/40 mt-1">
-                            {formatCurrency(saldoFinalEstimado)}
-                          </p>
-                        </div>
-                      );
-                    })()}
+        {/* Gráfico de Comportamiento Flujo de Caja Proyectado */}
+        {chartDataFlujoCajaProyectado.length > 0 && (
+          <div className="mb-8">
+            <div className="bg-gradient-to-br from-white/30 via-white/25 to-white/20 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+              {/* Header del Gráfico */}
+              <div className="bg-gradient-to-r from-slate-800/50 to-slate-700/50 px-8 py-6 border-b border-white/30">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h3 className="text-3xl font-bold text-white flex items-center gap-3 drop-shadow-lg">
+                      <Activity className="w-8 h-8 text-blue-300" />
+                      Comportamiento Flujo de Caja Proyectado
+                    </h3>
+                    <p className="text-slate-200 text-sm mt-2 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Año {selectedYear} - Proyección Semanal
+                    </p>
+                  </div>
+                  
+                  {/* Estadísticas Rápidas */}
+                  <div className="flex gap-4">
+                    <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
+                      <p className="text-xs text-white/70">Promedio</p>
+                      <p className="text-lg font-bold text-white">
+                        {formatCurrency(
+                          chartDataFlujoCajaProyectado.reduce((sum, item) => sum + item['Saldo Final Semana/Proyectado'], 0) / chartDataFlujoCajaProyectado.length
+                        )}
+                      </p>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
+                      <p className="text-xs text-white/70">Máximo</p>
+                      <p className="text-lg font-bold text-green-300">
+                        {formatCurrency(
+                          Math.max(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado']))
+                        )}
+                      </p>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
+                      <p className="text-xs text-white/70">Mínimo</p>
+                      <p className="text-lg font-bold text-red-300">
+                        {formatCurrency(
+                          Math.min(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado']))
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-              )}
+
+              {/* Filtros del Gráfico */}
+              <div className="bg-white/10 backdrop-blur-sm px-8 py-4 border-b border-white/20">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
+                    <span className="text-white font-semibold flex items-center gap-2">
+                      <Filter className="w-4 h-4" />
+                      Visualización:
+                    </span>
+                    
+                    {/* Filtro de Rango */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setRangoSemanas('todas')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                          rangoSemanas === 'todas'
+                            ? 'bg-blue-500 text-white shadow-lg scale-105'
+                            : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                      >
+                        Todo el Año
+                      </button>
+                      <button
+                        onClick={() => setRangoSemanas('trimestre')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                          rangoSemanas === 'trimestre'
+                            ? 'bg-blue-500 text-white shadow-lg scale-105'
+                            : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                      >
+                        Próximas 13 Semanas
+                      </button>
+                      <button
+                        onClick={() => setRangoSemanas('semestre')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                          rangoSemanas === 'semestre'
+                            ? 'bg-blue-500 text-white shadow-lg scale-105'
+                            : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                      >
+                        Próximas 26 Semanas
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Toggles de Líneas */}
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={showMinimoSaldo}
+                        onChange={(e) => setShowMinimoSaldo(e.target.checked)}
+                        className="w-4 h-4 rounded accent-orange-500"
+                      />
+                      <span className="text-white text-sm font-medium">Mínimo Saldo</span>
+                      <div className="w-6 h-0.5 bg-orange-500"></div>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={showCajaCero}
+                        onChange={(e) => setShowCajaCero(e.target.checked)}
+                        className="w-4 h-4 rounded accent-yellow-500"
+                      />
+                      <span className="text-white text-sm font-medium">Caja Cero</span>
+                      <div className="w-6 h-0.5 bg-yellow-500"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Área del Gráfico */}
+              <div className="p-8 bg-gradient-to-b from-slate-900/30 to-slate-900/50">
+                <ResponsiveContainer width="100%" height={550}>
+                <LineChart data={chartDataFlujoCajaProyectado}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis 
+                    dataKey="semana" 
+                    label={{ value: 'Semana', position: 'insideBottom', offset: -5, fill: '#fff' }}
+                    stroke="#fff"
+                    tick={{ fill: '#fff' }}
+                  />
+                  <YAxis 
+                    label={{ value: 'COP', angle: -90, position: 'insideLeft', fill: '#fff' }}
+                    tickFormatter={(value: number) => `$${(value / 1000000).toFixed(0)}M`}
+                    stroke="#fff"
+                    tick={{ fill: '#fff' }}
+                    tickCount={15}
+                    domain={['auto', 'auto']}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(30, 41, 59, 0.95)', 
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#fff' }}
+                    iconType="line"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="Saldo Final Semana/Proyectado" 
+                    stroke="#3b82f6" 
+                    strokeWidth={3}
+                    dot={{ fill: '#3b82f6', r: 4 }}
+                    activeDot={{ r: 6 }}
+                    name="Saldo Final Semana/Proyectado"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="Minimo Saldo" 
+                    stroke="#f97316" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    name="Mínimo Saldo"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="Caja Cero" 
+                    stroke="#fbbf24" 
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
+                    dot={false}
+                    name="Caja Cero"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         )}
 
