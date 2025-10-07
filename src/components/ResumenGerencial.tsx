@@ -134,6 +134,10 @@ export default function ResumenGerencial() {
   const [movimientosBancarios, setMovimientosBancarios] = useState<MovimientoBancarioData[]>([]);
   const [loadingMovimientos, setLoadingMovimientos] = useState(true);
   
+  // Estados para facturación de ingresos
+  const [facturacionIngresos, setFacturacionIngresos] = useState<any[]>([]);
+  const [loadingFacturacion, setLoadingFacturacion] = useState(true);
+  
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
   const [showCajaCero, setShowCajaCero] = useState(true);
@@ -197,13 +201,42 @@ export default function ResumenGerencial() {
     }
   }, [selectedYear, selectedMonth]);
 
+  const fetchFacturacionIngresos = useCallback(async () => {
+    try {
+      setLoadingFacturacion(true);
+      let url = `/api/facturacion-ingresos?año=${selectedYear}`;
+      if (selectedMonth) {
+        url += `&mes=${selectedMonth}`;
+      }
+      
+      console.log('Fetching facturación ingresos from:', url);
+      
+      const response = await fetch(url);
+      const result = await response.json();
+      
+      console.log('Respuesta API facturación ingresos:', result);
+      
+      if (result.success) {
+        setFacturacionIngresos(result.data);
+        console.log(`Frontend - Total items facturación recibidos: ${result.data.length}`);
+      } else {
+        console.error('Error en respuesta API facturación:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching facturación ingresos:', error);
+    } finally {
+      setLoadingFacturacion(false);
+    }
+  }, [selectedYear, selectedMonth]);
+
   // Fetch data
   useEffect(() => {
     if (!isAuthenticated) return;
     
     fetchData();
     fetchMovimientosBancarios();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios]);
+    fetchFacturacionIngresos();
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -510,6 +543,108 @@ export default function ResumenGerencial() {
     };
   }, [movimientosBancarios]);
 
+  // Cálculos de facturación de ingresos
+  const facturacionMetrics = useMemo(() => {
+    console.log('=== INICIANDO CÁLCULO DE MÉTRICAS FACTURACIÓN ===');
+    console.log(`Total items facturación disponibles: ${facturacionIngresos.length}`);
+    
+    if (facturacionIngresos.length === 0) {
+      console.log('No hay datos de facturación para procesar');
+      return null;
+    }
+
+    // Agrupar por Centro de Resultados (replicar configuración del gráfico Airtable)
+    const ingresosPorLinea = facturacionIngresos.reduce((acc, item) => {
+      const centro = item['Centro de Resultados (Solo Ingresos)'] || 'Otro';
+      if (!acc[centro]) {
+        acc[centro] = 0;
+      }
+      acc[centro] += Number(item['Valor']) || 0;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Agrupar por semana y centro
+    const ingresosPorSemana = facturacionIngresos.reduce((acc, item) => {
+      const semana = item['Numero semana formulado'] || 'S/D';
+      const centro = item['Centro de Resultados (Solo Ingresos)'] || 'Otro';
+      
+      if (!acc[semana]) {
+        acc[semana] = {};
+      }
+      if (!acc[semana][centro]) {
+        acc[semana][centro] = 0;
+      }
+      acc[semana][centro] += Number(item['Valor']) || 0;
+      return acc;
+    }, {} as Record<string, Record<string, number>>);
+
+    console.log('Ingresos por línea de producto:', ingresosPorLinea);
+    console.log('Ingresos por semana:', ingresosPorSemana);
+
+    return {
+      ingresosPorLinea,
+      ingresosPorSemana,
+      totalFacturacion: facturacionIngresos.reduce((sum, item) => sum + (Number(item['Valor']) || 0), 0),
+      totalItems: facturacionIngresos.length
+    };
+  }, [facturacionIngresos]);
+
+  // Cálculo de datos mensuales para la tabla
+  const datosFacturacionMensual = useMemo(() => {
+    if (!facturacionIngresos.length) return [];
+
+    // Agrupar por mes y centro de resultados
+    const agrupacionMensual = facturacionIngresos.reduce((acc, item) => {
+      const mes = item['Mes formulado'] || 'Sin mes';
+      const centro = item['Centro de Resultados (Solo Ingresos)'] || 'Otro';
+      const valor = Number(item['Valor']) || 0;
+
+      if (!acc[mes]) {
+        acc[mes] = {};
+      }
+      if (!acc[mes][centro]) {
+        acc[mes][centro] = 0;
+      }
+      acc[mes][centro] += valor;
+
+      return acc;
+    }, {} as Record<string, Record<string, number>>);
+
+    // Convertir a formato de tabla
+    const meses = Object.keys(agrupacionMensual).sort((a, b) => Number(a) - Number(b));
+    const centros = ['Biológicos General', 'Biochar Blend', 'Biochar Puro', 'Biochar Como Filtro'];
+    
+    const resultado: Array<{
+      mes: string;
+      productos: Record<string, number>;
+      totalMes: number;
+    }> = [];
+
+    meses.forEach(mes => {
+      const datosMes = agrupacionMensual[mes];
+      const productos: Record<string, number> = {};
+      let totalMes = 0;
+
+      centros.forEach(centro => {
+        productos[centro] = datosMes[centro] || 0;
+        totalMes += productos[centro];
+      });
+
+      const nombreMes = [
+        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ][Number(mes)] || `Mes ${mes}`;
+
+      resultado.push({
+        mes: nombreMes,
+        productos,
+        totalMes
+      });
+    });
+
+    return resultado;
+  }, [facturacionIngresos]);
+
   // Datos para gráficos
   const chartDataIngresos = useMemo(() => {
     if (viewMode === 'semanal') {
@@ -575,6 +710,19 @@ export default function ResumenGerencial() {
       { name: 'Inversión', value: inversionTotal },
     ].filter(item => item.value > 0);
   }, [data]);
+
+  // Datos para gráfico de facturación por línea de producto
+  const chartDataFacturacion = useMemo(() => {
+    if (!facturacionMetrics) return [];
+    
+    return Object.entries(facturacionMetrics.ingresosPorLinea)
+      .map(([linea, valor]) => ({
+        linea,
+        valor,
+        valorFormatted: valor.toLocaleString('es-CO', { maximumFractionDigits: 0 })
+      }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [facturacionMetrics]);
 
   const chartDataSaldos = useMemo(() => {
     if (viewMode === 'semanal') {
@@ -1434,6 +1582,155 @@ export default function ResumenGerencial() {
           )}
         </div>
 
+        {/* Facturación de Ingresos por Línea de Producto */}
+        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-white">
+              Facturación de Ingresos por Línea de Producto
+            </h2>
+          </div>
+
+          {loadingFacturacion ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+              <span className="ml-2 text-white">Cargando datos de facturación...</span>
+            </div>
+          ) : facturacionMetrics ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gráfico de Barras */}
+              <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-blue-400" />
+                  Ingresos por Línea de Producto
+                </h3>
+                {chartDataFacturacion.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={chartDataFacturacion}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis 
+                        dataKey="linea" 
+                        stroke="#fff"
+                        tick={{ fill: '#fff', fontSize: 12 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis 
+                        tickFormatter={(value: number) => `$${(value / 1000000).toFixed(0)}M`}
+                        stroke="#fff"
+                        tick={{ fill: '#fff', fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [`$${value.toLocaleString('es-CO')}`, 'Valor']}
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(30, 41, 59, 0.95)', 
+                          border: '1px solid rgba(255,255,255,0.3)',
+                          borderRadius: '8px',
+                          color: '#fff'
+                        }}
+                      />
+                      <Bar dataKey="valor" fill="#3b82f6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-white/70">
+                    No hay datos de facturación disponibles
+                  </div>
+                )}
+              </div>
+
+              {/* Tabla de Valores Mensuales */}
+              <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-green-400" />
+                  Detalle Mensual - Recaudo Facturas de Venta por Línea de Producto
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-800/40">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-white">Mes</th>
+                        <th className="px-3 py-2 text-right font-semibold text-white">Biológicos General</th>
+                        <th className="px-3 py-2 text-right font-semibold text-white">Biochar Blend</th>
+                        <th className="px-3 py-2 text-right font-semibold text-white">Biochar Puro</th>
+                        <th className="px-3 py-2 text-right font-semibold text-white">Biochar Como Filtro</th>
+                        <th className="px-3 py-2 text-right font-semibold text-white">Total Mes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {datosFacturacionMensual.map((fila, index) => (
+                        <tr key={fila.mes} className="hover:bg-white/5">
+                          <td className="px-3 py-2 text-white font-medium">
+                            {fila.mes}
+                          </td>
+                          <td className="px-3 py-2 text-right text-white">
+                            ${(fila.productos['Biológicos General'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="px-3 py-2 text-right text-white">
+                            ${(fila.productos['Biochar Blend'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="px-3 py-2 text-right text-white">
+                            ${(fila.productos['Biochar Puro'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="px-3 py-2 text-right text-white">
+                            ${(fila.productos['Biochar Como Filtro'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </td>
+                          <td className="px-3 py-2 text-right text-green-400 font-bold">
+                            ${fila.totalMes.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-800/40">
+                      <tr>
+                        <td className="px-3 py-2 text-white font-bold">Total General</td>
+                        <td className="px-3 py-2 text-right text-white font-bold">
+                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biológicos General'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-3 py-2 text-right text-white font-bold">
+                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biochar Blend'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-3 py-2 text-right text-white font-bold">
+                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biochar Puro'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-3 py-2 text-right text-white font-bold">
+                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biochar Como Filtro'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-3 py-2 text-right text-green-400 font-bold">
+                          ${facturacionMetrics.totalFacturacion.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                
+                {/* Resumen adicional */}
+                <div className="mt-4 pt-4 border-t border-white/20">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-white/70">Total Items:</p>
+                      <p className="text-white font-bold">{facturacionMetrics.totalItems}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/70">Líneas Activas:</p>
+                      <p className="text-white font-bold">{Object.keys(facturacionMetrics.ingresosPorLinea).length}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/70">Meses con Datos:</p>
+                      <p className="text-white font-bold">{datosFacturacionMensual.length}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-white/50 mx-auto mb-2" />
+              <p className="text-white/70">No hay datos de facturación disponibles</p>
+            </div>
+          )}
+        </div>
+
         {/* Filtros */}
         <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
           <div className="flex flex-wrap items-center gap-4">
@@ -1520,6 +1817,7 @@ export default function ResumenGerencial() {
               onClick={() => {
                 fetchData();
                 fetchMovimientosBancarios();
+                fetchFacturacionIngresos();
               }}
               className="px-4 py-2 bg-slate-800/40 hover:bg-slate-800/50 text-white backdrop-blur-sm rounded-lg flex items-center gap-2 transition-colors border border-white/30"
             >
