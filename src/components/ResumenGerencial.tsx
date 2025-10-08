@@ -647,6 +647,41 @@ export default function ResumenGerencial() {
     return resultado;
   }, [facturacionIngresos]);
 
+  // Datos transpuestos para la tabla (productos como filas, meses como columnas)
+  const datosFacturacionTranspuestos = useMemo(() => {
+    if (!datosFacturacionMensual.length) return { productos: [], meses: [], totalesPorMes: [] };
+
+    const centros = ['Biológicos General', 'Biochar Blend', 'Biochar Puro', 'Biochar Como Filtro'];
+    // Invertir el orden de los meses (del más reciente al más antiguo)
+    const meses = datosFacturacionMensual.map(item => item.mes).reverse();
+    
+    // Crear filas por producto
+    const productos = centros.map(centro => {
+      const valoresPorMes: Record<string, number> = {};
+      let totalProducto = 0;
+
+      datosFacturacionMensual.forEach(mesData => {
+        const valor = mesData.productos[centro] || 0;
+        valoresPorMes[mesData.mes] = valor;
+        totalProducto += valor;
+      });
+
+      return {
+        producto: centro,
+        valoresPorMes,
+        totalProducto
+      };
+    });
+
+    // Calcular totales por mes (invirtiendo el orden cronológico)
+    const totalesPorMes = datosFacturacionMensual.map(mesData => ({
+      mes: mesData.mes,
+      total: mesData.totalMes
+    })).reverse();
+
+    return { productos, meses, totalesPorMes };
+  }, [datosFacturacionMensual]);
+
   // Datos para gráficos
   const chartDataIngresos = useMemo(() => {
     if (viewMode === 'semanal') {
@@ -1651,34 +1686,29 @@ export default function ResumenGerencial() {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-800/40">
                       <tr>
-                        <th className="px-3 py-2 text-left font-semibold text-white">Mes</th>
-                        <th className="px-3 py-2 text-right font-semibold text-white">Biológicos General</th>
-                        <th className="px-3 py-2 text-right font-semibold text-white">Biochar Blend</th>
-                        <th className="px-3 py-2 text-right font-semibold text-white">Biochar Puro</th>
-                        <th className="px-3 py-2 text-right font-semibold text-white">Biochar Como Filtro</th>
-                        <th className="px-3 py-2 text-right font-semibold text-white">Total Mes</th>
+                        <th className="px-3 py-2 text-left font-semibold text-white">Producto</th>
+                        {datosFacturacionTranspuestos.meses.map((mes) => (
+                          <th key={mes} className="px-3 py-2 text-right font-semibold text-white">{mes}</th>
+                        ))}
+                        <th className="px-3 py-2 text-right font-semibold text-white">Total Producto</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
-                      {datosFacturacionMensual.map((fila, index) => (
-                        <tr key={fila.mes} className="hover:bg-white/5">
+                      {datosFacturacionTranspuestos.productos.map((fila) => (
+                        <tr key={fila.producto} className="hover:bg-white/5">
                           <td className="px-3 py-2 text-white font-medium">
-                            {fila.mes}
+                            {fila.producto}
                           </td>
-                          <td className="px-3 py-2 text-right text-white">
-                            ${(fila.productos['Biológicos General'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                          </td>
-                          <td className="px-3 py-2 text-right text-white">
-                            ${(fila.productos['Biochar Blend'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                          </td>
-                          <td className="px-3 py-2 text-right text-white">
-                            ${(fila.productos['Biochar Puro'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                          </td>
-                          <td className="px-3 py-2 text-right text-white">
-                            ${(fila.productos['Biochar Como Filtro'] || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                          </td>
+                          {datosFacturacionTranspuestos.meses.map((mes) => {
+                            const valor = fila.valoresPorMes[mes] || 0;
+                            return (
+                              <td key={mes} className="px-3 py-2 text-right text-white">
+                                {valor === 0 ? '-' : `$${valor.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`}
+                              </td>
+                            );
+                          })}
                           <td className="px-3 py-2 text-right text-green-400 font-bold">
-                            ${fila.totalMes.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                            ${fila.totalProducto.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                           </td>
                         </tr>
                       ))}
@@ -1686,42 +1716,17 @@ export default function ResumenGerencial() {
                     <tfoot className="bg-slate-800/40">
                       <tr>
                         <td className="px-3 py-2 text-white font-bold">Total General</td>
-                        <td className="px-3 py-2 text-right text-white font-bold">
-                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biológicos General'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="px-3 py-2 text-right text-white font-bold">
-                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biochar Blend'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="px-3 py-2 text-right text-white font-bold">
-                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biochar Puro'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="px-3 py-2 text-right text-white font-bold">
-                          ${datosFacturacionMensual.reduce((sum, fila) => sum + (fila.productos['Biochar Como Filtro'] || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                        </td>
+                        {datosFacturacionTranspuestos.totalesPorMes.map((mesTotal) => (
+                          <td key={mesTotal.mes} className="px-3 py-2 text-right text-white font-bold">
+                            {mesTotal.total === 0 ? '-' : `$${mesTotal.total.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`}
+                          </td>
+                        ))}
                         <td className="px-3 py-2 text-right text-green-400 font-bold">
                           ${facturacionMetrics.totalFacturacion.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                         </td>
                       </tr>
                     </tfoot>
                   </table>
-                </div>
-                
-                {/* Resumen adicional */}
-                <div className="mt-4 pt-4 border-t border-white/20">
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-white/70">Total Items:</p>
-                      <p className="text-white font-bold">{facturacionMetrics.totalItems}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Líneas Activas:</p>
-                      <p className="text-white font-bold">{Object.keys(facturacionMetrics.ingresosPorLinea).length}</p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Meses con Datos:</p>
-                      <p className="text-white font-bold">{datosFacturacionMensual.length}</p>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1731,102 +1736,6 @@ export default function ResumenGerencial() {
               <p className="text-white/70">No hay datos de facturación disponibles</p>
             </div>
           )}
-        </div>
-
-        {/* Filtros */}
-        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-white" />
-              <span className="font-semibold text-white">Filtros:</span>
-            </div>
-
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-4 py-2 bg-white/25 border border-white/40 text-white rounded-lg focus:ring-2 focus:ring-slate-300 focus:border-transparent backdrop-blur-sm font-medium"
-            >
-              <option value={2024} className="text-gray-900">2024</option>
-              <option value={2025} className="text-gray-900">2025</option>
-              <option value={2026} className="text-gray-900">2026</option>
-            </select>
-
-            <select
-              value={selectedMonth || ''}
-              onChange={(e) => setSelectedMonth(e.target.value ? Number(e.target.value) : null)}
-              className="px-4 py-2 bg-white/25 border border-white/40 text-white rounded-lg focus:ring-2 focus:ring-slate-300 focus:border-transparent backdrop-blur-sm font-medium"
-            >
-              <option value="" className="text-gray-900">Todos los meses</option>
-              <option value={1} className="text-gray-900">Enero</option>
-              <option value={2} className="text-gray-900">Febrero</option>
-              <option value={3} className="text-gray-900">Marzo</option>
-              <option value={4} className="text-gray-900">Abril</option>
-              <option value={5} className="text-gray-900">Mayo</option>
-              <option value={6} className="text-gray-900">Junio</option>
-              <option value={7} className="text-gray-900">Julio</option>
-              <option value={8} className="text-gray-900">Agosto</option>
-              <option value={9} className="text-gray-900">Septiembre</option>
-              <option value={10} className="text-gray-900">Octubre</option>
-              <option value={11} className="text-gray-900">Noviembre</option>
-              <option value={12} className="text-gray-900">Diciembre</option>
-            </select>
-
-            <select
-              value={selectedWeek || ''}
-              onChange={(e) => setSelectedWeek(e.target.value ? Number(e.target.value) : null)}
-              className="px-4 py-2 bg-white/25 border border-white/40 text-white rounded-lg focus:ring-2 focus:ring-slate-300 focus:border-transparent backdrop-blur-sm font-medium"
-            >
-              <option value="" className="text-gray-900">Todas las semanas</option>
-              {Array.from({ length: 53 }, (_, i) => i + 1).map((week) => (
-                <option key={week} value={week} className="text-gray-900">Semana {week}</option>
-              ))}
-            </select>
-
-            <div className="flex gap-2 ml-auto">
-              <button
-                onClick={() => setViewMode('anual')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewMode === 'anual'
-                    ? 'bg-slate-600 text-white shadow-lg border-2 border-white/50'
-                    : 'bg-white/25 text-white hover:bg-white/35 backdrop-blur-sm border border-white/30'
-                }`}
-              >
-                Anual
-              </button>
-              <button
-                onClick={() => setViewMode('mensual')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewMode === 'mensual'
-                    ? 'bg-slate-600 text-white shadow-lg border-2 border-white/50'
-                    : 'bg-white/25 text-white hover:bg-white/35 backdrop-blur-sm border border-white/30'
-                }`}
-              >
-                Mensual
-              </button>
-              <button
-                onClick={() => setViewMode('semanal')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewMode === 'semanal'
-                    ? 'bg-slate-600 text-white shadow-lg border-2 border-white/50'
-                    : 'bg-white/25 text-white hover:bg-white/35 backdrop-blur-sm border border-white/30'
-                }`}
-              >
-                Semanal
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                fetchData();
-                fetchMovimientosBancarios();
-                fetchFacturacionIngresos();
-              }}
-              className="px-4 py-2 bg-slate-800/40 hover:bg-slate-800/50 text-white backdrop-blur-sm rounded-lg flex items-center gap-2 transition-colors border border-white/30"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Actualizar
-            </button>
-          </div>
         </div>
 
         {/* Comportamiento Semanal Detallado */}
@@ -2101,132 +2010,6 @@ export default function ResumenGerencial() {
           </div>
         )}
 
-        {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Gráfico de Ingresos vs Egresos */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-blue-400" />
-              Ingresos vs Egresos
-            </h3>
-            {chartDataIngresos.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartDataIngresos}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="periodo" />
-                  <YAxis tickFormatter={(value: number) => `$${(value / 1000000).toFixed(0)}M`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  <Legend />
-                  <Bar dataKey="Ingresos" fill="#10b981" />
-                  <Bar dataKey="Egresos" fill="#ef4444" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-white/70">
-                No hay datos disponibles
-              </div>
-            )}
-          </div>
-
-          {/* Gráfico de Utilidad */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Activity className="w-6 h-6 text-blue-400" />
-              Utilidad por Período
-            </h3>
-            {chartDataIngresos.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={chartDataIngresos}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="periodo" />
-                  <YAxis tickFormatter={(value: number) => `$${(value / 1000000).toFixed(0)}M`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  <Legend />
-                  <Area type="monotone" dataKey="Utilidad" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-white/70">
-                No hay datos disponibles
-              </div>
-            )}
-          </div>
-
-          {/* Distribución de Ingresos por Producto */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <PieChart className="w-6 h-6 text-blue-400" />
-              Ingresos por Línea de Producto
-            </h3>
-            {chartDataProductos.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <RechartsePieChart>
-                  <Pie
-                    data={chartDataProductos}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(props) => {
-                      const percent = Number(props.percent || 0);
-                      const name = String(props.name || '');
-                      return `${name}: ${(percent * 100).toFixed(0)}%`;
-                    }}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartDataProductos.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                </RechartsePieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-white/70">
-                No hay datos disponibles
-              </div>
-            )}
-          </div>
-
-          {/* Distribución de Egresos */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <PieChart className="w-6 h-6 text-red-400" />
-              Distribución de Egresos
-            </h3>
-            {chartDataEgresos.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <RechartsePieChart>
-                  <Pie
-                    data={chartDataEgresos}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(props) => {
-                      const percent = Number(props.percent || 0);
-                      const name = String(props.name || '');
-                      return `${name}: ${(percent * 100).toFixed(0)}%`;
-                    }}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartDataEgresos.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                </RechartsePieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[300px] flex items-center justify-center text-white/70">
-                No hay datos disponibles
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Saldos Bancarios */}
         {viewMode === 'semanal' && chartDataSaldos.length > 0 && (
           <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-8 border border-white/30">
@@ -2248,56 +2031,6 @@ export default function ResumenGerencial() {
           </div>
         )}
 
-        {/* Tabla de Resumen */}
-        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/30">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-blue-400" />
-            Detalle por Período
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-800/30">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-white">Período</th>
-                  <th className="px-4 py-3 text-right font-semibold text-white">Ingresos</th>
-                  <th className="px-4 py-3 text-right font-semibold text-white">Egresos</th>
-                  <th className="px-4 py-3 text-right font-semibold text-white">Utilidad</th>
-                  <th className="px-4 py-3 text-right font-semibold text-white">Margen %</th>
-                  <th className="px-4 py-3 text-right font-semibold text-white">Saldo Final</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {data.slice(0, 20).map((item) => {
-                  const utilidad = item.totalIngresos + item.totalEgresos;
-                  const margen = item.totalIngresos > 0 ? (utilidad / item.totalIngresos) * 100 : 0;
-                  
-                  return (
-                    <tr key={item.id} className="hover:bg-white/5">
-                      <td className="px-4 py-3 text-white">
-                        {item.mes} - Semana {item.semana}
-                      </td>
-                      <td className="px-4 py-3 text-right text-green-400 font-medium">
-                        {formatCurrency(item.totalIngresos)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-red-400 font-medium">
-                        {formatCurrency(Math.abs(item.totalEgresos))}
-                      </td>
-                      <td className={`px-4 py-3 text-right font-bold ${utilidad >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                        {formatCurrency(utilidad)}
-                      </td>
-                      <td className={`px-4 py-3 text-right ${margen >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                        {formatPercent(margen)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-white font-medium">
-                        {formatCurrency(item.saldoFinalBancos)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
       </div>
     </div>
