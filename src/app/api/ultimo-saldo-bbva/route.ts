@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const BBVA_TABLE_ID = process.env.AIRTABLE_BBVA_TABLE_ID;
+const BBVA_SALDO_FIELD_ID = process.env.AIRTABLE_BBVA_SALDO_FIELD_ID;
 
 export async function GET(request: NextRequest) {
   try {
-    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY || !BBVA_TABLE_ID) {
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY || !BBVA_TABLE_ID || !BBVA_SALDO_FIELD_ID) {
       return NextResponse.json(
         { error: 'Configuración de Airtable no encontrada', success: false },
         { status: 500 }
@@ -46,13 +47,13 @@ export async function GET(request: NextRequest) {
           creada: fields.Creada,
           fecha: fields.Fecha,
           saldoField1: fields['Saldo Bancario Actual'],
-          saldoField2: fields['fldlt2Uad6uPbaR0M'],
+          saldoField2: fields[BBVA_SALDO_FIELD_ID!],
           descripcion: fields['Descripción']?.substring(0, 50)
         });
 
         return {
           id: record.id,
-          saldoBancarioActual: fields['Saldo Bancario Actual'] || fields['fldlt2Uad6uPbaR0M'] || 0,
+          saldoBancarioActual: fields['Saldo Bancario Actual'] || fields[BBVA_SALDO_FIELD_ID!] || 0,
           fecha: fields['Fecha'],
           creada: fields['Creada'],
           descripcion: fields['Descripción'],

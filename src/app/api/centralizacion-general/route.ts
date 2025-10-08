@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import base from '@/lib/airtable';
 
-const CENTRALIZACION_TABLE_ID = process.env.AIRTABLE_CENTRALIZACION_TABLE_ID || '';
+const CENTRALIZACION_TABLE_ID = process.env.AIRTABLE_CENTRALIZACION_TABLE_ID;
+const SEMANA_FIELD_ID = process.env.AIRTABLE_CENTRALIZACION_SEMANA_FIELD_ID;
+const CALCULO_FIELD_ID = process.env.AIRTABLE_CENTRALIZACION_CALCULO_FIELD_ID;
 
 export async function GET(request: NextRequest) {
   try {
+    // Validar variables de entorno requeridas
+    if (!CENTRALIZACION_TABLE_ID || !SEMANA_FIELD_ID || !CALCULO_FIELD_ID) {
+      console.error('❌ Faltan variables de entorno requeridas para centralizacion-general');
+      return NextResponse.json(
+        { error: 'Configuración incompleta del servidor', success: false },
+        { status: 500 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const año = searchParams.get('año');
     const mes = searchParams.get('mes');
@@ -38,7 +49,7 @@ export async function GET(request: NextRequest) {
     const records = await base(CENTRALIZACION_TABLE_ID)
       .select({
         filterByFormula: filterFormula || undefined,
-        sort: [{ field: 'fld3mdBlINk32bFsf', direction: 'asc' }], // Ordenar por Semana formulada
+        sort: [{ field: SEMANA_FIELD_ID, direction: 'asc' }], // Ordenar por Semana formulada
       })
       .all();
 
@@ -79,7 +90,7 @@ export async function GET(request: NextRequest) {
       movimientoGastos: record.get('Movimiento Gastos') || 0,
       movimientoInversion: record.get('Movimiento Inversion') || 0,
       totalEgresos: record.get('Total Egresos') || 0,
-      egresosEstimados: record.get('Cálculo') || 0, // Campo fld3lRFUDKNyV3iHK
+      egresosEstimados: record.get('Cálculo') || 0, // Campo CALCULO_FIELD_ID
       totalCostosGastosPirolisis: record.get('Total Costos Gastos Pirolisis') || 0,
       
       // Saldos Bancarios
