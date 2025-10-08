@@ -12,6 +12,8 @@ import {
   PieChart,
   Activity,
   AlertCircle,
+  AlertTriangle,
+  CheckCircle,
   Filter,
   RefreshCw,
   Banknote,
@@ -114,6 +116,22 @@ interface MovimientoBancarioData {
   subCuenta: string;
 }
 
+interface FacturaSinPagarData {
+  id: string;
+  facturaNo: string;
+  nombreComprador: string;
+  nitComprador: string;
+  totalRecibir: number;
+  saldoAnterior: number;
+  montoRestante: number;
+  totalMovimientos: number;
+  estadoFactura: string;
+  fechaCreacion: string;
+  ultimaModificacion: string;
+  idFactura: string;
+  movimientosBancarios: string[] | string;
+}
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function ResumenGerencial() {
@@ -143,6 +161,14 @@ export default function ResumenGerencial() {
   const [saldoBancolombia, setSaldoBancolombia] = useState<number | null>(null);
   const [saldoBBVA, setSaldoBBVA] = useState<number | null>(null);
   const [loadingSaldos, setLoadingSaldos] = useState(true);
+  
+  // Estados para facturas sin pagar
+  const [facturasSinPagar, setFacturasSinPagar] = useState<FacturaSinPagarData[]>([]);
+  const [loadingFacturasSinPagar, setLoadingFacturasSinPagar] = useState(true);
+  
+  // Estados para remisiones sin facturar
+  const [remisionesSinFacturar, setRemisionesSinFacturar] = useState<any[]>([]);
+  const [loadingRemisionesSinFacturar, setLoadingRemisionesSinFacturar] = useState(true);
   
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
@@ -267,101 +293,33 @@ export default function ResumenGerencial() {
         setSaldoBancolombia(0);
       }
       
-      // Obtener saldo de BBVA (último registro - múltiples estrategias)
-      console.log('🔍 Obteniendo datos de BBVA...');
+      // Obtener saldo de BBVA - SIMPLE: solo el último registro por ID_Numerico
+      console.log('🔍 Obteniendo ÚLTIMO registro de BBVA ordenado por ID_Numerico...');
       
-      // Intentar con diferentes campos de ordenamiento
-      const sortOptions = [
-        'Creada',
-        'Fecha', 
-        'Auto Number',
-        'RECORD_ID()'
-      ];
-      
-      let saldoBBVAObtenido = false;
-      
-      for (const sortField of sortOptions) {
-        if (saldoBBVAObtenido) break;
+      try {
+        const responseBBVA = await fetch(`/api/movimientos-bancarios-bbva?maxRecords=1&sort[0][field]=fldDmfZnWliGsEZga&sort[0][direction]=desc`);
+        const resultBBVA = await responseBBVA.json();
         
-        try {
-          console.log(`📊 Intentando ordenar BBVA por: ${sortField}`);
-          const responseBBVA = await fetch(`/api/movimientos-bancarios-bbva?maxRecords=5&sort[0][field]=${sortField}&sort[0][direction]=desc`);
-          const resultBBVA = await responseBBVA.json();
+        if (resultBBVA.success && resultBBVA.data.length > 0) {
+          const ultimoRegistro = resultBBVA.data[0];
+          const saldoBBVA = ultimoRegistro['Saldo Bancario Actual'] || 0;
           
-          if (resultBBVA.success && resultBBVA.data.length > 0) {
-            console.log(`✅ Datos obtenidos con ordenamiento por ${sortField}:`, resultBBVA.data.length, 'registros');
-            
-            // Mostrar todos los registros para debug
-            resultBBVA.data.forEach((registro: any, index: number) => {
-              console.log(`BBVA Registro ${index + 1} (${sortField}):`, {
-                id: registro.id,
-                fecha: registro.Fecha,
-                creada: registro.Creada,
-                saldo: registro['Saldo Bancario Actual'],
-                descripcion: registro.Descripción?.substring(0, 50)
-              });
-            });
-            
-            // Tomar específicamente el registro que reporta en los logs
-            let registroSeleccionado = null;
-            
-            // Primero buscar el registro específico que se muestra en logs (92231631)
-            const registroEspecifico = resultBBVA.data.find((r: any) => 
-              r['Saldo Bancario Actual'] === 92231631
-            );
-            
-            if (registroEspecifico) {
-              registroSeleccionado = registroEspecifico;
-              console.log('🎯 Encontrado registro específico con saldo 92231631');
-            } else {
-              // Si no encontramos ese específico, tomar el primer registro con saldo válido
-              registroSeleccionado = resultBBVA.data.find((r: any) => 
-                r['Saldo Bancario Actual'] && r['Saldo Bancario Actual'] !== 0
-              );
-            }
-            
-            if (registroSeleccionado) {
-              const saldo = registroSeleccionado['Saldo Bancario Actual'];
-              console.log(`🔥 ANTES de setSaldoBBVA - valor actual del estado:`, saldoBBVA);
-              console.log(`🔥 ESTABLECIENDO saldoBBVA con valor:`, saldo);
-              setSaldoBBVA(saldo);
-              console.log(`🎯 Saldo BBVA FINAL establecido (${sortField}):`, saldo);
-              console.log('📋 Registro BBVA FINAL utilizado:', {
-                id: registroSeleccionado.id,
-                fecha: registroSeleccionado.Fecha,
-                creada: registroSeleccionado.Creada,
-                saldo: saldo,
-                descripcion: registroSeleccionado.Descripción?.substring(0, 50)
-              });
-              saldoBBVAObtenido = true;
-            }
-          }
-        } catch (error) {
-          console.log(`❌ Error con ordenamiento ${sortField}:`, error);
-        }
-      }
-      
-      if (!saldoBBVAObtenido) {
-        // Método alternativo: usar API específica para último saldo
-        try {
-          console.log('🔄 Intentando método alternativo para BBVA...');
-          const responseUltimo = await fetch('/api/ultimo-saldo-bbva');
-          const resultUltimo = await responseUltimo.json();
+          console.log('🎯 ÚLTIMO REGISTRO BBVA:', {
+            id: ultimoRegistro.id,
+            saldo: saldoBBVA,
+            creada: ultimoRegistro.Creada,
+            fecha: ultimoRegistro.Fecha
+          });
           
-          if (resultUltimo.success && resultUltimo.ultimoSaldo) {
-            setSaldoBBVA(resultUltimo.ultimoSaldo);
-            console.log('🎯 Saldo BBVA obtenido con método alternativo:', resultUltimo.ultimoSaldo);
-            console.log('📋 Registro utilizado:', resultUltimo.ultimoRegistro);
-            saldoBBVAObtenido = true;
-          }
-        } catch (error) {
-          console.error('❌ Error con método alternativo BBVA:', error);
+          setSaldoBBVA(saldoBBVA);
+          console.log('✅ Saldo BBVA establecido:', saldoBBVA);
+        } else {
+          setSaldoBBVA(0);
+          console.error('❌ No se encontraron registros BBVA');
         }
-      }
-      
-      if (!saldoBBVAObtenido) {
-        console.error('🚫 No se pudo obtener saldo de BBVA con ningún método');
+      } catch (error) {
         setSaldoBBVA(0);
+        console.error('❌ Error obteniendo BBVA:', error);
       }
       
     } catch (error) {
@@ -373,9 +331,66 @@ export default function ResumenGerencial() {
     }
   }, []);
 
+  // Fetch facturas sin pagar
+  const fetchFacturasSinPagar = useCallback(async () => {
+    try {
+      setLoadingFacturasSinPagar(true);
+      console.log('📄 Obteniendo facturas sin pagar...');
+      
+      const response = await fetch('/api/facturas-sin-pagar?maxRecords=50');
+      const result = await response.json();
+      
+      if (result.success) {
+        setFacturasSinPagar(result.data);
+        console.log(`✅ Facturas sin pagar obtenidas: ${result.data.length}`);
+      } else {
+        console.error('❌ Error al obtener facturas sin pagar:', result.error);
+        setFacturasSinPagar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching facturas sin pagar:', error);
+      setFacturasSinPagar([]);
+    } finally {
+      setLoadingFacturasSinPagar(false);
+    }
+  }, []);
+
+  // Fetch remisiones sin facturar
+  const fetchRemisionesSinFacturar = useCallback(async () => {
+    try {
+      setLoadingRemisionesSinFacturar(true);
+      console.log('📄 Obteniendo remisiones sin facturar...');
+      
+      const response = await fetch('/api/remisiones-sin-facturar');
+      const result = await response.json();
+      
+      if (result.success) {
+        setRemisionesSinFacturar(result.data);
+        console.log(`✅ Remisiones sin facturar obtenidas: ${result.data.length}`);
+        console.log('📋 Datos de remisiones:', result.data);
+        
+        // Calcular total para verificar
+        const total = result.data.reduce((sum: number, r: any) => sum + (r.valorTotalLitros || 0), 0);
+        console.log(`💰 Total calculado en frontend: $${total.toLocaleString('es-CO')}`);
+      } else {
+        console.error('❌ Error al obtener remisiones sin facturar:', result.error);
+        setRemisionesSinFacturar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching remisiones sin facturar:', error);
+      setRemisionesSinFacturar([]);
+    } finally {
+      setLoadingRemisionesSinFacturar(false);
+    }
+  }, []);
+
   // Monitor changes in BBVA balance
   useEffect(() => {
     console.log('🔄 useEffect detectó cambio en saldoBBVA:', saldoBBVA);
+    console.log('💰 Valor mostrado en interfaz será:', saldoBBVA !== null ? 
+      `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+      'N/A'
+    );
   }, [saldoBBVA]);
 
   // Fetch data
@@ -386,7 +401,9 @@ export default function ResumenGerencial() {
     fetchMovimientosBancarios();
     fetchFacturacionIngresos();
     fetchSaldosBancarios();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchSaldosBancarios]);
+    fetchFacturasSinPagar();
+    fetchRemisionesSinFacturar();
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -443,7 +460,7 @@ export default function ResumenGerencial() {
 
     const totalIngresosSum = data.reduce((sum, item) => sum + item.totalIngresos, 0);
     const totalEgresosSum = data.reduce((sum, item) => sum + Math.abs(item.totalEgresos), 0);
-    const utilidadNeta = totalIngresosSum + totalEgresosSum; // Los egresos son negativos
+    const utilidadNeta = totalIngresosSum - totalEgresosSum; // Ingresos menos egresos
     const margenNeto = totalIngresosSum > 0 ? (utilidadNeta / totalIngresosSum) * 100 : 0;
 
     const ingresosUNB = data.reduce((sum, item) => sum + item.ingresosTotalesUNB, 0);
@@ -1076,7 +1093,7 @@ export default function ResumenGerencial() {
       <div 
         className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat flex items-center justify-center"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096901/DSC_4015_aikkb6.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
         <div className="absolute inset-0 bg-black/50"></div>
@@ -1097,7 +1114,7 @@ export default function ResumenGerencial() {
       <div 
         className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat flex items-center justify-center"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096901/DSC_4015_aikkb6.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
         <div className="absolute inset-0 bg-black/50"></div>
@@ -1131,7 +1148,7 @@ export default function ResumenGerencial() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096901/DSC_4015_aikkb6.jpg)'
+        backgroundImage: 'url(/18032025-DSC_2933.jpg)'
       }}
     >
       <div className="absolute inset-0 bg-slate-900/20 min-h-screen"></div>
@@ -1153,50 +1170,147 @@ export default function ResumenGerencial() {
               </div>
             </div>
 
-            {/* Saldos Bancarios Actuales */}
-            <div className="flex justify-center mb-6">
-              <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-6 py-4 border border-white/30 w-full max-w-md">
-                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2 justify-center">
-                  <Banknote className="w-5 h-5 text-green-400" />
-                  Saldos Actuales
-                </h3>
-                {loadingSaldos ? (
-                  <div className="flex items-center justify-center py-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            {/* Facturas Sin Pagar y Saldos Bancarios Actuales */}
+            <div className="mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Facturas Sin Pagar */}
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-white">
+                        Facturas Sin Pagar
+                      </h3>
+                      <p className="text-sm text-slate-100">
+                        Estado de cartera pendiente
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center gap-6">
-                      <span className="text-white/70 font-medium">Bancolombia:</span>
-                      <span className="text-green-400 font-bold text-right">
-                        {saldoBancolombia !== null ? 
-                          `$${saldoBancolombia.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-                          'N/A'
-                        }
-                      </span>
+                  
+                  {loadingFacturasSinPagar ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span className="ml-2 text-white text-sm">Cargando...</span>
                     </div>
-                    <div className="flex justify-between items-center gap-6">
-                      <span className="text-white/70 font-medium">BBVA:</span>
-                      <span className="text-blue-400 font-bold text-right">
-                        {saldoBBVA !== null ? 
-                          `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-                          'N/A'
-                        }
-                      </span>
+                  ) : facturasSinPagar.length === 0 ? (
+                    <div className="text-center py-6">
+                      <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                      <p className="text-white font-medium text-sm">¡Sin pendientes!</p>
+                      <p className="text-white/70 text-xs">Todas al día</p>
                     </div>
-                    <div className="border-t border-white/20 pt-3 mt-3">
-                      <div className="flex justify-between items-center gap-6">
-                        <span className="text-white font-semibold">Total:</span>
-                        <span className="text-white font-bold text-lg text-right">
-                          {(saldoBancolombia !== null && saldoBBVA !== null) ? 
-                            `$${(saldoBancolombia + saldoBBVA).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-                            'N/A'
-                          }
-                        </span>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Resumen */}
+                      <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-red-300 text-xs font-medium">Total:</span>
+                            <span className="text-red-400 text-3xl font-bold">
+                              ${facturasSinPagar.reduce((sum, f) => sum + (f.totalRecibir || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                      <h3 className="text-xl font-bold text-white">
+                        Remisiones Sin Facturar 
+                      </h3>
+                    </div>
+                      
+                      {/* Total Remisiones Sin Facturar */}
+                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3">
+                        {loadingRemisionesSinFacturar ? (
+                          <div className="flex items-center justify-center py-2">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-orange-400"></div>
+                            <span className="ml-2 text-orange-300 text-xs">Cargando...</span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-center">
+                            <span className="text-orange-300 text-xs font-medium">Total:</span>
+                            <span className="text-orange-400 text-3xl font-bold">
+                              ${remisionesSinFacturar.reduce((sum, r) => sum + (r.valorTotalLitros || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Saldos Bancarios Actuales */}
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-white">
+                        Saldos Actuales
+                      </h3>
+                      <p className="text-sm text-slate-100">
+                        Posición bancaria actual
+                      </p>
+                    </div>
                   </div>
-                )}
+                  
+                  {loadingSaldos ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span className="ml-2 text-white text-sm">Cargando...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Resumen */}
+                      <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-green-300 text-xs font-medium">Total:</span>
+                            <span className="text-green-400 text-3xl font-bold">
+                              {(saldoBancolombia !== null && saldoBBVA !== null) ? 
+                                `$${(saldoBancolombia + saldoBBVA).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                                'N/A'
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lista de bancos */}
+                      <div className="space-y-2">
+                        <div className="bg-slate-700/30 rounded-lg p-2 border border-white/10">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-white font-medium text-sm">Bancolombia</span>
+                            </div>
+                            <div className="text-right ml-2">
+                              <p className="text-green-400 font-bold text-3xl">
+                                {saldoBancolombia !== null ? 
+                                  `$${saldoBancolombia.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                                  'N/A'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-slate-700/30 rounded-lg p-2 border border-white/10">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-white font-medium text-sm">BBVA</span>
+                            </div>
+                            <div className="text-right ml-2">
+                              <p className="text-blue-400 font-bold text-3xl">
+                                {saldoBBVA !== null ? 
+                                  `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                                  'N/A'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Espacio vacío para mantener la estructura de grid */}
+                <div></div>
               </div>
             </div>
 
@@ -2150,7 +2264,7 @@ export default function ResumenGerencial() {
 
         {/* KPIs Principales */}
         {metrics && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Total Ingresos */}
             <div className="bg-emerald-500/20 border border-emerald-400/30 backdrop-blur-md rounded-xl shadow-xl p-6 text-white">
               <div className="flex items-center justify-between mb-4">
@@ -2187,19 +2301,6 @@ export default function ResumenGerencial() {
               <p className="text-4xl font-bold text-white">{formatCurrency(metrics.utilidadNeta)}</p>
               <div className="mt-2 text-sm text-blue-200">
                 Margen: {formatPercent(metrics.margenNeto)}
-              </div>
-            </div>
-
-            {/* Saldo Bancario */}
-            <div className="bg-slate-500/20 border border-slate-400/30 backdrop-blur-md rounded-xl shadow-xl p-6 text-white">
-              <div className="flex items-center justify-between mb-4">
-                <Banknote className="w-8 h-8 text-slate-300" />
-                <Factory className="w-6 h-6 text-slate-300" />
-              </div>
-              <h3 className="text-sm font-medium text-slate-100 mb-1">Saldo Bancario Actual</h3>
-              <p className="text-4xl font-bold text-white">{formatCurrency(metrics.saldoActual)}</p>
-              <div className="mt-2 text-sm text-slate-200">
-                Proyectado: {formatCurrency(metrics.saldoProyectado)}
               </div>
             </div>
           </div>
