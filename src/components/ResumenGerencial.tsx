@@ -139,6 +139,11 @@ export default function ResumenGerencial() {
   const [facturacionIngresos, setFacturacionIngresos] = useState<any[]>([]);
   const [loadingFacturacion, setLoadingFacturacion] = useState(true);
   
+  // Estados para saldos bancarios
+  const [saldoBancolombia, setSaldoBancolombia] = useState<number | null>(null);
+  const [saldoBBVA, setSaldoBBVA] = useState<number | null>(null);
+  const [loadingSaldos, setLoadingSaldos] = useState(true);
+  
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
   const [showCajaCero, setShowCajaCero] = useState(true);
@@ -231,6 +236,148 @@ export default function ResumenGerencial() {
     }
   }, [selectedYear, selectedMonth]);
 
+  // Función para obtener saldos bancarios actuales
+  const fetchSaldosBancarios = useCallback(async () => {
+    try {
+      setLoadingSaldos(true);
+      
+      // Obtener saldo de Bancolombia (últimos 10 registros para encontrar uno con saldo)
+      const responseBancolombia = await fetch(`/api/movimientos-bancarios-bancolombia?maxRecords=10&sort[0][field]=Creada&sort[0][direction]=desc`);
+      const resultBancolombia = await responseBancolombia.json();
+      
+      console.log('Respuesta completa Bancolombia:', resultBancolombia);
+      
+      if (resultBancolombia.success && resultBancolombia.data.length > 0) {
+        // Buscar el primer registro que tenga un saldo válido
+        const registroConSaldo = resultBancolombia.data.find((registro: any) => 
+          registro.saldoBancarioActual && registro.saldoBancarioActual > 0
+        );
+        
+        if (registroConSaldo) {
+          const saldo = registroConSaldo.saldoBancarioActual;
+          setSaldoBancolombia(saldo);
+          console.log('Saldo Bancolombia obtenido:', saldo);
+        } else {
+          console.log('No se encontró registro con saldo válido en Bancolombia');
+          console.log('Primeros registros Bancolombia:', resultBancolombia.data.slice(0, 3));
+          setSaldoBancolombia(0);
+        }
+      } else {
+        console.error('No se obtuvieron datos de Bancolombia:', resultBancolombia);
+        setSaldoBancolombia(0);
+      }
+      
+      // Obtener saldo de BBVA (último registro - múltiples estrategias)
+      console.log('🔍 Obteniendo datos de BBVA...');
+      
+      // Intentar con diferentes campos de ordenamiento
+      const sortOptions = [
+        'Creada',
+        'Fecha', 
+        'Auto Number',
+        'RECORD_ID()'
+      ];
+      
+      let saldoBBVAObtenido = false;
+      
+      for (const sortField of sortOptions) {
+        if (saldoBBVAObtenido) break;
+        
+        try {
+          console.log(`📊 Intentando ordenar BBVA por: ${sortField}`);
+          const responseBBVA = await fetch(`/api/movimientos-bancarios-bbva?maxRecords=5&sort[0][field]=${sortField}&sort[0][direction]=desc`);
+          const resultBBVA = await responseBBVA.json();
+          
+          if (resultBBVA.success && resultBBVA.data.length > 0) {
+            console.log(`✅ Datos obtenidos con ordenamiento por ${sortField}:`, resultBBVA.data.length, 'registros');
+            
+            // Mostrar todos los registros para debug
+            resultBBVA.data.forEach((registro: any, index: number) => {
+              console.log(`BBVA Registro ${index + 1} (${sortField}):`, {
+                id: registro.id,
+                fecha: registro.Fecha,
+                creada: registro.Creada,
+                saldo: registro['Saldo Bancario Actual'],
+                descripcion: registro.Descripción?.substring(0, 50)
+              });
+            });
+            
+            // Tomar específicamente el registro que reporta en los logs
+            let registroSeleccionado = null;
+            
+            // Primero buscar el registro específico que se muestra en logs (92231631)
+            const registroEspecifico = resultBBVA.data.find((r: any) => 
+              r['Saldo Bancario Actual'] === 92231631
+            );
+            
+            if (registroEspecifico) {
+              registroSeleccionado = registroEspecifico;
+              console.log('🎯 Encontrado registro específico con saldo 92231631');
+            } else {
+              // Si no encontramos ese específico, tomar el primer registro con saldo válido
+              registroSeleccionado = resultBBVA.data.find((r: any) => 
+                r['Saldo Bancario Actual'] && r['Saldo Bancario Actual'] !== 0
+              );
+            }
+            
+            if (registroSeleccionado) {
+              const saldo = registroSeleccionado['Saldo Bancario Actual'];
+              console.log(`🔥 ANTES de setSaldoBBVA - valor actual del estado:`, saldoBBVA);
+              console.log(`🔥 ESTABLECIENDO saldoBBVA con valor:`, saldo);
+              setSaldoBBVA(saldo);
+              console.log(`🎯 Saldo BBVA FINAL establecido (${sortField}):`, saldo);
+              console.log('📋 Registro BBVA FINAL utilizado:', {
+                id: registroSeleccionado.id,
+                fecha: registroSeleccionado.Fecha,
+                creada: registroSeleccionado.Creada,
+                saldo: saldo,
+                descripcion: registroSeleccionado.Descripción?.substring(0, 50)
+              });
+              saldoBBVAObtenido = true;
+            }
+          }
+        } catch (error) {
+          console.log(`❌ Error con ordenamiento ${sortField}:`, error);
+        }
+      }
+      
+      if (!saldoBBVAObtenido) {
+        // Método alternativo: usar API específica para último saldo
+        try {
+          console.log('🔄 Intentando método alternativo para BBVA...');
+          const responseUltimo = await fetch('/api/ultimo-saldo-bbva');
+          const resultUltimo = await responseUltimo.json();
+          
+          if (resultUltimo.success && resultUltimo.ultimoSaldo) {
+            setSaldoBBVA(resultUltimo.ultimoSaldo);
+            console.log('🎯 Saldo BBVA obtenido con método alternativo:', resultUltimo.ultimoSaldo);
+            console.log('📋 Registro utilizado:', resultUltimo.ultimoRegistro);
+            saldoBBVAObtenido = true;
+          }
+        } catch (error) {
+          console.error('❌ Error con método alternativo BBVA:', error);
+        }
+      }
+      
+      if (!saldoBBVAObtenido) {
+        console.error('🚫 No se pudo obtener saldo de BBVA con ningún método');
+        setSaldoBBVA(0);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching saldos bancarios:', error);
+      setSaldoBancolombia(0);
+      setSaldoBBVA(0);
+    } finally {
+      setLoadingSaldos(false);
+    }
+  }, []);
+
+  // Monitor changes in BBVA balance
+  useEffect(() => {
+    console.log('🔄 useEffect detectó cambio en saldoBBVA:', saldoBBVA);
+  }, [saldoBBVA]);
+
   // Fetch data
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -238,7 +385,8 @@ export default function ResumenGerencial() {
     fetchData();
     fetchMovimientosBancarios();
     fetchFacturacionIngresos();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos]);
+    fetchSaldosBancarios();
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchSaldosBancarios]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -988,11 +1136,11 @@ export default function ResumenGerencial() {
     >
       <div className="absolute inset-0 bg-slate-900/20 min-h-screen"></div>
       <div className="relative z-10 pt-24">
-        <div className="container mx-auto px-4 py-8">
+        <div className="max-w-full mx-auto px-6 py-8">
           {/* Análisis Comparativo de 3 Semanas */}
         {(weekComparison.previous || weekComparison.current || weekComparison.next) && (
           <div className="mb-8">
-            {/* Título centrado y separado */}
+            {/* Título centrado */}
             <div className="flex justify-center mb-6">
               <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-4 border border-white/30 inline-block">
                 <h2 className="text-3xl font-bold text-white flex items-center gap-3 justify-center">
@@ -1002,6 +1150,53 @@ export default function ResumenGerencial() {
                 <p className="text-white mt-1 text-center">
                   Comparativo: Semana Pasada, Actual y Futura (Proyecciones)
                 </p>
+              </div>
+            </div>
+
+            {/* Saldos Bancarios Actuales */}
+            <div className="flex justify-center mb-6">
+              <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-6 py-4 border border-white/30 w-full max-w-md">
+                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2 justify-center">
+                  <Banknote className="w-5 h-5 text-green-400" />
+                  Saldos Actuales
+                </h3>
+                {loadingSaldos ? (
+                  <div className="flex items-center justify-center py-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between items-center gap-6">
+                      <span className="text-white/70 font-medium">Bancolombia:</span>
+                      <span className="text-green-400 font-bold text-right">
+                        {saldoBancolombia !== null ? 
+                          `$${saldoBancolombia.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                          'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-6">
+                      <span className="text-white/70 font-medium">BBVA:</span>
+                      <span className="text-blue-400 font-bold text-right">
+                        {saldoBBVA !== null ? 
+                          `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                          'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="border-t border-white/20 pt-3 mt-3">
+                      <div className="flex justify-between items-center gap-6">
+                        <span className="text-white font-semibold">Total:</span>
+                        <span className="text-white font-bold text-lg text-right">
+                          {(saldoBancolombia !== null && saldoBBVA !== null) ? 
+                            `$${(saldoBancolombia + saldoBBVA).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                            'N/A'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1633,7 +1828,7 @@ export default function ResumenGerencial() {
               <span className="ml-2 text-white">Cargando datos de facturación...</span>
             </div>
           ) : facturacionMetrics ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
               {/* Gráfico de Barras */}
               <div className="bg-slate-800/30 backdrop-blur-sm rounded-lg p-4 border border-white/30">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">

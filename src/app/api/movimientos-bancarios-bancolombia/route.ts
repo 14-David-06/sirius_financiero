@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const año = searchParams.get('año');
     const mes = searchParams.get('mes');
+    const maxRecords = searchParams.get('maxRecords');
+    const sortField = searchParams.get('sort[0][field]') || 'Fecha';
+    const sortDirection = searchParams.get('sort[0][direction]') || 'desc';
 
     // Construir filtros para Airtable
     let filterFormula = '';
@@ -45,13 +48,18 @@ export async function GET(request: NextRequest) {
     if (filterFormula) {
       params.append('filterByFormula', filterFormula);
     }
-    params.append('sort[0][field]', 'Fecha');
-    params.append('sort[0][direction]', 'desc');
-    // Removemos maxRecords para obtener TODOS los registros sin límite
+    params.append('sort[0][field]', sortField);
+    params.append('sort[0][direction]', sortDirection);
+    
+    // Agregar maxRecords si se especifica
+    if (maxRecords) {
+      params.append('maxRecords', maxRecords);
+    }
 
-    // Hacer la petición a Airtable con paginación para obtener TODOS los registros
+    // Hacer la petición a Airtable
     let allRecords: AirtableRecord[] = [];
     let offset: string | undefined = undefined;
+    const shouldPaginate = !maxRecords; // Solo paginar si no hay límite específico
     
     do {
       const currentParams = new URLSearchParams(params);
@@ -75,6 +83,11 @@ export async function GET(request: NextRequest) {
       const airtableData = await response.json();
       allRecords = allRecords.concat(airtableData.records);
       offset = airtableData.offset;
+      
+      // Si se especificó maxRecords, no continuar la paginación
+      if (!shouldPaginate) {
+        break;
+      }
       
     } while (offset);
 
