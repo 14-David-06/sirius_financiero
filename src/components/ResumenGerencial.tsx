@@ -135,12 +135,14 @@ export default function ResumenGerencial() {
   const [loadingMovimientos, setLoadingMovimientos] = useState(true);
   
   // Estados para facturación de ingresos
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [facturacionIngresos, setFacturacionIngresos] = useState<any[]>([]);
   const [loadingFacturacion, setLoadingFacturacion] = useState(true);
   
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
   const [showCajaCero, setShowCajaCero] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [showTendencia, _setShowTendencia] = useState(false);
   const [rangoSemanas, setRangoSemanas] = useState<'todas' | 'trimestre' | 'semestre'>('todas');
 
@@ -718,8 +720,8 @@ export default function ResumenGerencial() {
     return Object.entries(facturacionMetrics.ingresosPorLinea)
       .map(([linea, valor]) => ({
         linea,
-        valor,
-        valorFormatted: valor.toLocaleString('es-CO', { maximumFractionDigits: 0 })
+        valor: Number(valor),
+        valorFormatted: Number(valor).toLocaleString('es-CO', { maximumFractionDigits: 0 })
       }))
       .sort((a, b) => b.valor - a.valor);
   }, [facturacionMetrics]);
@@ -950,7 +952,7 @@ export default function ResumenGerencial() {
       }}
     >
       <div className="absolute inset-0 bg-slate-900/20 min-h-screen"></div>
-      <div className="relative z-10 pt-20">
+      <div className="relative z-10 pt-24">
         <div className="container mx-auto px-4 py-8">
           {/* Análisis Comparativo de 3 Semanas */}
         {(weekComparison.previous || weekComparison.current || weekComparison.next) && (

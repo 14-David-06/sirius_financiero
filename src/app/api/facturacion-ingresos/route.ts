@@ -88,6 +88,7 @@ export async function GET(request: NextRequest) {
 
     // Filtrar solo los registros con Centro de Resultados válidos (por seguridad adicional)
     const centrosValidos = ['Biochar Blend', 'Biológicos General', 'Biochar Puro', 'Biochar Como Filtro'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const facturacionRecords = records.filter((record: any) => {
       const centro = record['Centro de Resultados (Solo Ingresos)'];
       return centro && centrosValidos.includes(centro) && record['Valor'];
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
     console.log(`API Facturación - Registros de facturación válidos: ${facturacionRecords.length}`);
     
     // Agrupar por Centro de Resultados y sumar valores (replicar lógica del gráfico)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const agrupados = facturacionRecords.reduce((acc: any, record: any) => {
       const centro = record['Centro de Resultados (Solo Ingresos)'];
       const valor = parseFloat(record['Valor']) || 0;

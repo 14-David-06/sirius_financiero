@@ -61,7 +61,7 @@ export default function LandingPage() {
       <div className="absolute inset-0 bg-black/20"></div>
       
       {/* Hero Section */}
-      <section className="relative z-10 pt-20 pb-16 px-4 sm:px-6 lg:px-8">
+      <section className="relative z-10 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto min-h-[calc(100vh-5rem)] flex flex-col justify-center items-center">
           <div className="text-center w-full">
             {/* Header Card */}

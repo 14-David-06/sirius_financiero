@@ -1,16 +1,53 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
+import BitacoraNavbar from '../BitacoraNavbar';
 import { LogOut, User, ChevronDown } from 'lucide-react';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const { isAuthenticated, userData, logout, extendSession, getRemainingTime } = useAuthSession();
+  const [mounted, setMounted] = useState(false);
+  const { isAuthenticated, userData, logout } = useAuthSession();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Evitar problemas de hidratación
+  if (!mounted) {
+    return (
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-24">
+            <div className="flex items-center space-x-4">
+              <Link href="/" className="flex items-center space-x-2">
+                <Image 
+                  src="/Logo-Sirius.png" 
+                  alt="Sirius Financiero Logo" 
+                  width={180}
+                  height={70}
+                  className="object-contain transition-transform duration-200"
+                  priority
+                  sizes="180px"
+                />
+              </Link>
+            </div>
+            <div className="hidden md:flex items-center space-x-6">
+              <div className="w-8 h-8"></div>
+            </div>
+            <div className="md:hidden">
+              <div className="w-8 h-8"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -31,17 +68,26 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2" onClick={() => window.location.href = '/'}>
-            <Image 
-              src="/logo.png" 
-              alt="Sirius Financiero Logo" 
-              width={180}
-              height={140}
-              className="object-contain hover:scale-105 transition-transform duration-200"
-            />
-          </Link>
+        <div className="flex justify-between items-center h-24">
+          {/* Logo y Bitácora */}
+          <div className="flex items-center space-x-4">
+            <Link href="/" className="flex items-center space-x-2" onClick={() => window.location.href = '/'}>
+              <Image 
+                src="/Logo-Sirius.png" 
+                alt="Sirius Financiero Logo" 
+                width={180}
+                height={70}
+                className="object-contain transition-transform duration-200"
+                priority
+                sizes="180px"
+              />
+            </Link>
+            
+            {/* Bitácora al lado del logo */}
+            {isAuthenticated && (
+              <BitacoraNavbar userData={userData} />
+            )}
+          </div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-6">
@@ -230,8 +276,13 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="md:hidden">
+          {/* Mobile Menu Button y Bitácora */}
+          <div className="md:hidden flex items-center space-x-3">
+            {/* Bitácora Mobile */}
+            {isAuthenticated && (
+              <BitacoraNavbar userData={userData} />
+            )}
+            
             <button
               onClick={toggleMenu}
               className="text-white hover:text-white/80 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 rounded-md p-2"
@@ -252,7 +303,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden fixed inset-x-0 top-16 z-40 animate-in slide-in-from-top-2 duration-300">
+        <div className="md:hidden fixed inset-x-0 top-20 z-40 animate-in slide-in-from-top-2 duration-300">
           <div className="mx-4 mt-2 bg-gradient-to-br from-blue-900/95 to-purple-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
             <div className="px-4 pt-4 pb-2 space-y-3 max-h-[calc(100vh-6rem)] overflow-y-auto">
               {isAuthenticated ? (

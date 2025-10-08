@@ -81,6 +81,7 @@ export default function MovimientosBancarios() {
   });
 
   // Función para transformar y limpiar datos de Airtable
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transformarDatosAirtable = (records: any[]): MovimientoBancario[] => {
     return records.map(record => {
       // Transformar valor a número
@@ -404,7 +405,7 @@ export default function MovimientosBancarios() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-20"
+      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
         style={{
           backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
         }}
@@ -422,7 +423,7 @@ export default function MovimientosBancarios() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-20"
+      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
         style={{
           backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
         }}

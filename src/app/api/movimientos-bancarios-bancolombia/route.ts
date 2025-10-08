@@ -233,7 +233,7 @@ export async function GET(request: NextRequest) {
         return acc;
       }, {} as Record<string, number>);
       
-      const duplicados = Object.entries(conteoIds).filter(([_id, count]) => count > 1);
+      const duplicados = Object.entries(conteoIds).filter(([, count]) => count > 1);
       console.log('IDs duplicados:', duplicados);
       
       // Mostrar detalles de registros duplicados
@@ -292,7 +292,7 @@ export async function GET(request: NextRequest) {
         return acc;
       }, {} as Record<string, number>);
       
-      const duplicados = Object.entries(conteoIds).filter(([_id, count]) => count > 1);
+      const duplicados = Object.entries(conteoIds).filter(([, count]) => count > 1);
       console.log('IDs duplicados:', duplicados);
     }
     

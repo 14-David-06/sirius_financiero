@@ -1,6 +1,5 @@
 'use client';
 
-import Navbar from '@/components/layout/Navbar';
 import MonitoreoFacturas from '@/components/MonitoreoFacturas';
 
 export default function MonitoreoFacturasPage() {
@@ -11,8 +10,7 @@ export default function MonitoreoFacturasPage() {
         backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
       }}
     >
-      <div className="min-h-screen flex flex-col justify-center py-20 px-4">
-        <Navbar />
+      <div className="min-h-screen flex flex-col justify-center py-24 px-4">
         <MonitoreoFacturas />
       </div>
     </div>
