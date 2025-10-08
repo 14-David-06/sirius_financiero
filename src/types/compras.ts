@@ -116,6 +116,7 @@ export interface AirtableResponse {
 }
 
 export interface UserData {
+  recordId?: string; // ID del registro en Airtable
   cedula: string;
   nombre: string;
   cargo: string;

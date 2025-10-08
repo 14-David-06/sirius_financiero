@@ -29,6 +29,13 @@ export async function POST(request: NextRequest) {
 
     const { transcripcion, usuario, usuarioId } = await request.json();
 
+    console.log('Datos recibidos en bitacora-audio API:', {
+      transcripcion: transcripcion ? transcripcion.substring(0, 100) + '...' : null,
+      usuario,
+      usuarioId,
+      usuarioIdType: typeof usuarioId
+    });
+
     if (!transcripcion || !usuario) {
       return NextResponse.json(
         { error: 'Transcripción y usuario son requeridos' },
@@ -51,6 +58,9 @@ export async function POST(request: NextRequest) {
     // Si tenemos el ID del usuario, agregarlo como link
     if (usuarioId) {
       airtableData.fields[FIELD_USUARIO_LINK] = [usuarioId]; // Usuario (link to Equipo Financiero)
+      console.log('Agregando usuario ID al campo:', FIELD_USUARIO_LINK, '=', [usuarioId]);
+    } else {
+      console.log('No se proporcionó usuarioId, el campo Usuario no se llenará');
     }
 
     console.log('Sending to Airtable:', {

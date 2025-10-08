@@ -26,11 +26,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar tipo de archivo
+    // Verificar tipo de archivo (permitir codecs específicos)
     const allowedTypes = ['audio/webm', 'audio/mp4', 'audio/wav', 'audio/ogg'];
-    if (!allowedTypes.includes(audioFile.type)) {
+    const audioType = audioFile.type.split(';')[0]; // Extraer solo el tipo base sin codecs
+    
+    if (!allowedTypes.includes(audioType)) {
+      console.log('Tipo de archivo recibido:', audioFile.type);
+      console.log('Tipo base extraído:', audioType);
       return NextResponse.json(
-        { error: 'Tipo de archivo no soportado' },
+        { error: `Tipo de archivo no soportado: ${audioFile.type}` },
         { status: 400 }
       );
     }
@@ -47,9 +51,21 @@ export async function POST(request: NextRequest) {
     console.log(`Transcribiendo audio: ${audioFile.name}, ${audioFile.size} bytes, ${audioFile.type}`);
 
     try {
+      // Crear un nuevo archivo con nombre y extensión apropiados para OpenAI
+      let processedFile = audioFile;
+      
+      // Si es webm con codecs, crear un nuevo archivo sin los codecs en el tipo MIME
+      if (audioFile.type.includes('webm') && audioFile.type.includes('codecs')) {
+        const audioBuffer = await audioFile.arrayBuffer();
+        processedFile = new File([audioBuffer], 'audio.webm', { 
+          type: 'audio/webm' 
+        });
+        console.log(`Archivo procesado: ${processedFile.name}, tipo: ${processedFile.type}`);
+      }
+
       // Transcribir el audio usando OpenAI Whisper
       const transcription = await openai.audio.transcriptions.create({
-        file: audioFile,
+        file: processedFile,
         model: "whisper-1",
         language: "es", // Español
         response_format: "text"
@@ -61,9 +77,10 @@ export async function POST(request: NextRequest) {
         success: true,
         transcription: transcription,
         metadata: {
-          filename: audioFile.name,
-          size: audioFile.size,
-          type: audioFile.type,
+          filename: processedFile.name,
+          size: processedFile.size,
+          type: processedFile.type,
+          originalType: audioFile.type,
           duration: null // OpenAI no retorna duración
         }
       });
@@ -95,9 +112,10 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     message: 'API de transcripción de audio activa',
-    supported_formats: ['audio/webm', 'audio/mp4', 'audio/wav', 'audio/ogg'],
+    supported_formats: ['audio/webm', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/wav', 'audio/ogg'],
     max_file_size: '25MB',
     language: 'Spanish (es)',
-    model: 'whisper-1'
+    model: 'whisper-1',
+    note: 'Los archivos webm con codecs se procesan automáticamente para compatibilidad con OpenAI'
   });
 }

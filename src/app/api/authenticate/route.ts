@@ -115,6 +115,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const user = data.records[0].fields;
+    const recordId = data.records[0].id; // Obtener el ID del registro de Airtable
+
+    console.log('Usuario encontrado en Airtable:', {
+      recordId,
+      nombre: user.Nombre,
+      cedula: sanitizedCedula
+    });
 
     // Verificar estado del usuario
     if (user['Estado Usuario'] !== 'Activo') {
@@ -161,6 +168,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // 🔒 Generar JWT token
     const token = jwt.sign(
       {
+        recordId, // Agregar recordId al token
         cedula: sanitizedCedula,
         nombre: sanitizeInput(user.Nombre || ''),
         categoria: sanitizeInput(user['Categoria Usuario'] || ''),
@@ -176,6 +184,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         success: true,
         token,
         user: {
+          recordId, // Agregar recordId al objeto user
           cedula: sanitizedCedula,
           nombre: sanitizeInput(user.Nombre || ''),
           categoria: sanitizeInput(user['Categoria Usuario'] || ''),

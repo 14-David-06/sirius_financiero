@@ -1,29 +1,31 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, Check, X, Loader2 } from 'lucide-react';
+import { UserData } from '@/types/compras';
 
 interface BitacoraNavbarProps {
-  userData: {
-    id?: string;
-    nombre?: string;
-    recordId?: string;
-  } | null;
+  userData: UserData | null;
 }
 
 export default function BitacoraNavbar({ userData }: BitacoraNavbarProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<'success' | 'error' | null>(null);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
       }
       if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
         mediaRecorder.current.stop();
@@ -130,17 +132,65 @@ export default function BitacoraNavbar({ userData }: BitacoraNavbarProps) {
     if (!userData) return;
 
     setIsProcessing(true);
+    setProcessingStatus(null);
+    
     try {
-      // Por ahora, crear transcripción con información del audio real
-      const transcription = `Nota de audio grabada el ${new Date().toLocaleString()} - Duración: ${Math.floor(recordingTime / 60)}:${(recordingTime % 60).toString().padStart(2, '0')} - Tamaño: ${(audioBlob.size / 1024).toFixed(2)}KB`;
-      
-      console.log('Audio grabado:', {
+      console.log('Iniciando transcripción de audio:', {
         size: audioBlob.size,
         type: audioBlob.type,
+        typeBase: audioBlob.type.split(';')[0],
         duration: recordingTime
       });
 
-      // Enviar a Airtable
+      // Transcribir el audio usando OpenAI Whisper
+      const formData = new FormData();
+      
+      // Determinar la extensión correcta basada en el tipo MIME
+      let filename = 'recording';
+      const mimeType = audioBlob.type.split(';')[0]; // Extraer tipo base
+      switch (mimeType) {
+        case 'audio/webm':
+          filename += '.webm';
+          break;
+        case 'audio/mp4':
+          filename += '.mp4';
+          break;
+        case 'audio/wav':
+          filename += '.wav';
+          break;
+        case 'audio/ogg':
+          filename += '.ogg';
+          break;
+        default:
+          filename += '.webm'; // fallback
+      }
+      
+      formData.append('audio', audioBlob, filename);
+
+      const transcriptionResponse = await fetch('/api/transcribe-audio', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!transcriptionResponse.ok) {
+        const errorData = await transcriptionResponse.json();
+        throw new Error(`Error en transcripción: ${errorData.error || 'Error desconocido'}`);
+      }
+
+      const transcriptionData = await transcriptionResponse.json();
+      const transcription = transcriptionData.transcription;
+
+      console.log('Transcripción completada:', transcription);
+
+      // Verificar datos del usuario antes de enviar
+      const userId = userData?.recordId;
+      console.log('Datos del usuario para bitácora:', {
+        nombre: userData?.nombre,
+        recordId: userData?.recordId,
+        userId: userId
+      });
+
+      // Enviar transcripción a Airtable
       const response = await fetch('/api/bitacora-audio', {
         method: 'POST',
         headers: {
@@ -149,25 +199,43 @@ export default function BitacoraNavbar({ userData }: BitacoraNavbarProps) {
         body: JSON.stringify({
           transcripcion: transcription,
           usuario: userData?.nombre || 'Usuario desconocido',
-          usuarioId: userData?.recordId || userData?.id,
+          usuarioId: userId,
           audioSize: audioBlob.size,
           audioDuration: recordingTime
         }),
       });
 
       if (response.ok) {
-        // Mostrar indicador de éxito brevemente
+        console.log('Nota de bitácora guardada exitosamente');
+        setProcessingStatus('success');
+        
+        // Resetear el tiempo después de un breve delay
         setTimeout(() => {
           setRecordingTime(0);
         }, 1000);
       } else {
-        console.error('Error al enviar audio:', await response.text());
+        const errorText = await response.text();
+        console.error('Error al guardar en Airtable:', errorText);
+        throw new Error('Error al guardar la nota en la bitácora');
       }
 
     } catch (error) {
       console.error('Error processing audio:', error);
+      setProcessingStatus('error');
+      
+      // Mostrar error al usuario
+      if (error instanceof Error) {
+        console.error(`Error al procesar audio: ${error.message}`);
+      } else {
+        console.error('Error desconocido al procesar el audio');
+      }
     } finally {
       setIsProcessing(false);
+      
+      // Limpiar el estado después de 3 segundos
+      statusTimeoutRef.current = setTimeout(() => {
+        setProcessingStatus(null);
+      }, 3000);
     }
   };
 
@@ -197,57 +265,104 @@ export default function BitacoraNavbar({ userData }: BitacoraNavbarProps) {
     }
   };
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
-    <div className="flex items-center space-x-3">
-      {/* Timer display cuando está grabando */}
-      {(isRecording || isProcessing) && (
-        <div className="flex items-center space-x-2 bg-white/95 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-gray-200 shadow-sm">
-          <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-          <span className="text-gray-700 text-sm font-medium">
-            {isProcessing ? 'Enviando...' : formatTime(recordingTime)}
-          </span>
-        </div>
-      )}
-
-      {/* Botón de grabación minimalista */}
+    <div className="flex items-center">
+      {/* Botón de grabación con estados y efectos avanzados */}
       <button
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`relative flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 select-none group ${
+        className={`relative flex items-center justify-center w-14 h-14 rounded-full transition-all duration-500 select-none group overflow-hidden ${
           isRecording
-            ? 'bg-red-500 scale-105 shadow-lg shadow-red-500/30'
+            ? 'bg-red-500 scale-110 shadow-2xl shadow-red-500/50 animate-pulse'
+            : processingStatus === 'success'
+            ? 'bg-green-500 shadow-2xl shadow-green-500/50 scale-110'
+            : processingStatus === 'error'
+            ? 'bg-red-600 shadow-2xl shadow-red-600/50 scale-110 animate-bounce'
             : isProcessing
-            ? 'bg-green-500 animate-pulse'
-            : 'bg-[#00A3FF] hover:bg-[#0092E6] hover:scale-105 shadow-md hover:shadow-lg'
-        } ${!isRecording && !isProcessing ? 'hover:shadow-[#00A3FF]/30' : ''}`}
-        title={isRecording ? "Suelta para enviar" : "Mantén presionado para grabar"}
+            ? 'bg-gradient-to-r from-blue-500 to-purple-600 shadow-2xl shadow-blue-500/50 scale-105'
+            : 'bg-gradient-to-r from-[#00A3FF] to-[#0066CC] hover:from-[#0092E6] hover:to-[#0055BB] hover:scale-110 shadow-lg hover:shadow-2xl transform hover:rotate-3'
+        } ${!isRecording && !isProcessing && !processingStatus ? 'hover:shadow-[#00A3FF]/40' : ''}`}
+        title={
+          isRecording 
+            ? "Suelta para transcribir" 
+            : processingStatus === 'success'
+            ? "¡Nota guardada exitosamente!"
+            : processingStatus === 'error'
+            ? "Error al procesar audio"
+            : isProcessing 
+            ? "Procesando audio..." 
+            : "Mantén presionado para grabar"
+        }
         disabled={isProcessing}
         style={{
           boxShadow: isRecording 
-            ? '0 4px 20px rgba(239, 68, 68, 0.4)' 
+            ? '0 8px 32px rgba(239, 68, 68, 0.6), 0 0 20px rgba(239, 68, 68, 0.4)' 
+            : processingStatus === 'success'
+            ? '0 8px 32px rgba(34, 197, 94, 0.6), 0 0 20px rgba(34, 197, 94, 0.4)'
+            : processingStatus === 'error'
+            ? '0 8px 32px rgba(220, 38, 38, 0.6), 0 0 20px rgba(220, 38, 38, 0.4)'
             : isProcessing 
-            ? '0 4px 20px rgba(34, 197, 94, 0.4)'
-            : '0 2px 8px rgba(0, 163, 255, 0.2)'
+            ? '0 8px 32px rgba(59, 130, 246, 0.6), 0 0 20px rgba(147, 51, 234, 0.4)'
+            : '0 4px 16px rgba(0, 163, 255, 0.3)'
         }}
       >
-        {/* Efecto de onda mientras graba */}
+        {/* Efecto de ondas múltiples mientras graba */}
         {isRecording && (
+          <>
+            <div className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping opacity-75"></div>
+            <div className="absolute inset-0 rounded-full border border-red-300 animate-ping opacity-50" style={{ animationDelay: '0.5s' }}></div>
+            <div className="absolute inset-0 rounded-full border border-red-200 animate-ping opacity-25" style={{ animationDelay: '1s' }}></div>
+          </>
+        )}
+
+        {/* Efecto de partículas en éxito */}
+        {processingStatus === 'success' && (
+          <>
+            <div className="absolute inset-0 rounded-full border-2 border-green-300 animate-ping opacity-75"></div>
+            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-green-400 to-emerald-400 opacity-20 animate-pulse"></div>
+          </>
+        )}
+
+        {/* Efecto de shake en error */}
+        {processingStatus === 'error' && (
           <div className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping opacity-75"></div>
         )}
+
+        {/* Efecto de breathing en procesamiento */}
+        {isProcessing && (
+          <>
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-30 animate-pulse"></div>
+            <div className="absolute -inset-2 rounded-full border border-blue-300 animate-ping opacity-40"></div>
+          </>
+        )}
+
+        {/* Efecto de glow sutil en reposo */}
+        {!isRecording && !isProcessing && !processingStatus && (
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#00A3FF] to-[#0066CC] opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+        )}
+
+        {/* Efectos de brillo en hover */}
+        <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
         
+        {/* Íconos según el estado con animaciones */}
         {isRecording ? (
-          <MicOff className="w-5 h-5 text-white" />
+          <MicOff className="w-7 h-7 text-white animate-pulse transform group-hover:scale-110 transition-transform duration-200" />
+        ) : processingStatus === 'success' ? (
+          <Check className="w-7 h-7 text-white animate-bounce transform scale-110" />
+        ) : processingStatus === 'error' ? (
+          <X className="w-7 h-7 text-white animate-pulse transform scale-110" />
+        ) : isProcessing ? (
+          <Loader2 className="w-7 h-7 text-white animate-spin transform group-hover:scale-110 transition-transform duration-200" />
         ) : (
-          <Mic className={`w-5 h-5 text-white transition-transform duration-300 ${!isProcessing ? 'group-hover:scale-110' : ''}`} />
+          <Mic className="w-7 h-7 text-white transition-all duration-300 transform group-hover:scale-125 group-hover:rotate-12 drop-shadow-lg" />
+        )}
+
+        {/* Efecto de ondas concéntricas en hover (solo en reposo) */}
+        {!isRecording && !isProcessing && !processingStatus && (
+          <div className="absolute inset-0 rounded-full border border-white/20 opacity-0 group-hover:opacity-100 group-hover:scale-150 transition-all duration-500"></div>
         )}
       </button>
     </div>

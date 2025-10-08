@@ -45,6 +45,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       JSON.stringify({
         authenticated: true,
         user: {
+          recordId: typeof decoded.recordId === 'string' ? decoded.recordId : undefined,
           cedula: typeof decoded.cedula === 'string' ? decoded.cedula : '',
           nombre: typeof decoded.nombre === 'string' ? decoded.nombre : '',
           categoria: typeof decoded.categoria === 'string' ? decoded.categoria : ''

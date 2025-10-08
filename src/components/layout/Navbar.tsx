@@ -70,7 +70,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-24">
           {/* Logo y Bitácora */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-12">
             <Link href="/" className="flex items-center space-x-2" onClick={() => window.location.href = '/'}>
               <Image 
                 src="/Logo-Sirius.png" 
@@ -83,7 +83,7 @@ export default function Navbar() {
               />
             </Link>
             
-            {/* Bitácora al lado del logo */}
+            {/* Bitácora al lado del logo - Desktop y Mobile */}
             {isAuthenticated && (
               <BitacoraNavbar userData={userData} />
             )}
@@ -276,13 +276,8 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button y Bitácora */}
-          <div className="md:hidden flex items-center space-x-3">
-            {/* Bitácora Mobile */}
-            {isAuthenticated && (
-              <BitacoraNavbar userData={userData} />
-            )}
-            
+          {/* Mobile Menu Button */}
+          <div className="md:hidden flex items-center">
             <button
               onClick={toggleMenu}
               className="text-white hover:text-white/80 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 rounded-md p-2"
