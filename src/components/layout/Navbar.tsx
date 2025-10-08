@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-import SessionIndicator from '../SessionIndicator';
 import { LogOut, User, ChevronDown } from 'lucide-react';
 
 export default function Navbar() {
@@ -171,12 +170,23 @@ export default function Navbar() {
                   )}
                 </div>
 
-                {/* Session Indicator */}
-                <SessionIndicator 
-                  getRemainingTime={getRemainingTime}
-                  extendSession={extendSession}
-                  onLogout={logout}
-                />
+                {/* Airtable Logo */}
+                <div className="flex items-center">
+                  <a
+                    href="https://airtable.com/appBNCVj4Njbyu1En/tbluOb37XJkZeNDT7/viwlwwuAOmEiPsOVJ?blocks=hide"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block hover:scale-105 transition-transform duration-200"
+                  >
+                    <Image
+                      src="/logo_airtable.webp"
+                      alt="Airtable"
+                      width={50}
+                      height={32}
+                      className="object-contain opacity-80 hover:opacity-100 transition-opacity duration-200"
+                    />
+                  </a>
+                </div>
 
                 {/* User Menu */}
                 <div className="relative">
@@ -358,13 +368,24 @@ export default function Navbar() {
                     </Link>
                   </div>
 
-                  {/* Session Indicator Mobile */}
-                  <div className="px-2 py-2">
-                    <SessionIndicator 
-                      getRemainingTime={getRemainingTime}
-                      extendSession={extendSession}
-                      onLogout={logout}
-                    />
+                  {/* Airtable Logo Mobile */}
+                  <div className="flex justify-center py-4">
+                    <a
+                      href="https://airtable.com/appBNCVj4Njbyu1En/tbluOb37XJkZeNDT7/viwlwwuAOmEiPsOVJ?blocks=hide"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20 hover:bg-white/15 transition-all duration-300"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Image
+                        src="/logo_airtable.webp"
+                        alt="Airtable"
+                        width={24}
+                        height={24}
+                        className="object-contain opacity-80"
+                      />
+                      <span className="text-white/80 text-sm font-medium">Ver en Airtable</span>
+                    </a>
                   </div>
 
                   {/* Logout Button */}
