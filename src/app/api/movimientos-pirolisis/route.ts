@@ -42,15 +42,28 @@ export async function GET(request: NextRequest) {
       grupoFilter = 'OR(FIND("Costo", {GRUPO PRUEBA}), FIND("Gasto", {GRUPO PRUEBA}))';
     }
 
+    // Usar FIND para buscar "Operacional" dentro del campo (más flexible)
     const filterFormula = `AND(
       {Valor} < 0,
       ${grupoFilter},
-      {Unidad de Negocio Prueba} = "Pirolisis"
+      {Unidad de Negocio Prueba} = "Pirolisis",
+      OR(
+        {CLASE PRUEBA} = "Operacional",
+        FIND("Operacional", {CLASE PRUEBA})
+      )
     )`;
 
-    console.log('📡 Consultando Airtable con filtro de Pirólisis...');
+    console.log('📡 Consultando Airtable con filtros específicos de Pirólisis...');
     console.log('🔍 Tipo de gasto:', tipoGasto);
-    console.log('🔍 Filtro aplicado:', filterFormula);
+    console.log('🔍 Filtros aplicados:');
+    console.log('   - Unidad de Negocio Prueba = "Pirolisis"');
+    console.log('   - GRUPO PRUEBA = "Costo" o "Gasto"');
+    console.log('   - CLASE PRUEBA = "Operacional"');
+    console.log('   - Valor < 0 (egresos)');
+    console.log('🔍 Fórmula completa:', filterFormula);
+    console.log('');
+    console.log('⚠️ IMPORTANTE: Si ves más de 200 registros, revisa que el campo CLASE PRUEBA esté lleno en Airtable');
+    console.log('');
     
     await base(MOVIMIENTOS_TABLE_ID)
       .select({
@@ -70,6 +83,16 @@ export async function GET(request: NextRequest) {
       });
 
     console.log('✅ Total de registros obtenidos:', records.length);
+    
+    // Verificar campos CLASE PRUEBA en los primeros 5 registros
+    if (records.length > 0) {
+      console.log('');
+      console.log('🔍 Muestra de los primeros 5 registros:');
+      records.slice(0, 5).forEach((record, index) => {
+        console.log(`   ${index + 1}. CLASE PRUEBA: "${record['CLASE PRUEBA'] || 'VACÍO'}" | Unidad: "${record['Unidad de Negocio Prueba'] || 'VACÍO'}" | GRUPO: "${record['GRUPO PRUEBA'] || 'VACÍO'}"`);
+      });
+      console.log('');
+    }
 
     if (records.length === 0) {
       console.warn('⚠️ No se encontraron registros con el filtro aplicado');
@@ -124,10 +147,14 @@ export async function GET(request: NextRequest) {
     const promedioMovimiento = registrosProcesados > 0 ? totalGeneral / registrosProcesados : 0;
 
     console.log('📊 Resumen de procesamiento:');
-    console.log(`   - Total registros: ${registrosProcesados}`);
-    console.log(`   - Registros con semana: ${registrosConSemana}`);
-    console.log(`   - Semanas únicas: ${Object.keys(costosPorSemana).length}`);
-    console.log(`   - Total general: $${Math.round(totalGeneral).toLocaleString('es-CO')}`);
+    console.log(`   - Total registros devueltos por Airtable: ${registrosProcesados}`);
+    console.log(`   - Registros con campo "Numero semana formulado": ${registrosConSemana}`);
+    console.log(`   - Semanas únicas con costos: ${Object.keys(costosPorSemana).length}`);
+    console.log(`   - Total general de costos: $${Math.round(totalGeneral).toLocaleString('es-CO')}`);
+    console.log('');
+    console.log('⚠️ Si "Total registros" > 200, significa que el filtro CLASE PRUEBA no está funcionando correctamente');
+    console.log('   Revisa en Airtable que el campo CLASE PRUEBA esté lleno y tenga exactamente el valor "Operacional"');
+    console.log('');
     console.log('💰 Costos agrupados por semana:', costosPorSemana);
     
     return NextResponse.json({ 

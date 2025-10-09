@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { 
   TrendingUp, 
@@ -13,11 +13,9 @@ import {
   PlusCircle,
   MinusCircle,
   Filter,
-  BarChart3,
-  PieChart,
-  Activity
+  Activity,
+  CheckCircle
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 
 interface MovimientoBancario {
   id: string;
@@ -56,7 +54,26 @@ interface FiltrosMovimientos {
   soloEgresos: boolean;
 }
 
-const COLORES_GRAFICOS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
+interface FacturaSinPagarData {
+  id: string;
+  facturaNo: string;
+  nombreComprador: string;
+  nitComprador: string;
+  totalRecibir: number;
+  saldoAnterior: number;
+  montoRestante: number;
+  totalMovimientos: number;
+  estadoFactura: string;
+  fechaCreacion: string;
+  ultimaModificacion: string;
+  idFactura: string;
+  movimientosBancarios: string[] | string;
+}
+
+interface RemisionSinFacturar {
+  id: string;
+  valorTotalLitros: number;
+}
 
 export default function MovimientosBancarios() {
   const { isAuthenticated, userData, isLoading } = useAuthSession();
@@ -64,7 +81,13 @@ export default function MovimientosBancarios() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedMovimiento, setSelectedMovimiento] = useState<MovimientoBancario | null>(null);
-  const [vistaActual, setVistaActual] = useState<'tabla' | 'graficos'>('tabla');
+  const [actualizando, setActualizando] = useState(false);
+  
+  // Estados para facturas sin pagar y remisiones
+  const [facturasSinPagar, setFacturasSinPagar] = useState<FacturaSinPagarData[]>([]);
+  const [loadingFacturasSinPagar, setLoadingFacturasSinPagar] = useState(true);
+  const [remisionesSinFacturar, setRemisionesSinFacturar] = useState<RemisionSinFacturar[]>([]);
+  const [loadingRemisionesSinFacturar, setLoadingRemisionesSinFacturar] = useState(true);
   
   const [filtros, setFiltros] = useState<FiltrosMovimientos>({
     año: 2025,
@@ -193,6 +216,120 @@ export default function MovimientosBancarios() {
     }
   };
 
+  // Función para actualizar movimientos bancarios mediante webhooks
+  const actualizarMovimientosBancarios = async () => {
+    try {
+      setActualizando(true);
+      setError('');
+      
+  // Webhooks de n8n - usar variables de entorno
+  // Definir en .env.local (para client-side usar NEXT_PUBLIC_ si es necesario)
+  const webhookBancolombia = process.env.NEXT_PUBLIC_WEBHOOK_BANCOL || process.env.WEBHOOK_BANCOL || '';
+  const webhookBBVA = process.env.NEXT_PUBLIC_WEBHOOK_BBVA || process.env.WEBHOOK_BBVA || '';
+      
+      // Enviar solicitud a ambos webhooks en paralelo
+      const [responseBancolombia, responseBBVA] = await Promise.all([
+        fetch(webhookBancolombia, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'actualizar_movimientos',
+            timestamp: new Date().toISOString(),
+            usuario: userData?.nombre || 'Usuario',
+          })
+        }),
+        fetch(webhookBBVA, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'actualizar_movimientos',
+            timestamp: new Date().toISOString(),
+            usuario: userData?.nombre || 'Usuario',
+          })
+        })
+      ]);
+
+      console.log('Webhook Bancolombia status:', responseBancolombia.status);
+      console.log('Webhook BBVA status:', responseBBVA.status);
+
+      if (responseBancolombia.ok && responseBBVA.ok) {
+        // Esperar 3 segundos y recargar los datos
+        setTimeout(() => {
+          fetchMovimientos();
+        }, 3000);
+        
+        alert('✅ Actualización iniciada exitosamente en Bancolombia y BBVA. Los datos se recargarán en unos segundos.');
+      } else {
+        throw new Error('Error al actualizar uno o ambos bancos');
+      }
+    } catch (error) {
+      console.error('Error actualizando movimientos bancarios:', error);
+      setError('Error al enviar solicitud de actualización. Por favor intenta nuevamente.');
+    } finally {
+      setActualizando(false);
+    }
+  };
+
+  // Fetch facturas sin pagar
+  const fetchFacturasSinPagar = useCallback(async () => {
+    try {
+      setLoadingFacturasSinPagar(true);
+      console.log('📄 Obteniendo facturas sin pagar...');
+      
+      const response = await fetch('/api/facturas-sin-pagar?maxRecords=50');
+      const result = await response.json();
+      
+      if (result.success) {
+        setFacturasSinPagar(result.data);
+        console.log(`✅ Facturas sin pagar obtenidas: ${result.data.length}`);
+      } else {
+        console.error('❌ Error al obtener facturas sin pagar:', result.error);
+        setFacturasSinPagar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching facturas sin pagar:', error);
+      setFacturasSinPagar([]);
+    } finally {
+      setLoadingFacturasSinPagar(false);
+    }
+  }, []);
+
+  // Fetch remisiones sin facturar
+  const fetchRemisionesSinFacturar = useCallback(async () => {
+    try {
+      setLoadingRemisionesSinFacturar(true);
+      console.log('📄 Obteniendo remisiones sin facturar...');
+      
+      const response = await fetch('/api/remisiones-sin-facturar');
+      const result = await response.json();
+      
+      if (result.success) {
+        setRemisionesSinFacturar(result.data);
+        console.log(`✅ Remisiones sin facturar obtenidas: ${result.data.length}`);
+      } else {
+        console.error('❌ Error al obtener remisiones sin facturar:', result.error);
+        setRemisionesSinFacturar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching remisiones sin facturar:', error);
+      setRemisionesSinFacturar([]);
+    } finally {
+      setLoadingRemisionesSinFacturar(false);
+    }
+  }, []);
+
+  // Cargar facturas y remisiones cuando el componente se monta
+  useEffect(() => {
+    if (isAuthenticated && userData) {
+      fetchFacturasSinPagar();
+      fetchRemisionesSinFacturar();
+    }
+  }, [isAuthenticated, userData, fetchFacturasSinPagar, fetchRemisionesSinFacturar]);
+
   // Filtrar movimientos según criterios
   const movimientosFiltrados = useMemo(() => {
     return movimientos.filter(movimiento => {
@@ -262,72 +399,6 @@ export default function MovimientosBancarios() {
     const cantidadMovimientos = movimientosFiltrados.length;
 
     return { totalIngresos, totalEgresos, balance, cantidadMovimientos };
-  }, [movimientosFiltrados]);
-
-  // Datos para gráficos
-  const datosGraficos = useMemo(() => {
-    // Gráfico por Unidad de Negocio
-    const porUnidad = movimientosFiltrados.reduce((acc, mov) => {
-      const unidad = mov['Unidad de Negocio'] || 'Sin clasificar';
-      const valor = typeof mov['Valor'] === 'string' ? parseFloat(mov['Valor']) : Number(mov['Valor']);
-      
-      if (!acc[unidad]) {
-        acc[unidad] = { ingresos: 0, egresos: 0 };
-      }
-      
-      if (!isNaN(valor)) {
-        if (valor > 0) {
-          acc[unidad].ingresos += valor;
-        } else {
-          acc[unidad].egresos += Math.abs(valor);
-        }
-      }
-      return acc;
-    }, {} as Record<string, { ingresos: number; egresos: number }>);
-
-    const datosUnidad = Object.entries(porUnidad).map(([unidad, datos]) => ({
-      unidad,
-      ingresos: datos.ingresos,
-      egresos: datos.egresos,
-      balance: datos.ingresos - datos.egresos
-    }));
-
-    // Gráfico por Centro de Costos
-    const porCentro = movimientosFiltrados.reduce((acc, mov) => {
-      const centro = mov['Centro de Costos'] || 'Sin centro';
-      const valor = typeof mov['Valor'] === 'string' ? parseFloat(mov['Valor']) : Number(mov['Valor']);
-      const valorAbsoluto = isNaN(valor) ? 0 : Math.abs(valor);
-      
-      if (!acc[centro]) {
-        acc[centro] = 0;
-      }
-      acc[centro] += valorAbsoluto;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const datosCentros = Object.entries(porCentro)
-      .map(([centro, valor]) => ({ centro, valor }))
-      .sort((a, b) => b.valor - a.valor)
-      .slice(0, 8); // Top 8 centros
-
-    // Gráfico por Clasificación
-    const porClasificacion = movimientosFiltrados.reduce((acc, mov) => {
-      const clasificacion = mov['Clasificacion'] || 'Sin clasificar';
-      const valor = typeof mov['Valor'] === 'string' ? parseFloat(mov['Valor']) : Number(mov['Valor']);
-      const valorAbsoluto = isNaN(valor) ? 0 : Math.abs(valor);
-      
-      if (!acc[clasificacion]) {
-        acc[clasificacion] = 0;
-      }
-      acc[clasificacion] += valorAbsoluto;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const datosClasificacion = Object.entries(porClasificacion)
-      .map(([clasificacion, valor]) => ({ clasificacion, valor }))
-      .sort((a, b) => b.valor - a.valor);
-
-    return { datosUnidad, datosCentros, datosClasificacion };
   }, [movimientosFiltrados]);
 
   // Obtener valores únicos para filtros
@@ -407,12 +478,12 @@ export default function MovimientosBancarios() {
     return (
       <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
-        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="absolute inset-0 bg-slate-900/20"></div>
         <div className="relative z-10 text-center">
-          <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl p-8 border border-white/30 shadow-2xl">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
             <p className="text-white text-lg">Cargando...</p>
           </div>
@@ -425,15 +496,15 @@ export default function MovimientosBancarios() {
     return (
       <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
-        <div className="absolute inset-0 bg-black/40"></div>
+        <div className="absolute inset-0 bg-slate-900/20"></div>
         <div className="relative z-10 text-center">
-          <div className="bg-red-500/20 backdrop-blur-md rounded-3xl p-8 border border-red-500/30 shadow-2xl">
-            <AlertCircle className="w-16 h-16 text-red-300 mx-auto mb-4" />
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl p-8 border border-white/30 shadow-2xl">
+            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-4">Acceso Denegado</h2>
-            <p className="text-white/80">Debe iniciar sesión para ver los movimientos bancarios</p>
+            <p className="text-slate-100">Debe iniciar sesión para ver los movimientos bancarios</p>
           </div>
         </div>
       </div>
@@ -444,54 +515,26 @@ export default function MovimientosBancarios() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+        backgroundImage: 'url(/18032025-DSC_2933.jpg)'
       }}
     >
-      <div className="absolute inset-0 bg-black/40"></div>
+      <div className="absolute inset-0 bg-slate-900/20"></div>
       
       <div className="relative z-10 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
+          <div className="text-center mb-8 bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/30 shadow-2xl">
             <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg mb-2">
               Movimientos Bancarios
             </h1>
-            <p className="text-white/80">
+            <p className="text-slate-100">
               {userData?.nombre} • {userData?.categoria}
             </p>
           </div>
 
-          {/* Botones de vista */}
-          <div className="flex justify-center mb-6">
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-2 border border-white/20">
-              <button
-                onClick={() => setVistaActual('tabla')}
-                className={`px-6 py-2 rounded-lg transition-all ${
-                  vistaActual === 'tabla' 
-                    ? 'bg-blue-600/70 text-white' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <Activity className="w-4 h-4 inline mr-2" />
-                Tabla
-              </button>
-              <button
-                onClick={() => setVistaActual('graficos')}
-                className={`px-6 py-2 rounded-lg transition-all ${
-                  vistaActual === 'graficos' 
-                    ? 'bg-blue-600/70 text-white' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4 inline mr-2" />
-                Gráficos
-              </button>
-            </div>
-          </div>
-
           {/* Tarjetas de resumen */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-green-500/20 backdrop-blur-md rounded-2xl p-6 border border-green-500/30">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl p-6 border border-white/30">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-300 text-sm font-medium">Total Ingresos</p>
@@ -501,7 +544,7 @@ export default function MovimientosBancarios() {
               </div>
             </div>
             
-            <div className="bg-red-500/20 backdrop-blur-md rounded-2xl p-6 border border-red-500/30">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl p-6 border border-white/30">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-red-300 text-sm font-medium">Total Egresos</p>
@@ -511,7 +554,7 @@ export default function MovimientosBancarios() {
               </div>
             </div>
             
-            <div className={`backdrop-blur-md rounded-2xl p-6 border ${metricas.balance >= 0 ? 'bg-blue-500/20 border-blue-500/30' : 'bg-orange-500/20 border-orange-500/30'}`}>
+            <div className={`bg-slate-800/40 backdrop-blur-md rounded-2xl p-6 border border-white/30`}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-sm font-medium ${metricas.balance >= 0 ? 'text-blue-300' : 'text-orange-300'}`}>Balance</p>
@@ -521,19 +564,85 @@ export default function MovimientosBancarios() {
               </div>
             </div>
 
-            <div className="bg-purple-500/20 backdrop-blur-md rounded-2xl p-6 border border-purple-500/30">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl p-6 border border-white/30">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-300 text-sm font-medium">Movimientos</p>
+                  <p className="text-slate-100 text-sm font-medium">Movimientos</p>
                   <p className="text-white text-xl font-bold">{metricas.cantidadMovimientos}</p>
                 </div>
-                <Activity className="w-6 h-6 text-purple-400" />
+                <Activity className="w-6 h-6 text-white" />
               </div>
             </div>
           </div>
 
+          {/* Facturas Sin Pagar y Remisiones Sin Facturar */}
+          <div className="mb-8">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    Facturas Sin Pagar
+                  </h3>
+                  <p className="text-sm text-slate-100">
+                    Estado de cartera pendiente
+                  </p>
+                </div>
+              </div>
+              
+              {loadingFacturasSinPagar ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span className="ml-2 text-white text-sm">Cargando...</span>
+                </div>
+              ) : facturasSinPagar.length === 0 ? (
+                <div className="text-center py-6">
+                  <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-white font-medium text-sm">¡Sin pendientes!</p>
+                  <p className="text-white/70 text-xs">Todas al día</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Resumen */}
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-red-300 text-xs font-medium">Total:</span>
+                        <span className="text-red-400 text-3xl font-bold">
+                          ${facturasSinPagar.reduce((sum, f) => sum + (f.totalRecibir || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-xl font-bold text-white">
+                      Remisiones Sin Facturar 
+                    </h3>
+                  </div>
+                  
+                  {/* Total Remisiones Sin Facturar */}
+                  <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3">
+                    {loadingRemisionesSinFacturar ? (
+                      <div className="flex items-center justify-center py-2">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-orange-400"></div>
+                        <span className="ml-2 text-orange-300 text-xs">Cargando...</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <span className="text-orange-300 text-xs font-medium">Total:</span>
+                        <span className="text-orange-400 text-3xl font-bold">
+                          ${remisionesSinFacturar.reduce((sum, r) => sum + (r.valorTotalLitros || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Filtros */}
-          <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl mb-8">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl p-6 border border-white/30 shadow-xl mb-8">
             <div className="flex items-center gap-2 mb-4">
               <Filter className="w-5 h-5 text-white" />
               <h3 className="text-lg font-semibold text-white">Filtros</h3>
@@ -542,7 +651,7 @@ export default function MovimientosBancarios() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               {/* Búsqueda */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Buscar</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Buscar</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/60" />
                   <input
@@ -550,18 +659,18 @@ export default function MovimientosBancarios() {
                     value={filtros.busqueda}
                     onChange={(e) => setFiltros({...filtros, busqueda: e.target.value})}
                     placeholder="Descripción..."
-                    className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    className="w-full pl-10 pr-4 py-2 bg-slate-700/30 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                   />
                 </div>
               </div>
 
               {/* Año */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Año</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Año</label>
                 <select
                   value={filtros.año}
                   onChange={(e) => setFiltros({...filtros, año: Number(e.target.value)})}
-                  className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  className="w-full py-2 px-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                 >
                   <option value={2024} className="text-gray-900">2024</option>
                   <option value={2025} className="text-gray-900">2025</option>
@@ -571,11 +680,11 @@ export default function MovimientosBancarios() {
 
               {/* Mes */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Mes</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Mes</label>
                 <select
                   value={filtros.mes || ''}
                   onChange={(e) => setFiltros({...filtros, mes: e.target.value ? Number(e.target.value) : null})}
-                  className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  className="w-full py-2 px-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                 >
                   <option value="" className="text-gray-900">Todos</option>
                   <option value={1} className="text-gray-900">Enero</option>
@@ -595,14 +704,14 @@ export default function MovimientosBancarios() {
 
               {/* Tipo */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Tipo</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Tipo</label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setFiltros({...filtros, soloIngresos: !filtros.soloIngresos, soloEgresos: false})}
                     className={`flex-1 py-2 px-3 rounded-lg text-xs transition-all ${
                       filtros.soloIngresos 
                         ? 'bg-green-600/70 text-white' 
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        : 'bg-slate-700/30 text-white/70 hover:bg-slate-700/50 border border-white/20'
                     }`}
                   >
                     Ingresos
@@ -612,7 +721,7 @@ export default function MovimientosBancarios() {
                     className={`flex-1 py-2 px-3 rounded-lg text-xs transition-all ${
                       filtros.soloEgresos 
                         ? 'bg-red-600/70 text-white' 
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        : 'bg-slate-700/30 text-white/70 hover:bg-slate-700/50 border border-white/20'
                     }`}
                   >
                     Egresos
@@ -624,11 +733,11 @@ export default function MovimientosBancarios() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               {/* Unidad de Negocio */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Unidad de Negocio</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Unidad de Negocio</label>
                 <select
                   value={filtros.unidadNegocio}
                   onChange={(e) => setFiltros({...filtros, unidadNegocio: e.target.value})}
-                  className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  className="w-full py-2 px-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                 >
                   <option value="" className="text-gray-900">Todas</option>
                   {valoresUnicos.unidades.map(unidad => (
@@ -639,11 +748,11 @@ export default function MovimientosBancarios() {
 
               {/* Clasificación */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Clasificación</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Clasificación</label>
                 <select
                   value={filtros.clasificacion}
                   onChange={(e) => setFiltros({...filtros, clasificacion: e.target.value})}
-                  className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  className="w-full py-2 px-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                 >
                   <option value="" className="text-gray-900">Todas</option>
                   {valoresUnicos.clasificaciones.map(clasificacion => (
@@ -654,11 +763,11 @@ export default function MovimientosBancarios() {
 
               {/* Centro de Costos */}
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Centro de Costos</label>
+                <label className="block text-slate-100 text-sm font-medium mb-2">Centro de Costos</label>
                 <select
                   value={filtros.centroCostos}
                   onChange={(e) => setFiltros({...filtros, centroCostos: e.target.value})}
-                  className="w-full py-2 px-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  className="w-full py-2 px-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                 >
                   <option value="" className="text-gray-900">Todos</option>
                   {valoresUnicos.centrosCostos.map(centro => (
@@ -668,55 +777,61 @@ export default function MovimientosBancarios() {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={actualizarMovimientosBancarios}
+                disabled={actualizando}
+                className="bg-green-600/70 hover:bg-green-700/80 disabled:bg-gray-600/50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${actualizando ? 'animate-spin' : ''}`} />
+                {actualizando ? 'Actualizando...' : 'Actualizar Movimientos Bancarios'}
+              </button>
               <button
                 onClick={fetchMovimientos}
                 className="bg-blue-600/70 hover:bg-blue-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Actualizar
+                Recargar Datos
               </button>
             </div>
           </div>
 
           {error && (
-            <div className="bg-red-500/20 backdrop-blur-md rounded-2xl p-4 mb-6 border border-red-500/30 text-center">
-              <AlertCircle className="w-8 h-8 text-red-300 mx-auto mb-2" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl p-4 mb-6 border border-red-500/50 text-center">
+              <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
               <p className="text-red-300">{error}</p>
             </div>
           )}
 
-          {/* Contenido según vista */}
-          {vistaActual === 'tabla' ? (
-            /* Vista de Tabla */
-            loading ? (
+          {/* Vista de Tabla */}
+          {loading ? (
               <div className="text-center py-12">
-                <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl inline-block">
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl p-8 border border-white/30 shadow-2xl inline-block">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
                   <p className="text-white">Cargando movimientos...</p>
                 </div>
               </div>
             ) : movimientosFiltrados.length === 0 ? (
               <div className="text-center py-12">
-                <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl">
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl p-8 border border-white/30 shadow-2xl">
                   <Activity className="w-16 h-16 text-white/60 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-white mb-2">No hay movimientos</h3>
-                  <p className="text-white/80">No se encontraron movimientos con los filtros aplicados</p>
+                  <p className="text-slate-100">No se encontraron movimientos con los filtros aplicados</p>
                 </div>
               </div>
             ) : (
-              <div className="bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl overflow-hidden">
+              <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl border border-white/30 shadow-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-white/10">
+                    <thead className="bg-slate-700/30">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Fecha</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Tipo</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Descripción</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Unidad</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Valor</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Legalización</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-white/90 uppercase tracking-wider">Acciones</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Fecha</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Tipo</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Descripción</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Unidad</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Valor</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Legalización</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-100 uppercase tracking-wider">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/20">
@@ -776,130 +891,12 @@ export default function MovimientosBancarios() {
                   </div>
                 )}
               </div>
-            )
-          ) : (
-            /* Vista de Gráficos */
-            <div className="space-y-8">
-              {/* Gráfico por Unidad de Negocio */}
-              <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-blue-400" />
-                  Movimientos por Unidad de Negocio
-                </h3>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={datosGraficos.datosUnidad}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-                      <XAxis 
-                        dataKey="unidad" 
-                        tick={{ fill: '#ffffff', fontSize: 12 }}
-                        axisLine={{ stroke: '#ffffff40' }}
-                      />
-                      <YAxis 
-                        tick={{ fill: '#ffffff', fontSize: 12 }}
-                        axisLine={{ stroke: '#ffffff40' }}
-                        tickFormatter={(value) => `$${(value/1000000).toFixed(1)}M`}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'rgba(0,0,0,0.8)', 
-                          border: '1px solid rgba(255,255,255,0.2)', 
-                          borderRadius: '8px',
-                          color: '#ffffff'
-                        }}
-                        formatter={(value: any) => [formatCurrency(value), '']}
-                      />
-                      <Legend />
-                      <Bar dataKey="ingresos" fill="#10b981" name="Ingresos" />
-                      <Bar dataKey="egresos" fill="#ef4444" name="Egresos" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Gráficos en Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Gráfico por Centro de Costos */}
-                <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <PieChart className="w-5 h-5 text-green-400" />
-                    Top Centros de Costos
-                  </h3>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RechartsPieChart>
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(0,0,0,0.8)', 
-                            border: '1px solid rgba(255,255,255,0.2)', 
-                            borderRadius: '8px',
-                            color: '#ffffff'
-                          }}
-                          formatter={(value: any) => [formatCurrency(value), 'Valor']}
-                        />
-                        <Pie 
-                          data={datosGraficos.datosCentros} 
-                          dataKey="valor" 
-                          nameKey="centro" 
-                          cx="50%" 
-                          cy="50%" 
-                          outerRadius={100}
-                          label={(entry: any) => `${entry.centro}: ${(entry.percent * 100).toFixed(1)}%`}
-                        >
-                          {datosGraficos.datosCentros.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORES_GRAFICOS[index % COLORES_GRAFICOS.length]} />
-                          ))}
-                        </Pie>
-                      </RechartsPieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Gráfico por Clasificación */}
-                <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-purple-400" />
-                    Movimientos por Clasificación
-                  </h3>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosGraficos.datosClasificacion.slice(0, 8)} layout="horizontal">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-                        <XAxis 
-                          type="number"
-                          tick={{ fill: '#ffffff', fontSize: 12 }}
-                          axisLine={{ stroke: '#ffffff40' }}
-                          tickFormatter={(value) => `$${(value/1000000).toFixed(1)}M`}
-                        />
-                        <YAxis 
-                          type="category"
-                          dataKey="clasificacion" 
-                          tick={{ fill: '#ffffff', fontSize: 10 }}
-                          axisLine={{ stroke: '#ffffff40' }}
-                          width={100}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(0,0,0,0.8)', 
-                            border: '1px solid rgba(255,255,255,0.2)', 
-                            borderRadius: '8px',
-                            color: '#ffffff'
-                          }}
-                          formatter={(value: any) => [formatCurrency(value), 'Valor']}
-                        />
-                        <Bar dataKey="valor" fill="#8b5cf6" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            )}
 
           {/* Modal de detalles */}
           {selectedMovimiento && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/30 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-start mb-6">
                   <h2 className="text-2xl font-bold text-white">
                     Detalle del Movimiento
@@ -917,11 +914,11 @@ export default function MovimientosBancarios() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-white/70 text-sm">Fecha</p>
+                      <p className="text-slate-300 text-sm">Fecha</p>
                       <p className="text-white font-medium">{formatDate(selectedMovimiento['Fecha'])}</p>
                     </div>
                     <div>
-                      <p className="text-white/70 text-sm">Tipo</p>
+                      <p className="text-slate-300 text-sm">Tipo</p>
                       <div className="flex items-center">
                         {getTipoIcon(selectedMovimiento['Valor'])}
                         <span className={`ml-2 font-medium ${getTipoColor(selectedMovimiento['Valor'])}`}>
@@ -932,23 +929,23 @@ export default function MovimientosBancarios() {
                   </div>
 
                   <div>
-                    <p className="text-white/70 text-sm">Descripción</p>
+                    <p className="text-slate-300 text-sm">Descripción</p>
                     <p className="text-white font-medium">{selectedMovimiento['Descripción']}</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-white/70 text-sm">Unidad de Negocio</p>
+                      <p className="text-slate-300 text-sm">Unidad de Negocio</p>
                       <p className="text-white font-medium">{selectedMovimiento['Unidad de Negocio']}</p>
                     </div>
                     <div>
-                      <p className="text-white/70 text-sm">Clasificación</p>
+                      <p className="text-slate-300 text-sm">Clasificación</p>
                       <p className="text-white font-medium">{selectedMovimiento['Clasificacion']}</p>
                     </div>
                   </div>
 
                   <div>
-                    <p className="text-white/70 text-sm">Valor</p>
+                    <p className="text-slate-300 text-sm">Valor</p>
                     <p className={`text-2xl font-bold ${getTipoColor(selectedMovimiento['Valor'])}`}>
                       {formatCurrency(selectedMovimiento['Valor'])}
                     </p>
@@ -956,27 +953,27 @@ export default function MovimientosBancarios() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-white/70 text-sm">Centro de Costos</p>
+                      <p className="text-slate-300 text-sm">Centro de Costos</p>
                       <p className="text-white font-medium">{selectedMovimiento['Centro de Costos'] || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-white/70 text-sm">Tipo de Movimiento</p>
+                      <p className="text-slate-300 text-sm">Tipo de Movimiento</p>
                       <p className="text-white font-medium">{selectedMovimiento['Tipo de Movimiento (Apoyo)'] || 'N/A'}</p>
                     </div>
                   </div>
 
                   <div>
-                    <p className="text-white/70 text-sm">Legalización</p>
+                    <p className="text-slate-300 text-sm">Legalización</p>
                     <p className="text-white font-medium">{selectedMovimiento['Legalización']}</p>
                   </div>
 
                   {(selectedMovimiento['GRUPO PRUEBA'] || selectedMovimiento['CLASE PRUEBA'] || selectedMovimiento['CUENTA PRUEBA']) && (
-                    <div className="bg-white/10 rounded-lg p-4">
+                    <div className="bg-slate-700/30 rounded-lg p-4 border border-white/20">
                       <h3 className="text-white font-semibold mb-2">Clasificación Contable</h3>
                       <div className="grid grid-cols-1 gap-2 text-sm">
                         {selectedMovimiento['GRUPO PRUEBA'] && (
                           <div>
-                            <span className="text-white/70">Grupo: </span>
+                            <span className="text-slate-300">Grupo: </span>
                             <span className="text-white font-medium">
                               {Array.isArray(selectedMovimiento['GRUPO PRUEBA']) 
                                 ? selectedMovimiento['GRUPO PRUEBA'].join(', ') 
@@ -986,7 +983,7 @@ export default function MovimientosBancarios() {
                         )}
                         {selectedMovimiento['CLASE PRUEBA'] && (
                           <div>
-                            <span className="text-white/70">Clase: </span>
+                            <span className="text-slate-300">Clase: </span>
                             <span className="text-white font-medium">
                               {Array.isArray(selectedMovimiento['CLASE PRUEBA']) 
                                 ? selectedMovimiento['CLASE PRUEBA'].join(', ') 
@@ -996,7 +993,7 @@ export default function MovimientosBancarios() {
                         )}
                         {selectedMovimiento['CUENTA PRUEBA'] && (
                           <div>
-                            <span className="text-white/70">Cuenta: </span>
+                            <span className="text-slate-300">Cuenta: </span>
                             <span className="text-white font-medium">
                               {Array.isArray(selectedMovimiento['CUENTA PRUEBA']) 
                                 ? selectedMovimiento['CUENTA PRUEBA'].join(', ') 

@@ -1157,160 +1157,82 @@ export default function ResumenGerencial() {
           {/* Análisis Comparativo de 3 Semanas */}
         {(weekComparison.previous || weekComparison.current || weekComparison.next) && (
           <div className="mb-8">
-            {/* Título centrado */}
-            <div className="flex justify-center mb-6">
-              <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-4 border border-white/30 inline-block">
-                <h2 className="text-3xl font-bold text-white flex items-center gap-3 justify-center">
-                  <TrendingUp className="w-8 h-8 text-slate-200" />
-                  Análisis del Flujo de Caja Semanal
-                </h2>
-                <p className="text-white mt-1 text-center">
-                  Comparativo: Semana Pasada, Actual y Futura (Proyecciones)
-                </p>
-              </div>
-            </div>
-
-            {/* Facturas Sin Pagar y Saldos Bancarios Actuales */}
-            <div className="mb-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Facturas Sin Pagar */}
-                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-white">
-                        Facturas Sin Pagar
-                      </h3>
-                      <p className="text-sm text-slate-100">
-                        Estado de cartera pendiente
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {loadingFacturasSinPagar ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="ml-2 text-white text-sm">Cargando...</span>
-                    </div>
-                  ) : facturasSinPagar.length === 0 ? (
-                    <div className="text-center py-6">
-                      <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                      <p className="text-white font-medium text-sm">¡Sin pendientes!</p>
-                      <p className="text-white/70 text-xs">Todas al día</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {/* Resumen */}
-                      <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-red-300 text-xs font-medium">Total:</span>
-                            <span className="text-red-400 text-3xl font-bold">
-                              ${facturasSinPagar.reduce((sum, f) => sum + (f.totalRecibir || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                      <h3 className="text-xl font-bold text-white">
-                        Remisiones Sin Facturar 
-                      </h3>
-                    </div>
-                      
-                      {/* Total Remisiones Sin Facturar */}
-                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3">
-                        {loadingRemisionesSinFacturar ? (
-                          <div className="flex items-center justify-center py-2">
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-orange-400"></div>
-                            <span className="ml-2 text-orange-300 text-xs">Cargando...</span>
-                          </div>
-                        ) : (
-                          <div className="flex justify-between items-center">
-                            <span className="text-orange-300 text-xs font-medium">Total:</span>
-                            <span className="text-orange-400 text-3xl font-bold">
-                              ${remisionesSinFacturar.reduce((sum, r) => sum + (r.valorTotalLitros || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+            {/* Título y Saldos en la misma fila */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              {/* Título a la izquierda (2 columnas) */}
+              <div className="lg:col-span-2">
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-6 border border-white/30 h-full flex flex-col justify-center">
+                  <h2 className="text-4xl font-bold text-white flex items-center justify-center gap-3">
+                    <TrendingUp className="w-10 h-10 text-slate-200" />
+                    Análisis del Flujo de Caja Semanal
+                  </h2>
+                  <p className="text-white/90 mt-3 text-lg text-center">
+                    Comparativo: Semana Pasada, Actual y Futura (Proyecciones)
+                  </p>
                 </div>
+              </div>
 
-                {/* Saldos Bancarios Actuales */}
-                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-white">
-                        Saldos Actuales
-                      </h3>
-                      <p className="text-sm text-slate-100">
-                        Posición bancaria actual
-                      </p>
-                    </div>
+              {/* Saldos Bancarios a la derecha (1 columna) */}
+              <div className="lg:col-span-1">
+                <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl h-full">
+                  <div className="text-center mb-4">
+                    <h3 className="text-xl font-bold text-white">
+                      Saldos Actuales
+                    </h3>
+                    <p className="text-sm text-slate-200">
+                      Posición bancaria actual
+                    </p>
                   </div>
                   
                   {loadingSaldos ? (
-                    <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center justify-center py-4">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       <span className="ml-2 text-white text-sm">Cargando...</span>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {/* Resumen */}
                       <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-green-300 text-xs font-medium">Total:</span>
-                            <span className="text-green-400 text-3xl font-bold">
-                              {(saldoBancolombia !== null && saldoBBVA !== null) ? 
-                                `$${(saldoBancolombia + saldoBBVA).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-                                'N/A'
-                              }
-                            </span>
-                          </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-300 text-sm font-medium">Total:</span>
+                          <span className="text-green-400 text-2xl font-bold">
+                            {(saldoBancolombia !== null && saldoBBVA !== null) ? 
+                              `$${(saldoBancolombia + saldoBBVA).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                              'N/A'
+                            }
+                          </span>
                         </div>
                       </div>
 
                       {/* Lista de bancos */}
                       <div className="space-y-2">
-                        <div className="bg-slate-700/30 rounded-lg p-2 border border-white/10">
+                        <div className="bg-slate-700/30 rounded-lg p-2.5 border border-white/10">
                           <div className="flex justify-between items-center">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-white font-medium text-sm">Bancolombia</span>
-                            </div>
-                            <div className="text-right ml-2">
-                              <p className="text-green-400 font-bold text-3xl">
-                                {saldoBancolombia !== null ? 
-                                  `$${saldoBancolombia.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-                                  'N/A'
-                                }
-                              </p>
-                            </div>
+                            <span className="text-white font-medium text-sm">Bancolombia</span>
+                            <p className="text-green-400 font-bold text-lg">
+                              {saldoBancolombia !== null ? 
+                                `$${saldoBancolombia.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                                'N/A'
+                              }
+                            </p>
                           </div>
                         </div>
                         
-                        <div className="bg-slate-700/30 rounded-lg p-2 border border-white/10">
+                        <div className="bg-slate-700/30 rounded-lg p-2.5 border border-white/10">
                           <div className="flex justify-between items-center">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-white font-medium text-sm">BBVA</span>
-                            </div>
-                            <div className="text-right ml-2">
-                              <p className="text-blue-400 font-bold text-3xl">
-                                {saldoBBVA !== null ? 
-                                  `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-                                  'N/A'
-                                }
-                              </p>
-                            </div>
+                            <span className="text-white font-medium text-sm">BBVA</span>
+                            <p className="text-blue-400 font-bold text-lg">
+                              {saldoBBVA !== null ? 
+                                `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
+                                'N/A'
+                              }
+                            </p>
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
-
-                {/* Espacio vacío para mantener la estructura de grid */}
-                <div></div>
               </div>
             </div>
 
