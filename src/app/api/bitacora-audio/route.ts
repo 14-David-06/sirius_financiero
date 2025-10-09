@@ -8,18 +8,16 @@ const TABLE_ID = process.env.AIRTABLE_BITACORA_TABLE_ID; // Bitacora Financiera 
 // Field IDs from environment variables for security
 const FIELD_TRANSCRIPCION = process.env.AIRTABLE_FIELD_TRANSCRIPCION; // Transcripcion Nota Financiera
 const FIELD_REALIZA_REGISTRO = process.env.AIRTABLE_FIELD_REALIZA_REGISTRO; // Realiza Registro
-const FIELD_USUARIO_LINK = process.env.AIRTABLE_FIELD_USUARIO_LINK; // Usuario (link to Equipo Financiero)
 
 export async function POST(request: NextRequest) {
   try {
-    if (!BASE_ID || !API_KEY || !TABLE_ID || !FIELD_TRANSCRIPCION || !FIELD_REALIZA_REGISTRO || !FIELD_USUARIO_LINK) {
+    if (!BASE_ID || !API_KEY || !TABLE_ID || !FIELD_TRANSCRIPCION || !FIELD_REALIZA_REGISTRO) {
       console.error('Missing Airtable configuration:', { 
         BASE_ID: !!BASE_ID, 
         API_KEY: !!API_KEY, 
         TABLE_ID: !!TABLE_ID,
         FIELD_TRANSCRIPCION: !!FIELD_TRANSCRIPCION,
-        FIELD_REALIZA_REGISTRO: !!FIELD_REALIZA_REGISTRO,
-        FIELD_USUARIO_LINK: !!FIELD_USUARIO_LINK
+        FIELD_REALIZA_REGISTRO: !!FIELD_REALIZA_REGISTRO
       });
       return NextResponse.json(
         { error: 'Configuración de Airtable no encontrada' },
@@ -27,13 +25,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { transcripcion, usuario, usuarioId } = await request.json();
+    const { transcripcion, usuario } = await request.json();
 
     console.log('Datos recibidos en bitacora-audio API:', {
       transcripcion: transcripcion ? transcripcion.substring(0, 100) + '...' : null,
-      usuario,
-      usuarioId,
-      usuarioIdType: typeof usuarioId
+      usuario
     });
 
     if (!transcripcion || !usuario) {
@@ -54,14 +50,6 @@ export async function POST(request: NextRequest) {
         [FIELD_REALIZA_REGISTRO]: usuario, // Realiza Registro
       }
     };
-
-    // Si tenemos el ID del usuario, agregarlo como link
-    if (usuarioId) {
-      airtableData.fields[FIELD_USUARIO_LINK] = [usuarioId]; // Usuario (link to Equipo Financiero)
-      console.log('Agregando usuario ID al campo:', FIELD_USUARIO_LINK, '=', [usuarioId]);
-    } else {
-      console.log('No se proporcionó usuarioId, el campo Usuario no se llenará');
-    }
 
     console.log('Sending to Airtable:', {
       url: `${AIRTABLE_API_URL}/${BASE_ID}/${TABLE_ID}`,
