@@ -288,6 +288,41 @@ export async function POST(request: NextRequest) {
 
     console.log('🎉 Archivo cargado exitosamente a OneDrive');
 
+    // Activar webhook de Bancolombia después de carga exitosa
+    console.log('🔄 Activando webhook de Bancolombia...');
+    try {
+      const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_BANCOL;
+      if (webhookUrl) {
+        const webhookResponse = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            trigger: 'file_uploaded',
+            file_info: {
+              name: fileName,
+              path: `${ONEDRIVE_FOLDER_PATH}/${fileName}`,
+              upload_time: new Date().toISOString(),
+              size: buffer.length
+            },
+            action: 'process_banking_movements'
+          }),
+        });
+
+        if (webhookResponse.ok) {
+          console.log('✅ Webhook de Bancolombia activado exitosamente');
+        } else {
+          console.log('⚠️ Webhook de Bancolombia no respondió correctamente:', webhookResponse.status);
+        }
+      } else {
+        console.log('⚠️ URL del webhook de Bancolombia no configurada');
+      }
+    } catch (webhookError) {
+      console.log('⚠️ Error activando webhook de Bancolombia:', webhookError);
+      // No fallar la operación principal por error en webhook
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Archivo cargado exitosamente a OneDrive',
@@ -306,6 +341,10 @@ export async function POST(request: NextRequest) {
         descripcion: descripcion,
         folderId: folderId,
         folderPath: ONEDRIVE_FOLDER_PATH
+      },
+      webhook: {
+        bancolombia_activated: !!process.env.NEXT_PUBLIC_WEBHOOK_BANCOL,
+        message: 'Webhook de Bancolombia activado automáticamente para procesar movimientos'
       }
     });
 

@@ -15,7 +15,8 @@ import {
   Filter,
   Activity,
   CheckCircle,
-  Upload
+  Upload,
+  Zap
 } from 'lucide-react';
 
 interface MovimientoBancario {
@@ -316,6 +317,11 @@ export default function MovimientosBancarios() {
           successMessage = `Archivo procesado - Se requiere configuración de permisos Azure`;
         } else if (result.file.location === 'SharePoint') {
           successMessage = `Archivo cargado en SharePoint: ${result.file.path}`;
+        }
+        
+        // Agregar información sobre webhook
+        if (result.webhook?.bancolombia_activated) {
+          successMessage += `\n🔄 Webhook de Bancolombia activado automáticamente`;
         }
         
         setUploadSuccess(successMessage);
@@ -746,6 +752,17 @@ export default function MovimientosBancarios() {
                   General/Documentos Soporte/2025/Movimientos bancarios
                 </span>
               </p>
+              
+              <div className="bg-blue-600/10 border border-blue-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <span className="text-yellow-300 text-sm font-medium">Automatización Incluida</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Después de cargar el archivo, se activará automáticamente el webhook de Bancolombia 
+                  para procesar los movimientos bancarios.
+                </p>
+              </div>
               
               <div className="flex items-center gap-4">
                 <label className="relative cursor-pointer">
