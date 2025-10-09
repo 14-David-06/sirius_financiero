@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { CheckCircle, AlertCircle, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface FacturacionIngreso {
   id: string;
@@ -22,10 +23,38 @@ interface FacturacionIngreso {
   'Hecho': string;
 }
 
+interface FacturaSinPagarData {
+  id: string;
+  facturaNo: string;
+  nombreComprador: string;
+  nitComprador: string;
+  totalRecibir: number;
+  saldoAnterior: number;
+  montoRestante: number;
+  totalMovimientos: number;
+  estadoFactura: string;
+  fechaCreacion: string;
+  ultimaModificacion: string;
+  idFactura: string;
+  movimientosBancarios: string[] | string;
+}
+
+interface RemisionSinFacturar {
+  id: string;
+  valorTotalLitros: number;
+}
+
 export default function MonitoreoFacturas() {
   const [modo, setModo] = useState<'none' | 'egresos' | 'ingresos'>('none');
   const [data, setData] = useState<FacturacionIngreso[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Estados para facturas sin pagar y remisiones
+  const [facturasSinPagar, setFacturasSinPagar] = useState<FacturaSinPagarData[]>([]);
+  const [loadingFacturasSinPagar, setLoadingFacturasSinPagar] = useState(true);
+  const [remisionesSinFacturar, setRemisionesSinFacturar] = useState<RemisionSinFacturar[]>([]);
+  const [loadingRemisionesSinFacturar, setLoadingRemisionesSinFacturar] = useState(true);
+  
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
@@ -97,13 +126,152 @@ export default function MonitoreoFacturas() {
     }
   }, [modo, fetchData]);
 
+  // Fetch facturas sin pagar
+  const fetchFacturasSinPagar = useCallback(async () => {
+    try {
+      setLoadingFacturasSinPagar(true);
+      console.log('📄 Obteniendo facturas sin pagar...');
+      
+      const response = await fetch('/api/facturas-sin-pagar?maxRecords=50');
+      const result = await response.json();
+      
+      if (result.success) {
+        setFacturasSinPagar(result.data);
+        console.log(`✅ Facturas sin pagar obtenidas: ${result.data.length}`);
+      } else {
+        console.error('❌ Error al obtener facturas sin pagar:', result.error);
+        setFacturasSinPagar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching facturas sin pagar:', error);
+      setFacturasSinPagar([]);
+    } finally {
+      setLoadingFacturasSinPagar(false);
+    }
+  }, []);
+
+  // Fetch remisiones sin facturar
+  const fetchRemisionesSinFacturar = useCallback(async () => {
+    try {
+      setLoadingRemisionesSinFacturar(true);
+      console.log('📄 Obteniendo remisiones sin facturar...');
+      
+      const response = await fetch('/api/remisiones-sin-facturar');
+      const result = await response.json();
+      
+      if (result.success) {
+        setRemisionesSinFacturar(result.data);
+        console.log(`✅ Remisiones sin facturar obtenidas: ${result.data.length}`);
+      } else {
+        console.error('❌ Error al obtener remisiones sin facturar:', result.error);
+        setRemisionesSinFacturar([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching remisiones sin facturar:', error);
+      setRemisionesSinFacturar([]);
+    } finally {
+      setLoadingRemisionesSinFacturar(false);
+    }
+  }, []);
+
+  // Effect para cargar facturas sin pagar y remisiones al montar el componente
+  useEffect(() => {
+    fetchFacturasSinPagar();
+    fetchRemisionesSinFacturar();
+  }, [fetchFacturasSinPagar, fetchRemisionesSinFacturar]);
+
   return (
     <div className="max-w-6xl mx-auto w-full">
       {/* Header (match other pages visual) */}
       <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
         <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
-          Facturacion
+          Monitoreo de Facturas
         </h1>
+      </div>
+
+      {/* Sección de Facturas Sin Pagar y Remisiones Sin Facturar */}
+      <div className="mb-8">
+        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-white/30 shadow-xl">
+          <div className="grid md:grid-cols-2 gap-6">
+            
+            {/* Facturas Sin Pagar */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <TrendingDown className="w-5 h-5 text-red-400" />
+                    Facturas Sin Pagar
+                  </h3>
+                  <p className="text-sm text-slate-100">
+                    Estado de cartera pendiente
+                  </p>
+                </div>
+              </div>
+              
+              {loadingFacturasSinPagar ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span className="ml-2 text-white text-sm">Cargando...</span>
+                </div>
+              ) : facturasSinPagar.length === 0 ? (
+                <div className="text-center py-6">
+                  <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <p className="text-white font-medium text-sm">¡Sin pendientes!</p>
+                  <p className="text-white/70 text-xs">Todas al día</p>
+                </div>
+              ) : (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-red-300 text-sm font-medium">Total:</span>
+                    <span className="text-red-400 text-3xl font-bold">
+                      ${facturasSinPagar.reduce((sum, f) => sum + (f.totalRecibir || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-red-300 text-xs">
+                    {facturasSinPagar.length} factura{facturasSinPagar.length > 1 ? 's' : ''} pendiente{facturasSinPagar.length > 1 ? 's' : ''}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Remisiones Sin Facturar */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-orange-400" />
+                    Remisiones Sin Facturar
+                  </h3>
+                  <p className="text-sm text-slate-100">
+                    Pendientes de facturación
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-4">
+                {loadingRemisionesSinFacturar ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-orange-400"></div>
+                    <span className="ml-2 text-orange-300 text-xs">Cargando...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-orange-300 text-sm font-medium">Total:</span>
+                      <span className="text-orange-400 text-3xl font-bold">
+                        ${remisionesSinFacturar.reduce((sum, r) => sum + (r.valorTotalLitros || 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-orange-300 text-xs">
+                      {remisionesSinFacturar.length} remisión{remisionesSinFacturar.length > 1 ? 'es' : ''} sin facturar
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
 
       {/* Selector card */}

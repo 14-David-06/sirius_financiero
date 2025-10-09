@@ -240,40 +240,46 @@ export default function BitacoraNavbar({ userData }: BitacoraNavbarProps) {
   };
 
   const handleMouseDown = () => {
-    if (!isProcessing) {
+    // Funcionalidad de click para activar/desactivar grabación
+    if (isProcessing) return;
+    
+    if (isRecording) {
+      // Si está grabando, detener y procesar
+      stopRecording();
+    } else {
+      // Si no está grabando, iniciar
       startRecording();
     }
   };
 
   const handleMouseUp = () => {
-    if (isRecording) {
-      stopRecording();
-    }
+    // Ya no necesitamos esta funcionalidad para el modo click
+    // El comportamiento se maneja completamente en handleMouseDown
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
-    if (!isProcessing) {
+    // Usar la misma lógica que handleMouseDown para dispositivos móviles
+    if (isProcessing) return;
+    
+    if (isRecording) {
+      stopRecording();
+    } else {
       startRecording();
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     e.preventDefault();
-    if (isRecording) {
-      stopRecording();
-    }
+    // Ya no necesitamos esta funcionalidad para el modo click
   };
 
   return (
     <div className="flex items-center">
       {/* Botón de grabación con estados y efectos avanzados */}
       <button
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onClick={handleMouseDown}
         onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
         className={`relative flex items-center justify-center w-14 h-14 rounded-full transition-all duration-500 select-none group overflow-hidden ${
           isRecording
             ? 'bg-red-500 scale-110 shadow-2xl shadow-red-500/50 animate-pulse'
@@ -287,14 +293,14 @@ export default function BitacoraNavbar({ userData }: BitacoraNavbarProps) {
         } ${!isRecording && !isProcessing && !processingStatus ? 'hover:shadow-[#00A3FF]/40' : ''}`}
         title={
           isRecording 
-            ? "Suelta para transcribir" 
+            ? "Click para detener y enviar" 
             : processingStatus === 'success'
             ? "¡Nota guardada exitosamente!"
             : processingStatus === 'error'
             ? "Error al procesar audio"
             : isProcessing 
             ? "Procesando audio..." 
-            : "Mantén presionado para grabar"
+            : "Click para iniciar grabación"
         }
         disabled={isProcessing}
         style={{
