@@ -291,28 +291,52 @@ export default function MovimientosBancarios() {
       formData.append('file', file);
       formData.append('descripcion', `Documento de movimientos bancarios - ${new Date().toLocaleDateString()}`);
 
-      const response = await fetch('/api/upload-onedrive', {
+      // Intentar primero con el endpoint principal, luego con el alternativo
+      let response = await fetch('/api/upload-onedrive', {
         method: 'POST',
         body: formData,
       });
 
+      // Si falla, intentar con el endpoint alternativo
+      if (!response.ok) {
+        console.log('⚠️ Endpoint principal falló, intentando método alternativo...');
+        response = await fetch('/api/upload-onedrive-alt', {
+          method: 'POST',
+          body: formData,
+        });
+      }
+
       const result = await response.json();
 
       if (response.ok && result.success) {
-        console.log('✅ Archivo cargado exitosamente:', result.file.url);
-        setUploadSuccess(`Archivo "${result.file.name}" cargado exitosamente a OneDrive`);
+        console.log('✅ Archivo procesado exitosamente:', result);
         
-        // Limpiar el mensaje de éxito después de 5 segundos
+        let successMessage = `Archivo "${result.file.name}" procesado exitosamente`;
+        if (result.file.location === 'pending') {
+          successMessage = `Archivo procesado - Se requiere configuración de permisos Azure`;
+        } else if (result.file.location === 'SharePoint') {
+          successMessage = `Archivo cargado en SharePoint: ${result.file.path}`;
+        }
+        
+        setUploadSuccess(successMessage);
+        
+        // Mostrar instrucciones si las hay
+        if (result.instructions && result.instructions.length > 0) {
+          console.log('📋 Instrucciones adicionales:', result.instructions);
+          alert(`Archivo procesado.\n\nInstrucciones:\n${result.instructions.join('\n')}`);
+        }
+        
+        // Limpiar el mensaje después de 10 segundos
         setTimeout(() => {
           setUploadSuccess(null);
-        }, 5000);
+        }, 10000);
       } else {
-        console.error('❌ Error cargando archivo:', result.error);
-        alert('Error al cargar el archivo: ' + (result.error || 'Error desconocido'));
+        console.error('❌ Error procesando archivo:', result.error);
+        alert('Error al procesar el archivo: ' + (result.error || 'Error desconocido'));
       }
     } catch (error) {
-      console.error('❌ Error cargando archivo:', error);
-      alert('Error al cargar el archivo. Inténtelo de nuevo.');
+      console.error('❌ Error procesando archivo:', error);
+      alert('Error al procesar el archivo. Inténtelo de nuevo.');
     } finally {
       setUploadingFile(false);
     }

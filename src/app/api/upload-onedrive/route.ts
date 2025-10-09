@@ -68,24 +68,34 @@ async function ensureFolderExists(accessToken: string, folderPath: string): Prom
     currentPath = currentPath ? `${currentPath}/${folderName}` : folderName;
     
     try {
-      // Intentar buscar la carpeta existente
-      const searchUrl = `${GRAPH_API_BASE}/users/${email}/drive/items/${currentFolderId}/children?$filter=name eq '${folderName}' and folder ne null`;
+      // Intentar buscar la carpeta existente usando un enfoque más simple
+      console.log(`🔍 Buscando carpeta: ${folderName} en ${currentFolderId}`);
+      
+      const searchUrl = `${GRAPH_API_BASE}/users/${email}/drive/items/${currentFolderId}/children`;
       
       const searchResponse = await fetch(searchUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
         },
       });
 
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
+        console.log(`📁 Respuesta de búsqueda para ${folderName}:`, searchData);
         
-        if (searchData.value && searchData.value.length > 0) {
+        // Buscar la carpeta por nombre en los resultados
+        const existingFolder = searchData.value?.find((item: any) => 
+          item.name === folderName && item.folder
+        );
+        
+        if (existingFolder) {
           // La carpeta existe
-          currentFolderId = searchData.value[0].id;
-          console.log(`Carpeta encontrada: ${folderName} (ID: ${currentFolderId})`);
+          currentFolderId = existingFolder.id;
+          console.log(`✅ Carpeta encontrada: ${folderName} (ID: ${currentFolderId})`);
         } else {
           // La carpeta no existe, crearla
+          console.log(`➕ Creando carpeta: ${folderName}`);
           const createUrl = `${GRAPH_API_BASE}/users/${email}/drive/items/${currentFolderId}/children`;
           
           const createResponse = await fetch(createUrl, {
@@ -97,27 +107,34 @@ async function ensureFolderExists(accessToken: string, folderPath: string): Prom
             body: JSON.stringify({
               name: folderName,
               folder: {},
-              '@microsoft.graph.conflictBehavior': 'fail'
+              '@microsoft.graph.conflictBehavior': 'rename'
             }),
           });
 
           if (createResponse.ok) {
             const createData = await createResponse.json();
             currentFolderId = createData.id;
-            console.log(`Carpeta creada: ${folderName} (ID: ${currentFolderId})`);
+            console.log(`✅ Carpeta creada: ${folderName} (ID: ${currentFolderId})`);
           } else {
             const errorText = await createResponse.text();
-            console.error(`Error creando carpeta ${folderName}:`, errorText);
-            throw new Error(`Error creando carpeta ${folderName}`);
+            console.error(`❌ Error creando carpeta ${folderName}:`, errorText);
+            throw new Error(`Error creando carpeta ${folderName}: ${errorText}`);
           }
         }
       } else {
         const errorText = await searchResponse.text();
-        console.error(`Error buscando carpeta ${folderName}:`, errorText);
-        throw new Error(`Error buscando carpeta ${folderName}`);
+        console.error(`❌ Error buscando carpeta ${folderName}:`, errorText);
+        console.error(`❌ Status: ${searchResponse.status}, URL: ${searchUrl}`);
+        
+        // Si es un error de permisos, intentar con el directorio raíz del sitio
+        if (searchResponse.status === 403 || searchResponse.status === 401) {
+          throw new Error(`Permisos insuficientes para acceder a OneDrive. Verificar configuración de la aplicación Azure.`);
+        }
+        
+        throw new Error(`Error buscando carpeta ${folderName}: ${searchResponse.status} - ${errorText}`);
       }
     } catch (error) {
-      console.error(`Error procesando carpeta ${folderName}:`, error);
+      console.error(`❌ Error procesando carpeta ${folderName}:`, error);
       throw error;
     }
   }
@@ -148,7 +165,7 @@ async function uploadFileToOneDrive(
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': contentType,
       },
-      body: fileBuffer,
+      body: new Uint8Array(fileBuffer),
     });
 
     if (!uploadResponse.ok) {
