@@ -14,7 +14,8 @@ import {
   MinusCircle,
   Filter,
   Activity,
-  CheckCircle
+  CheckCircle,
+  Upload
 } from 'lucide-react';
 
 interface MovimientoBancario {
@@ -88,6 +89,10 @@ export default function MovimientosBancarios() {
   const [loadingFacturasSinPagar, setLoadingFacturasSinPagar] = useState(true);
   const [remisionesSinFacturar, setRemisionesSinFacturar] = useState<RemisionSinFacturar[]>([]);
   const [loadingRemisionesSinFacturar, setLoadingRemisionesSinFacturar] = useState(true);
+  
+  // Estados para carga de archivos a OneDrive
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   
   const [filtros, setFiltros] = useState<FiltrosMovimientos>({
     año: 2025,
@@ -272,6 +277,68 @@ export default function MovimientosBancarios() {
     } finally {
       setActualizando(false);
     }
+  };
+
+  // Función para manejar la carga de archivos PDF a OneDrive
+  const handleFileUpload = async (file: File) => {
+    setUploadingFile(true);
+    setUploadSuccess(null);
+    
+    try {
+      console.log('📄 Iniciando carga de archivo a OneDrive...');
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('descripcion', `Documento de movimientos bancarios - ${new Date().toLocaleDateString()}`);
+
+      const response = await fetch('/api/upload-onedrive', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log('✅ Archivo cargado exitosamente:', result.file.url);
+        setUploadSuccess(`Archivo "${result.file.name}" cargado exitosamente a OneDrive`);
+        
+        // Limpiar el mensaje de éxito después de 5 segundos
+        setTimeout(() => {
+          setUploadSuccess(null);
+        }, 5000);
+      } else {
+        console.error('❌ Error cargando archivo:', result.error);
+        alert('Error al cargar el archivo: ' + (result.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('❌ Error cargando archivo:', error);
+      alert('Error al cargar el archivo. Inténtelo de nuevo.');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Verificar que sea un PDF
+      if (file.type !== 'application/pdf') {
+        alert('Solo se permiten archivos PDF');
+        return;
+      }
+      
+      // Verificar tamaño (max 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        alert('El archivo es demasiado grande (máximo 10MB)');
+        return;
+      }
+      
+      handleFileUpload(file);
+    }
+    
+    // Limpiar el input
+    event.target.value = '';
   };
 
   // Fetch facturas sin pagar
@@ -638,6 +705,66 @@ export default function MovimientosBancarios() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Sección de Carga de Archivos PDF a OneDrive */}
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl p-6 border border-white/30 shadow-xl mb-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Upload className="w-5 h-5 text-white" />
+              <h3 className="text-lg font-semibold text-white">Cargar Documentos de Soporte</h3>
+            </div>
+            
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-slate-300">
+                Cargar archivos PDF a OneDrive en la ruta: 
+                <span className="font-mono text-blue-300 ml-1">
+                  General/Documentos Soporte/2025/Movimientos bancarios
+                </span>
+              </p>
+              
+              <div className="flex items-center gap-4">
+                <label className="relative cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileChange}
+                    disabled={uploadingFile}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className={`
+                    bg-blue-600/70 hover:bg-blue-700/80 disabled:bg-gray-600/50 
+                    text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 
+                    flex items-center gap-2
+                    ${uploadingFile ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                  `}>
+                    <Upload className={`w-4 h-4 ${uploadingFile ? 'animate-pulse' : ''}`} />
+                    {uploadingFile ? 'Cargando...' : 'Seleccionar PDF'}
+                  </div>
+                </label>
+                
+                {uploadingFile && (
+                  <div className="flex items-center gap-2 text-white/80 text-sm">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Subiendo a OneDrive...</span>
+                  </div>
+                )}
+              </div>
+              
+              {uploadSuccess && (
+                <div className="bg-green-600/20 border border-green-500/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                    <span className="text-green-300 text-sm">{uploadSuccess}</span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="text-xs text-slate-400">
+                • Solo se permiten archivos PDF<br />
+                • Tamaño máximo: 10MB<br />
+                • El archivo se validará automáticamente después de la carga
+              </div>
             </div>
           </div>
 
