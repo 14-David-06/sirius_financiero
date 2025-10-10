@@ -119,20 +119,13 @@ export default function SimuladorProyecciones() {
 
       console.log('Enviando payload:', payload);
 
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_SIMULATION_WEBHOOK;
-      
-      if (!webhookUrl) {
-        throw new Error('URL del webhook no configurada. Verifique la variable NEXT_PUBLIC_N8N_SIMULATION_WEBHOOK');
-      }
-
-      const response = await fetch(webhookUrl, {
+      // Usar el proxy interno en lugar del webhook directo
+      const response = await fetch('/api/simulation-proxy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(payload),
-        mode: 'cors',
       });
 
       console.log('Response status:', response.status);
