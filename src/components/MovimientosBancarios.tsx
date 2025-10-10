@@ -490,7 +490,7 @@ export default function MovimientosBancarios() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
+      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-28"
         style={{
           backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
@@ -508,7 +508,7 @@ export default function MovimientosBancarios() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
+      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-28"
         style={{
           backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
@@ -534,7 +534,7 @@ export default function MovimientosBancarios() {
     >
       <div className="absolute inset-0 bg-slate-900/20"></div>
       
-      <div className="relative z-10 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-28 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8 bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/30 shadow-2xl">
