@@ -119,7 +119,13 @@ export default function SimuladorProyecciones() {
 
       console.log('Enviando payload:', payload);
 
-      const response = await fetch('https://telegram-apps-u38879.vm.elestio.app/webhook-test/74072c57-7777-409c-808a-f007f6dd6c55', {
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_SIMULATION_WEBHOOK;
+      
+      if (!webhookUrl) {
+        throw new Error('URL del webhook no configurada');
+      }
+
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
