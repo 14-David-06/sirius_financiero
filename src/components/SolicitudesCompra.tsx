@@ -316,7 +316,8 @@ export default function SolicitudesCompra() {
         throw new Error('Debe seleccionar un solicitante');
       }
 
-      if (items.length === 0) {
+      // VALIDACIONES DE ITEMS - TEMPORALMENTE DESHABILITADAS
+      /* if (items.length === 0) {
         throw new Error('Debe agregar al menos un item');
       }
 
@@ -332,23 +333,29 @@ export default function SolicitudesCompra() {
         if (item.valorEstimado <= 0) {
           throw new Error(`El item ${i + 1} debe tener un precio mayor a 0`);
         }
-      }
+      } */
 
       // Obtener datos del usuario
       const userData = selectedUser !== 'otro' ? getUserData(selectedUser) : { area: '', cargo: '' };
       const nombreSolicitante = selectedUser !== 'otro' ? selectedUser : otroNombre;
 
-      // Preparar datos para la API
+      // Preparar datos para la API - SOLO DATOS BÁSICOS TEMPORALMENTE
       const solicitudData: SolicitudCompraData = {
         // Datos del solicitante
         nombreSolicitante: nombreSolicitante,
         areaSolicitante: userData.area || (selectedUser === 'otro' ? otroArea : 'Sin especificar'),
         cargoSolicitante: userData.cargo || (selectedUser === 'otro' ? otroCargo : 'Sin especificar'),
         
-        // Datos de la solicitud
-        hasProvider: hasProvider as 'si' | 'no',
+        // Datos de la solicitud básicos
+        hasProvider: 'no', // Temporal: sin proveedor
         prioridadSolicitud: priority as 'Alta' | 'Media' | 'Baja',
         
+        // Items vacío temporalmente - se mantendrá la estructura pero sin datos
+        items: [] // Array vacío temporal
+      };
+
+      // SECCIÓN TEMPORALMENTE DESHABILITADA - MANEJO DE ITEMS Y PROVEEDORES
+      /* 
         // Items de compra
         items: items.map(item => ({
           objeto: item.objeto,
@@ -360,7 +367,6 @@ export default function SolicitudesCompra() {
           fechaRequerida: item.fechaRequerida || undefined,
           justificacion: item.justificacion || undefined
         }))
-      };
 
       // Agregar información del proveedor si existe
       const formData = new FormData(e.target as HTMLFormElement);
@@ -380,12 +386,15 @@ export default function SolicitudesCompra() {
       const descripcionItems = items.map((item, index) => 
         `${index + 1}. ${item.objeto} - Cantidad: ${item.cantidad} - Valor: $${item.valorEstimado.toLocaleString()}`
       ).join('\n');
+      */
       
       // Enviar la transcripción por separado
       if (audioTranscription.trim()) {
         solicitudData.descripcionTranscripcion = audioTranscription;
       }
       
+      // SECCIÓN TEMPORALMENTE DESHABILITADA - DESCRIPCIÓN IA CON ITEMS
+      /* 
       // Combinar descripción del usuario con transcripción de audio y descripción de items para IA
       let descripcionCompleta = '';
       
@@ -396,6 +405,12 @@ export default function SolicitudesCompra() {
       descripcionCompleta += `Items solicitados:\n${descripcionItems}`;
       
       solicitudData.descripcionIAInterpretacion = descripcionCompleta;
+      */
+
+      // Por ahora, solo usar la transcripción como descripción IA si existe
+      if (audioTranscription.trim()) {
+        solicitudData.descripcionIAInterpretacion = audioTranscription;
+      }
 
       // Debug logs solo en desarrollo
       if (process.env.NODE_ENV === 'development') {
@@ -759,8 +774,8 @@ export default function SolicitudesCompra() {
                 </div>
               </div>
 
-              {/* Items Section */}
-              <div className="space-y-6">
+              {/* ITEMS SECTION - TEMPORALMENTE OCULTA */}
+              {/* <div className="space-y-6">
                 <h3 className="text-2xl font-bold text-white drop-shadow-lg flex items-center">
                   📝 Ítems Solicitados
                   <div className="flex-1 ml-4 h-0.5 bg-gradient-to-r from-blue-400 to-purple-400 opacity-60"></div>
@@ -861,10 +876,11 @@ export default function SolicitudesCompra() {
                 >
                   ➕ Agregar Ítem
                 </button>
-              </div>
+              </div> */}
+              {/* FIN ITEMS SECTION - TEMPORALMENTE OCULTA */}
 
-              {/* Provider Section */}
-              <div className="space-y-6">
+              {/* PROVIDER SECTION - TEMPORALMENTE OCULTA */}
+              {/* <div className="space-y-6">
                 <div>
                   <label className="block text-white font-semibold mb-3 text-lg drop-shadow-md">
                     ¿Cuenta con proveedor?
@@ -943,7 +959,8 @@ export default function SolicitudesCompra() {
                     </div>
                   </div>
                 )}
-              </div>
+              </div> */}
+              {/* FIN PROVIDER SECTION - TEMPORALMENTE OCULTA */}
 
               {/* Submit Button */}
               <button

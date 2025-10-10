@@ -58,53 +58,56 @@ export async function POST(request: NextRequest) {
     // Valor UVT actual (debe ser configurable)
     const valorUVT = 49799;
 
-    // Paso 1: Crear los items primero
+    // Paso 1: Crear los items (solo si existen items en la solicitud)
     const itemsCreados = [];
     
-    for (const item of data.items) {
-      const itemRecord: AirtableRecord = {
-        fields: {
-          'Objeto': item.objeto,
-          'Centro Costos': item.centroCostos,
-          'Cantidad': item.cantidad,
-          'Valor Item': item.valorItem,
-          'valor UVT': valorUVT,
-          'Estado Item': 'Sin comprar',
-          'Compra/Servicio': item.compraServicio,
-          'Prioridad': item.prioridad
+    // SOLO CREAR ITEMS SI EXISTEN EN LA SOLICITUD
+    if (data.items && data.items.length > 0) {
+      for (const item of data.items) {
+        const itemRecord: AirtableRecord = {
+          fields: {
+            'Objeto': item.objeto,
+            'Centro Costos': item.centroCostos,
+            'Cantidad': item.cantidad,
+            'Valor Item': item.valorItem,
+            'valor UVT': valorUVT,
+            'Estado Item': 'Sin comprar',
+            'Compra/Servicio': item.compraServicio,
+            'Prioridad': item.prioridad
+          }
+        };
+
+        // Agregar campos opcionales si están presentes
+        if (item.fechaRequerida) {
+          itemRecord.fields['Fecha Requerida Entrega'] = item.fechaRequerida;
         }
-      };
-
-      // Agregar campos opcionales si están presentes
-      if (item.fechaRequerida) {
-        itemRecord.fields['Fecha Requerida Entrega'] = item.fechaRequerida;
-      }
-      
-      if (item.formaPago) {
-        itemRecord.fields['FORMA DE PAGO'] = item.formaPago;
-      }
-
-      if (item.justificacion) {
-        itemRecord.fields['Recibo/Remision'] = item.justificacion;
-      }
-
-      const itemResponse = await fetch(
-        `https://api.airtable.com/v0/${baseId}/${itemsTableId}`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ records: [itemRecord] })
+        
+        if (item.formaPago) {
+          itemRecord.fields['FORMA DE PAGO'] = item.formaPago;
         }
-      );
 
-      if (!itemResponse.ok) {
-        const errorData = await itemResponse.json();
-        console.error('Error creating item:', errorData);
-        throw new Error(`Error al crear item: ${errorData.error?.message || 'Error desconocido'}`);
+        if (item.justificacion) {
+          itemRecord.fields['Recibo/Remision'] = item.justificacion;
+        }
+
+        const itemResponse = await fetch(
+          `https://api.airtable.com/v0/${baseId}/${itemsTableId}`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ records: [itemRecord] })
+          }
+        );
+
+        if (!itemResponse.ok) {
+          const errorData = await itemResponse.json();
+          console.error('Error creating item:', errorData);
+          throw new Error(`Error al crear item: ${errorData.error?.message || 'Error desconocido'}`);
+        }
+
+        const itemResult = await itemResponse.json();
+        itemsCreados.push(itemResult.records[0].id);
       }
-
-      const itemResult = await itemResponse.json();
-      itemsCreados.push(itemResult.records[0].id);
     }
 
     // Paso 2: Crear la solicitud de compra principal
@@ -114,12 +117,16 @@ export async function POST(request: NextRequest) {
         'Nombre Solicitante': data.nombreSolicitante,
         'Cargo Solicitante': data.cargoSolicitante,
         'HasProvider': data.hasProvider,
-        'Items Compras y Adquisiciones': itemsCreados,
         'valor UVT': valorUVT,
         'Estado Solicitud': 'Pendiente',
         'Prioridad Solicitud': data.prioridadSolicitud
       }
     };
+
+    // SOLO AGREGAR ITEMS SI EXISTEN
+    if (itemsCreados.length > 0) {
+      solicitudRecord.fields['Items Compras y Adquisiciones'] = itemsCreados;
+    }
 
     // Agregar campos opcionales
     if (data.descripcionTranscripcion) {
@@ -163,18 +170,20 @@ export async function POST(request: NextRequest) {
       const errorData = await solicitudResponse.json();
       console.error('Error creating solicitud:', errorData);
       
-      // Si falló la creación de la solicitud, intentar limpiar los items creados
-      try {
-        const deletePromises = itemsCreados.map(itemId =>
-          fetch(`https://api.airtable.com/v0/${baseId}/${itemsTableId}/${itemId}`, {
-            method: 'DELETE',
-            headers
-          })
-        );
-        await Promise.all(deletePromises);
-        console.log('Items limpiados después del error');
-      } catch (cleanupError) {
-        console.error('Error limpiando items:', cleanupError);
+      // Si falló la creación de la solicitud, intentar limpiar los items creados (solo si hay items)
+      if (itemsCreados.length > 0) {
+        try {
+          const deletePromises = itemsCreados.map(itemId =>
+            fetch(`https://api.airtable.com/v0/${baseId}/${itemsTableId}/${itemId}`, {
+              method: 'DELETE',
+              headers
+            })
+          );
+          await Promise.all(deletePromises);
+          console.log('Items limpiados después del error');
+        } catch (cleanupError) {
+          console.error('Error limpiando items:', cleanupError);
+        }
       }
 
       throw new Error(`Error al crear solicitud: ${errorData.error?.message || 'Error desconocido'}`);
@@ -182,25 +191,27 @@ export async function POST(request: NextRequest) {
 
     const solicitudResult = await solicitudResponse.json();
 
-    // Paso 3: Actualizar los items para vincularlos con la solicitud creada
+    // Paso 3: Actualizar los items para vincularlos con la solicitud creada (solo si hay items)
     const solicitudId = solicitudResult.records[0].id;
     
-    const updatePromises = itemsCreados.map(itemId => {
-      return fetch(`https://api.airtable.com/v0/${baseId}/${itemsTableId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          records: [{
-            id: itemId,
-            fields: {
-              'Compra y Adquisicion': [solicitudId]
-            }
-          }]
-        })
+    if (itemsCreados.length > 0) {
+      const updatePromises = itemsCreados.map(itemId => {
+        return fetch(`https://api.airtable.com/v0/${baseId}/${itemsTableId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            records: [{
+              id: itemId,
+              fields: {
+                'Compra y Adquisicion': [solicitudId]
+              }
+            }]
+          })
+        });
       });
-    });
 
-    await Promise.all(updatePromises);
+      await Promise.all(updatePromises);
+    }
 
     console.log(`Solicitud de compra creada exitosamente: ${solicitudId} con ${itemsCreados.length} items`);
 
