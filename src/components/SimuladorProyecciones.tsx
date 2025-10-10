@@ -122,7 +122,7 @@ export default function SimuladorProyecciones() {
       const webhookUrl = process.env.NEXT_PUBLIC_N8N_SIMULATION_WEBHOOK;
       
       if (!webhookUrl) {
-        throw new Error('URL del webhook no configurada');
+        throw new Error('URL del webhook no configurada. Verifique la variable NEXT_PUBLIC_N8N_SIMULATION_WEBHOOK');
       }
 
       const response = await fetch(webhookUrl, {
