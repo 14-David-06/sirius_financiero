@@ -74,6 +74,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     nitCC: '',
     concepto: '',
     centroCosto: '',
+    centroCostoOtro: '',
     valor: '',
     realizaRegistro: userData?.nombre || 'Usuario'
   });
@@ -362,13 +363,16 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       setLoading(true);
       console.log('📝 Enviando item de caja menor:', formData);
       
+      // Determinar el valor final del centro de costo
+      const centroCostoFinal = formData.centroCosto === 'Otro' ? formData.centroCostoOtro : formData.centroCosto;
+      
       // Crear el item y vincularlo automáticamente a la caja menor del mes actual
       const nuevoItem = {
         fecha: formData.fecha,
         beneficiario: formData.beneficiario,
         nitCC: formData.nitCC,
         concepto: formData.concepto,
-        centroCosto: formData.centroCosto,
+        centroCosto: centroCostoFinal,
         valor: parseFloat(formData.valor) || 0,
         realizaRegistro: formData.realizaRegistro,
         cajaMenorId: cajaMenorDelMesActual.id // Vincular con la caja menor actual
@@ -414,6 +418,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       nitCC: '',
       concepto: '',
       centroCosto: '',
+      centroCostoOtro: '',
       valor: '',
       realizaRegistro: userData?.nombre || 'Usuario'
     });
@@ -1215,13 +1220,41 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     <Building className="w-4 h-4 text-blue-400" />
                     Centro de Costo
                   </label>
-                  <input
-                    type="text"
-                    value={formData.centroCosto}
-                    onChange={(e) => setFormData(prev => ({ ...prev, centroCosto: e.target.value }))}
-                    placeholder="Departamento o área"
-                    className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
-                  />
+                  <div className="relative">
+                    <select
+                      value={formData.centroCosto}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, centroCosto: e.target.value, centroCostoOtro: '' }));
+                      }}
+                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 appearance-none cursor-pointer hover:bg-slate-700/80"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239CA3AF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.75rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5rem 1.5rem',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="" className="bg-slate-800 text-white/70">Seleccionar departamento o área</option>
+                      <option value="Pirólisis" className="bg-slate-800 text-white">🔥 Pirólisis</option>
+                      <option value="Administrativo" className="bg-slate-800 text-white">📋 Administrativo</option>
+                      <option value="Laboratorio" className="bg-slate-800 text-white">🧪 Laboratorio</option>
+                      <option value="Otro" className="bg-slate-800 text-white">➕ Otro</option>
+                    </select>
+                  </div>
+                  
+                  {formData.centroCosto === 'Otro' && (
+                    <div className="mt-3 animate-fadeIn">
+                      <input
+                        type="text"
+                        value={formData.centroCostoOtro}
+                        onChange={(e) => setFormData(prev => ({ ...prev, centroCostoOtro: e.target.value }))}
+                        placeholder="✏️ Especificar otro centro de costo"
+                        className="w-full px-4 py-3 bg-slate-700/60 border border-blue-400/40 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
