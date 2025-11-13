@@ -14,7 +14,7 @@ import {
   ChevronDown,
   TrendingUp,
   BarChart3,
-  Thermometer
+  Beaker
 } from 'lucide-react';
 
 interface BalanceMasa {
@@ -35,14 +35,13 @@ interface ProduccionSemanal {
   semana: number;
   año: number;
   totalBiochar: number;
-  registros: number;
-  promedioDiario: number;
-  tempPromedioReactores: number;
   fechaInicio: string;
   fechaFin: string;
   detalles: BalanceMasa[];
   costoTotal?: number;
   costoPorKg?: number;
+  costosIndirectos?: number;
+  costosIndirectosPorKg?: number;
 }
 
 interface TotalesMovimientos {
@@ -57,6 +56,7 @@ export default function IndicadoresProduccion() {
   const { isAuthenticated, userData, isLoading: authLoading } = useAuthSession();
   const [balances, setBalances] = useState<BalanceMasa[]>([]);
   const [costosPorSemana, setCostosPorSemana] = useState<Record<number, number>>({});
+  const [costosIndirectosPorSemana, setCostosIndirectosPorSemana] = useState<Record<number, number>>({});
   const [totalesMovimientos, setTotalesMovimientos] = useState<TotalesMovimientos | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,13 +66,14 @@ export default function IndicadoresProduccion() {
   
   // Filtros
   const [filtroAño, setFiltroAño] = useState<string>('todos');
-  const [filtroTemperatura, setFiltroTemperatura] = useState<string>('todos');
-  const [filtroTipoGasto, setFiltroTipoGasto] = useState<string>('ambos'); // gastos, costos, ambos
+
+  const [filtroTipoGasto, setFiltroTipoGasto] = useState<string>('completo'); // completo, produccion, costos
   const [filtroSemana, setFiltroSemana] = useState<string>('todas');
   const [filtroMes, setFiltroMes] = useState<string>('todos');
   const [ordenamiento, setOrdenamiento] = useState<'asc' | 'desc'>('desc');
   const [fechaInicio] = useState<string>('');
   const [fechaFin] = useState<string>('');
+  const [categoriaActiva, setCategoriaActiva] = useState<'pirolisis' | 'laboratorio' | 'mezclas'>('pirolisis');
 
   useEffect(() => {
     console.log('🔍 useEffect ejecutado - authLoading:', authLoading, 'isAuthenticated:', isAuthenticated, 'userData:', userData);
@@ -97,18 +98,32 @@ export default function IndicadoresProduccion() {
       setLoading(true);
       setError(null);
       
-      console.log('🔄 Cargando datos de Balances Masa y Costos...');
-      console.log('🔍 Tipo de gasto seleccionado:', filtroTipoGasto);
+      console.log('🔄 Cargando datos de Balances Masa y Costos de Facturación Egresos...');
       
-      // Cargar producción y costos en paralelo
-      const [responseBalances, responseCostos] = await Promise.all([
+      // Calcular el mes anterior
+      const now = new Date();
+      const mesAnterior = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const nombreMesAnterior = mesAnterior.toLocaleDateString('es-ES', { month: 'long' });
+      const nombreMesFormateado = nombreMesAnterior.charAt(0).toUpperCase() + nombreMesAnterior.slice(1);
+      
+      console.log('📅 Mes actual:', now.toLocaleDateString('es-ES', { month: 'long' }));
+      console.log('📅 Consultando costos del mes anterior:', nombreMesFormateado);
+      
+      // Cargar producción, costos directos y costos indirectos en paralelo
+      const [responseBalances, responseCostos, responseCostosIndirectos] = await Promise.all([
         fetch('/api/balances-masa', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
         }),
-        fetch(`/api/movimientos-pirolisis?tipo=${filtroTipoGasto}`, {
+        fetch(`/api/facturacion-egresos-pirolisis?mesAnterior=${encodeURIComponent(nombreMesFormateado)}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`/api/gastos-indirectos-pirolisis?mesAnterior=${encodeURIComponent(nombreMesFormateado)}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -118,6 +133,7 @@ export default function IndicadoresProduccion() {
 
       console.log('📡 Response status balances:', responseBalances.status);
       console.log('📡 Response status costos:', responseCostos.status);
+      console.log('📡 Response status costos indirectos:', responseCostosIndirectos.status);
 
       if (!responseBalances.ok) {
         const errorText = await responseBalances.text();
@@ -146,10 +162,11 @@ export default function IndicadoresProduccion() {
       console.log('📊 Balances transformados:', balancesTransformados.length, 'registros');
       setBalances(balancesTransformados);
 
-      // Cargar costos si la respuesta fue exitosa
+      // Cargar costos de facturación egresos si la respuesta fue exitosa
       if (responseCostos.ok) {
         const dataCostos = await responseCostos.json();
-        console.log('💰 Datos de costos recibidos:', dataCostos);
+        console.log('💰 Datos de costos de Facturación Egresos recibidos:', dataCostos);
+        console.log('💰 Mes consultado:', dataCostos.mesConsultado);
         console.log('💰 Costos por semana:', dataCostos.costosPorSemana);
         console.log('💰 Totales:', dataCostos.totales);
         console.log('💰 Número de semanas con costos:', Object.keys(dataCostos.costosPorSemana || {}).length);
@@ -157,10 +174,25 @@ export default function IndicadoresProduccion() {
         setTotalesMovimientos(dataCostos.totales || null);
       } else {
         const errorText = await responseCostos.text();
-        console.error('⚠️ Error al cargar costos:', errorText);
-        console.warn('⚠️ No se pudieron cargar los costos, continuando sin ellos');
+        console.error('⚠️ Error al cargar costos de Facturación Egresos:', errorText);
+        console.warn('⚠️ No se pudieron cargar los costos del mes anterior, continuando sin ellos');
         setCostosPorSemana({});
         setTotalesMovimientos(null);
+      }
+
+      // Cargar costos indirectos (gastos) si la respuesta fue exitosa
+      if (responseCostosIndirectos.ok) {
+        const dataCostosIndirectos = await responseCostosIndirectos.json();
+        console.log('💸 Datos de gastos indirectos recibidos:', dataCostosIndirectos);
+        console.log('💸 Mes consultado:', dataCostosIndirectos.mesConsultado);
+        console.log('💸 Costos indirectos por semana:', dataCostosIndirectos.costosPorSemana);
+        console.log('💸 Número de semanas con costos indirectos:', Object.keys(dataCostosIndirectos.costosPorSemana || {}).length);
+        setCostosIndirectosPorSemana(dataCostosIndirectos.costosPorSemana || {});
+      } else {
+        const errorText = await responseCostosIndirectos.text();
+        console.error('⚠️ Error al cargar costos indirectos:', errorText);
+        console.warn('⚠️ No se pudieron cargar los costos indirectos del mes anterior, continuando sin ellos');
+        setCostosIndirectosPorSemana({});
       }
     } catch (error) {
       console.error('❌ Error al cargar datos:', error);
@@ -237,10 +269,23 @@ export default function IndicadoresProduccion() {
     // Agregar semanas con producción
     Object.keys(gruposProduccion).forEach(clave => todasLasSemanas.add(clave));
     
-    // Agregar semanas con costos (aunque no tengan producción)
+    // Agregar semanas con costos directos (aunque no tengan producción)
     Object.keys(costosPorSemana).forEach(semanaNum => {
       // Intentar determinar el año de la semana basado en balances cercanos
       // o usar el año actual si no hay datos
+      const años = balances.length > 0 
+        ? [...new Set(balances.map(b => new Date(b.fecha).getFullYear()))]
+        : [new Date().getFullYear()];
+      
+      años.forEach(año => {
+        const clave = `${año}-S${semanaNum}`;
+        todasLasSemanas.add(clave);
+      });
+    });
+
+    // Agregar semanas con costos indirectos (aunque no tengan producción ni costos directos)
+    Object.keys(costosIndirectosPorSemana).forEach(semanaNum => {
+      // Usar la misma lógica para determinar el año
       const años = balances.length > 0 
         ? [...new Set(balances.map(b => new Date(b.fecha).getFullYear()))]
         : [new Date().getFullYear()];
@@ -260,14 +305,6 @@ export default function IndicadoresProduccion() {
       const registros = gruposProduccion[clave] || [];
       const totalBiochar = registros.reduce((sum, r) => sum + r.pesoBiocharKg, 0);
       
-      let tempPromedio = 0;
-      if (registros.length > 0) {
-        tempPromedio = registros.reduce((sum, r) => {
-          const temp = calcularPromedioTemperaturas(r);
-          return sum + temp;
-        }, 0) / registros.length;
-      }
-
       // Fechas de producción (si existen)
       let fechaInicio = new Date().toISOString();
       let fechaFin = new Date().toISOString();
@@ -283,34 +320,58 @@ export default function IndicadoresProduccion() {
         fechaFin = fechaEstimada.toISOString();
       }
       
-      // Obtener costo de esta semana
+      // Obtener costos de esta semana
       const costoTotal = costosPorSemana[semana] || 0;
+      const costoIndirecto = costosIndirectosPorSemana[semana] || 0;
       const costoPorKg = totalBiochar > 0 ? Math.abs(costoTotal) / totalBiochar : 0;
+      const costosIndirectosPorKg = totalBiochar > 0 ? Math.abs(costoIndirecto) / totalBiochar : 0;
       
       return {
         semana,
         año,
         totalBiochar,
-        registros: registros.length,
-        promedioDiario: registros.length > 0 ? Math.round(totalBiochar / registros.length) : 0,
-        tempPromedioReactores: Math.round(tempPromedio),
         fechaInicio,
         fechaFin,
         detalles: registros.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()),
         costoTotal: Math.abs(costoTotal),
-        costoPorKg
+        costoPorKg,
+        costosIndirectos: Math.abs(costoIndirecto),
+        costosIndirectosPorKg
       };
     });
 
-    // Filtrar semanas que tengan producción O costos (no vacías)
-    return semanales.filter(s => s.totalBiochar > 0 || (s.costoTotal && s.costoTotal > 0));
-  }, [balances, costosPorSemana]);
+    // Filtrar semanas que tengan producción O costos directos O costos indirectos (no vacías)
+    return semanales.filter(s => s.totalBiochar > 0 || (s.costoTotal && s.costoTotal > 0) || (s.costosIndirectos && s.costosIndirectos > 0));
+  }, [balances, costosPorSemana, costosIndirectosPorSemana]);
 
   // Filtrar producción semanal
   const produccionFiltrada = useMemo(() => {
     let resultado = [...produccionPorSemana];
 
-    // Filtro por búsqueda
+    // FILTRO PRINCIPAL: Siempre mostrar solo el mes anterior
+    const fechaActual = new Date();
+    const mesAnterior = new Date(fechaActual.getFullYear(), fechaActual.getMonth() - 1, 1);
+    const añoMesAnterior = mesAnterior.getFullYear();
+    const numeroMesAnterior = mesAnterior.getMonth() + 1; // +1 porque getMonth() devuelve 0-11
+
+    console.log(`📅 Filtrando datos para el mes anterior: ${numeroMesAnterior}/${añoMesAnterior}`);
+
+    // Filtrar por el año y mes anterior
+    resultado = resultado.filter(p => {
+      // Verificar que el año coincida con el año del mes anterior
+      if (p.año !== añoMesAnterior) return false;
+      
+      // Verificar que la semana esté dentro del mes anterior
+      const fechaInicio = new Date(p.fechaInicio);
+      const fechaFin = new Date(p.fechaFin);
+      const mesInicio = fechaInicio.getMonth() + 1;
+      const mesFin = fechaFin.getMonth() + 1;
+      
+      // La semana pertenece al mes anterior si el inicio o el fin está en ese mes
+      return mesInicio === numeroMesAnterior || mesFin === numeroMesAnterior;
+    });
+
+    // Filtro por búsqueda (aplicado después del filtro principal)
     if (busqueda) {
       const busquedaLower = busqueda.toLowerCase();
       resultado = resultado.filter(p => 
@@ -320,57 +381,18 @@ export default function IndicadoresProduccion() {
       );
     }
 
-    // Filtro por año
-    if (filtroAño !== 'todos') {
-      resultado = resultado.filter(p => p.año === parseInt(filtroAño));
-    }
 
-    // Filtro por semana
-    if (filtroSemana !== 'todas') {
-      resultado = resultado.filter(p => p.semana === parseInt(filtroSemana));
-    }
 
-    // Filtro por mes
-    if (filtroMes !== 'todos') {
-      const mesSeleccionado = parseInt(filtroMes);
-      resultado = resultado.filter(p => {
-        const fechaInicio = new Date(p.fechaInicio);
-        const fechaFin = new Date(p.fechaFin);
-        const mesInicio = fechaInicio.getMonth() + 1;
-        const mesFin = fechaFin.getMonth() + 1;
-        // La semana está en el mes si el inicio o el fin está en ese mes
-        return mesInicio === mesSeleccionado || mesFin === mesSeleccionado;
-      });
-    }
-
-    // Filtro por rango de fechas
-    if (fechaInicio) {
-      const fechaInicioMs = new Date(fechaInicio).getTime();
-      resultado = resultado.filter(p => new Date(p.fechaFin).getTime() >= fechaInicioMs);
-    }
-    if (fechaFin) {
-      const fechaFinMs = new Date(fechaFin).getTime();
-      resultado = resultado.filter(p => new Date(p.fechaInicio).getTime() <= fechaFinMs);
-    }
-
-    // Filtro por temperatura
-    if (filtroTemperatura !== 'todos') {
-      resultado = resultado.filter(p => {
-        if (filtroTemperatura === 'optima') return p.tempPromedioReactores >= 400;
-        if (filtroTemperatura === 'normal') return p.tempPromedioReactores >= 350 && p.tempPromedioReactores < 400;
-        if (filtroTemperatura === 'baja') return p.tempPromedioReactores < 350;
-        return true;
-      });
-    }
-
-    // Ordenamiento
+    // Ordenamiento por semana
     resultado.sort((a, b) => {
-      const comparacion = a.año === b.año ? a.semana - b.semana : a.año - b.año;
+      const comparacion = a.semana - b.semana;
       return ordenamiento === 'desc' ? -comparacion : comparacion;
     });
 
+    console.log(`📊 Semanas encontradas para ${numeroMesAnterior}/${añoMesAnterior}:`, resultado.length);
+    
     return resultado;
-  }, [produccionPorSemana, busqueda, filtroAño, filtroSemana, filtroMes, filtroTemperatura, ordenamiento, fechaInicio, fechaFin]);
+  }, [produccionPorSemana, busqueda, ordenamiento]);
 
   if (authLoading) {
     return (
@@ -433,19 +455,69 @@ export default function IndicadoresProduccion() {
             <div className="flex justify-center mb-6">
               <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-4 border border-white/30 inline-block">
                 <h1 className="text-3xl font-bold text-white flex items-center gap-3 justify-center">
-                  <Factory className="w-8 h-8 text-slate-200" />
-                  Producción de Biochar
+                  <BarChart3 className="w-8 h-8 text-slate-200" />
+                  Análisis de Costos y Precios de Referencia
                 </h1>
                 <p className="text-white mt-1 text-center">
-                  Registros de Balances Masa - Pirólisis
+                  Análisis financiero por categorías de producción
                 </p>
+              </div>
+            </div>
+
+            {/* Pestañas de Categorías */}
+            <div className="flex justify-center mb-6">
+              <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-2 border border-white/30 shadow-xl">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setCategoriaActiva('pirolisis')}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                      categoriaActiva === 'pirolisis'
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Factory className="w-4 h-4" />
+                      Pirólisis
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setCategoriaActiva('laboratorio')}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                      categoriaActiva === 'laboratorio'
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Beaker className="w-4 h-4" />
+                      Laboratorio
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setCategoriaActiva('mezclas')}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                      categoriaActiva === 'mezclas'
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4" />
+                      Mezclas
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-        {/* Barra de búsqueda y filtros */}
-        <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        {/* Contenido según la categoría */}
+        {categoriaActiva === 'pirolisis' && (
+          <>
+            {/* Barra de búsqueda y filtros */}
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 sm:gap-4">
             {/* Búsqueda */}
             <div className="relative lg:col-span-2">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50" />
@@ -458,66 +530,19 @@ export default function IndicadoresProduccion() {
               />
             </div>
 
-            {/* Filtro por Año */}
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
-              <select
-                value={filtroAño}
-                onChange={(e) => setFiltroAño(e.target.value)}
-                className="w-full pl-12 pr-10 py-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
-              >
-                <option value="todos" className="bg-slate-800">Todos los años</option>
-                {añosDisponibles.map(año => (
-                  <option key={año} value={año} className="bg-slate-800">{año}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
-            </div>
 
-            {/* Filtro por Semana */}
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
-              <select
-                value={filtroSemana}
-                onChange={(e) => setFiltroSemana(e.target.value)}
-                className="w-full pl-12 pr-10 py-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
-              >
-                <option value="todas" className="bg-slate-800">Todas las semanas</option>
-                {semanasDisponibles.map(semana => (
-                  <option key={semana} value={semana} className="bg-slate-800">Semana {semana}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
-            </div>
 
-            {/* Filtro por Mes */}
+            {/* Filtro de Análisis */}
             <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
+              <BarChart3 className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
               <select
-                value={filtroMes}
-                onChange={(e) => setFiltroMes(e.target.value)}
+                value={filtroTipoGasto}
+                onChange={(e) => setFiltroTipoGasto(e.target.value)}
                 className="w-full pl-12 pr-10 py-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
               >
-                <option value="todos" className="bg-slate-800">Todos los meses</option>
-                {mesesDisponibles.map(mes => (
-                  <option key={mes} value={mes} className="bg-slate-800">{nombresMeses[mes - 1]}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
-            </div>
-
-            {/* Filtro por Temperatura */}
-            <div className="relative">
-              <Thermometer className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
-              <select
-                value={filtroTemperatura}
-                onChange={(e) => setFiltroTemperatura(e.target.value)}
-                className="w-full pl-12 pr-10 py-3 bg-slate-700/30 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
-              >
-                <option value="todos" className="bg-slate-800">Todas las temperaturas</option>
-                <option value="optima" className="bg-slate-800">🟢 Óptima (≥400°C)</option>
-                <option value="normal" className="bg-slate-800">🟡 Normal (350-399°C)</option>
-                <option value="baja" className="bg-slate-800">🔴 Baja (&lt;350°C)</option>
+                <option value="completo" className="bg-slate-800">Análisis Completo</option>
+                <option value="produccion" className="bg-slate-800">Solo Producción</option>
+                <option value="costos" className="bg-slate-800">Solo Costos</option>
               </select>
               <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
             </div>
@@ -527,7 +552,7 @@ export default function IndicadoresProduccion() {
           <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <p className="text-xs sm:text-sm text-white/80">
               <Filter className="inline w-4 h-4 mr-1" />
-              {produccionFiltrada.length} semana{produccionFiltrada.length !== 1 ? 's' : ''} encontrada{produccionFiltrada.length !== 1 ? 's' : ''}
+              {produccionFiltrada.length} semana{produccionFiltrada.length !== 1 ? 's' : ''} del mes anterior
             </p>
             <button
               onClick={() => setOrdenamiento(ordenamiento === 'desc' ? 'asc' : 'desc')}
@@ -580,20 +605,14 @@ export default function IndicadoresProduccion() {
                     <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
                       Biochar
                     </th>
-                    <th className="hidden md:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">
-                      Registros
-                    </th>
-                    <th className="hidden lg:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
-                      Prom. Diario
-                    </th>
-                    <th className="hidden xl:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
-                      Temp. Prom.
-                    </th>
                     <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
-                      Costo
+                      Costo Directo
                     </th>
                     <th className="hidden sm:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
-                      $/KG
+                      Costo/KG
+                    </th>
+                    <th className="hidden lg:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
+                      Costos Indirectos
                     </th>
                     <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">
                       <span className="hidden sm:inline">Acciones</span>
@@ -635,41 +654,6 @@ export default function IndicadoresProduccion() {
                             )}
                           </div>
                         </td>
-                        <td className="hidden md:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-center">
-                          {semana.registros > 0 ? (
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 rounded-lg border border-blue-400/30">
-                              <BarChart3 className="w-4 h-4 text-blue-400" />
-                              <span className="text-sm font-semibold text-white">{semana.registros}</span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-white/50">-</span>
-                          )}
-                        </td>
-                        <td className="hidden lg:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          {semana.promedioDiario > 0 ? (
-                            <span className="text-sm font-semibold text-white">
-                              {semana.promedioDiario.toLocaleString('es-CO')} kg
-                            </span>
-                          ) : (
-                            <span className="text-sm text-white/50">-</span>
-                          )}
-                        </td>
-                        <td className="hidden xl:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
-                          {semana.tempPromedioReactores > 0 ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <Activity className={`w-4 h-4 ${
-                                semana.tempPromedioReactores >= 400 ? 'text-green-400' :
-                                semana.tempPromedioReactores >= 350 ? 'text-yellow-400' :
-                                'text-red-400'
-                              }`} />
-                              <span className="text-sm text-white">
-                                {semana.tempPromedioReactores}°C
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-white/50">-</span>
-                          )}
-                        </td>
                         <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
                           <div className="flex flex-col items-end">
                             {semana.costoTotal ? (
@@ -690,8 +674,26 @@ export default function IndicadoresProduccion() {
                             <span className="text-sm text-white/50">-</span>
                           )}
                         </td>
+                        <td className="hidden lg:table-cell px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-right">
+                          <div className="flex flex-col items-end">
+                            {semana.costosIndirectos ? (
+                              <>
+                                <span className="text-sm font-semibold text-purple-400">
+                                  ${Math.round(semana.costosIndirectos).toLocaleString('es-CO')}
+                                </span>
+                                {semana.costosIndirectosPorKg && (
+                                  <span className="text-xs text-white/60">
+                                    ${Math.round(semana.costosIndirectosPorKg).toLocaleString('es-CO')}/kg
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-sm text-white/50">-</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-center">
-                          {semana.registros > 0 ? (
+                          {semana.detalles.length > 0 ? (
                             <button
                               onClick={() => setSemanaSeleccionada(semana)}
                               className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-colors text-xs sm:text-sm border border-blue-400/30"
@@ -720,7 +722,7 @@ export default function IndicadoresProduccion() {
               <Activity className="w-5 h-5 text-blue-400" />
               Resumen de Producción
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-4">
               <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
                 <p className="text-white/80 text-xs sm:text-sm mb-1">Total Semanas</p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
@@ -733,14 +735,7 @@ export default function IndicadoresProduccion() {
                   {produccionFiltrada.reduce((sum, s) => sum + s.totalBiochar, 0).toLocaleString('es-CO')}
                 </p>
                 <p className="text-xs text-white/60">kg</p>
-              </div>
-              <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
-                <p className="text-white/80 text-xs sm:text-sm mb-1">Total Registros</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-                  {produccionFiltrada.reduce((sum, s) => sum + s.registros, 0)}
-                </p>
-              </div>
-              <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
+              </div>              <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
                 <p className="text-white/80 text-xs sm:text-sm mb-1">Promedio Semanal</p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
                   {Math.round(produccionFiltrada.reduce((sum, s) => sum + s.totalBiochar, 0) / produccionFiltrada.length).toLocaleString('es-CO')}
@@ -748,13 +743,19 @@ export default function IndicadoresProduccion() {
                 <p className="text-xs text-white/60">kg</p>
               </div>
               <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
-                <p className="text-white/80 text-xs sm:text-sm mb-1">Costo Total</p>
+                <p className="text-white/80 text-xs sm:text-sm mb-1">Costos Directos</p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-red-400">
                   ${Math.round(produccionFiltrada.reduce((sum, s) => sum + (s.costoTotal || 0), 0)).toLocaleString('es-CO')}
                 </p>
               </div>
               <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
-                <p className="text-white/80 text-xs sm:text-sm mb-1">Costo/kg</p>
+                <p className="text-white/80 text-xs sm:text-sm mb-1">Costos Indirectos</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-purple-400">
+                  ${Math.round(produccionFiltrada.reduce((sum, s) => sum + (s.costosIndirectos || 0), 0)).toLocaleString('es-CO')}
+                </p>
+              </div>
+              <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
+                <p className="text-white/80 text-xs sm:text-sm mb-1">Costo Directo/kg</p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-orange-400">
                   ${Math.round(
                     produccionFiltrada.reduce((sum, s) => sum + (s.costoTotal || 0), 0) /
@@ -762,10 +763,30 @@ export default function IndicadoresProduccion() {
                   ).toLocaleString('es-CO')}
                 </p>
               </div>
+              <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
+                <p className="text-white/80 text-xs sm:text-sm mb-1">Costo Indirecto/kg</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-purple-300">
+                  ${Math.round(
+                    produccionFiltrada.reduce((sum, s) => sum + (s.costosIndirectos || 0), 0) /
+                    produccionFiltrada.reduce((sum, s) => sum + s.totalBiochar, 0)
+                  ).toLocaleString('es-CO')}
+                </p>
+              </div>
+              <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
+                <p className="text-white/80 text-xs sm:text-sm mb-1">Costo Total/kg</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-yellow-400">
+                  ${Math.round(
+                    (produccionFiltrada.reduce((sum, s) => sum + (s.costoTotal || 0), 0) + 
+                     produccionFiltrada.reduce((sum, s) => sum + (s.costosIndirectos || 0), 0)) /
+                    produccionFiltrada.reduce((sum, s) => sum + s.totalBiochar, 0)
+                  ).toLocaleString('es-CO')}
+                </p>
+              </div>
             </div>
           </div>
         )}
-      </div>
+        </>
+        )}
 
       {/* Modal de Detalles */}
       {registroSeleccionado && (
@@ -896,7 +917,7 @@ export default function IndicadoresProduccion() {
               {/* Resumen de la Semana */}
               <div>
                 <h4 className="text-sm font-semibold text-blue-300 mb-3">Resumen de Producción</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
                     <p className="text-xs text-white/60 mb-1">Total Producido</p>
                     <p className="text-2xl font-bold text-white">{semanaSeleccionada.totalBiochar.toLocaleString('es-CO')}</p>
@@ -904,24 +925,25 @@ export default function IndicadoresProduccion() {
                   </div>
                   <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
                     <p className="text-xs text-white/60 mb-1">Registros</p>
-                    <p className="text-2xl font-bold text-white">{semanaSeleccionada.registros}</p>
+                    <p className="text-2xl font-bold text-white">{semanaSeleccionada.detalles.length}</p>
                     <p className="text-xs text-white/60">lotes</p>
                   </div>
                   <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
-                    <p className="text-xs text-white/60 mb-1">Promedio Diario</p>
-                    <p className="text-2xl font-bold text-white">{semanaSeleccionada.promedioDiario.toLocaleString('es-CO')}</p>
-                    <p className="text-xs text-white/60">kg/día</p>
-                  </div>
-                  <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
-                    <p className="text-xs text-white/60 mb-1">Temp. Promedio</p>
-                    <p className="text-2xl font-bold text-white">{semanaSeleccionada.tempPromedioReactores}</p>
-                    <p className="text-xs text-white/60">°C</p>
-                  </div>
-                  <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
-                    <p className="text-xs text-white/60 mb-1">Costo Total</p>
+                    <p className="text-xs text-white/60 mb-1">Costos Directos</p>
                     {semanaSeleccionada.costoTotal ? (
                       <>
                         <p className="text-2xl font-bold text-red-400">${Math.round(semanaSeleccionada.costoTotal).toLocaleString('es-CO')}</p>
+                        <p className="text-xs text-white/60">COP</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-white/50">Sin datos</p>
+                    )}
+                  </div>
+                  <div className="bg-slate-700/30 rounded-lg p-4 text-center border border-white/10">
+                    <p className="text-xs text-white/60 mb-1">Costos Indirectos</p>
+                    {semanaSeleccionada.costosIndirectos ? (
+                      <>
+                        <p className="text-2xl font-bold text-purple-400">${Math.round(semanaSeleccionada.costosIndirectos).toLocaleString('es-CO')}</p>
                         <p className="text-xs text-white/60">COP</p>
                       </>
                     ) : (
@@ -998,6 +1020,67 @@ export default function IndicadoresProduccion() {
           </div>
         </div>
       )}
+
+        {/* Contenido de Laboratorio */}
+        {categoriaActiva === 'laboratorio' && (
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-8 border border-white/30 shadow-xl text-center">
+            <Beaker className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-white mb-4">Análisis de Laboratorio</h3>
+            <p className="text-white/80 mb-6">
+              Análisis de costos y precios de referencia para servicios y procesos de laboratorio.
+            </p>
+            <div className="bg-yellow-500/20 rounded-lg p-4 border border-yellow-400/30">
+              <p className="text-yellow-200 font-medium">
+                🚧 Sección en desarrollo
+              </p>
+              <p className="text-yellow-200/80 text-sm mt-2">
+                Esta funcionalidad estará disponible próximamente con análisis detallado de costos de laboratorio, 
+                pruebas de calidad y precios de referencia para servicios analíticos.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Contenido de Mezclas */}
+        {categoriaActiva === 'mezclas' && (
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-8 border border-white/30 shadow-xl text-center">
+            <Activity className="w-16 h-16 text-green-400 mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-white mb-4">Análisis de Mezclas</h3>
+            <p className="text-white/80 mb-6">
+              Análisis de costos y precios de referencia para procesos de mezcla y formulación de productos.
+            </p>
+            <div className="bg-yellow-500/20 rounded-lg p-4 border border-yellow-400/30">
+              <p className="text-yellow-200 font-medium">
+                🚧 Sección en desarrollo
+              </p>
+              <p className="text-yellow-200/80 text-sm mt-2">
+                Esta funcionalidad estará disponible próximamente con análisis detallado de costos de mezclas, 
+                formulaciones personalizadas y precios de referencia para productos combinados.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Contenido de Mezclas */}
+        {categoriaActiva === 'mezclas' && (
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-8 border border-white/30 shadow-xl text-center">
+            <Activity className="w-16 h-16 text-green-400 mx-auto mb-4" />
+            <h3 className="text-2xl font-bold text-white mb-4">Análisis de Mezclas</h3>
+            <p className="text-white/80 mb-6">
+              Análisis de costos y precios de referencia para procesos de mezcla y formulación de productos.
+            </p>
+            <div className="bg-yellow-500/20 rounded-lg p-4 border border-yellow-400/30">
+              <p className="text-yellow-200 font-medium">
+                🚧 Sección en desarrollo
+              </p>
+              <p className="text-yellow-200/80 text-sm mt-2">
+                Esta funcionalidad estará disponible próximamente con análisis detallado de costos de mezclas, 
+                formulaciones personalizadas y precios de referencia para productos combinados.
+              </p>
+            </div>
+          </div>
+        )}
+        </div>
       </div>
     </div>
   );

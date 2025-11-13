@@ -125,6 +125,13 @@ export default function Navbar() {
                       >
                         <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de solicitudes</span>
                       </Link>
+                      <Link
+                        href="/caja-menor"
+                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                        onClick={closeDropdowns}
+                      >
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">Caja Menor</span>
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -159,7 +166,7 @@ export default function Navbar() {
                         className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
                         onClick={closeDropdowns}
                       >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Indicadores de Producción</span>
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">Análisis de Costos y Precios de Referencia</span>
                       </Link>
                     </div>
                   )}
@@ -333,6 +340,14 @@ export default function Navbar() {
                       <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
                       <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de solicitudes</span>
                     </Link>
+                    <Link
+                      href="/caja-menor"
+                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">Caja Menor</span>
+                    </Link>
                   </div>
 
                   {/* Finanzas Section */}
@@ -363,7 +378,7 @@ export default function Navbar() {
                       onClick={() => setIsMenuOpen(false)}
                     >
                       <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Indicadores de Producción</span>
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">Análisis de Costos y Precios de Referencia</span>
                     </Link>
                   </div>
 
