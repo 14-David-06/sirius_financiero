@@ -310,12 +310,33 @@ export default function MovimientosBancarios() {
           setUploadSuccess(null);
         }, 10000);
       } else {
-        console.error('❌ Error procesando archivo:', result.error);
-        alert('Error al procesar el archivo: ' + (result.error || 'Error desconocido'));
+        // Manejar diferentes tipos de errores
+        console.error('❌ Error procesando archivo:', result);
+        
+        let errorMessage = result.error || 'Error desconocido';
+        
+        // Error de configuración (503)
+        if (response.status === 503 && result.requiresSetup) {
+          errorMessage = 'La funcionalidad de carga a OneDrive no está configurada.\n\n';
+          if (result.instructions) {
+            errorMessage += 'Se requiere:\n' + result.instructions.join('\n');
+          }
+          alert('⚙️ Configuración requerida\n\n' + errorMessage);
+        } 
+        // Errores de autenticación o permisos
+        else if (result.troubleshooting) {
+          errorMessage = result.message || errorMessage;
+          errorMessage += '\n\nPosibles soluciones:\n' + result.troubleshooting.join('\n');
+          alert('⚠️ Error de configuración\n\n' + errorMessage);
+        }
+        // Otros errores
+        else {
+          alert('❌ Error al procesar el archivo:\n\n' + errorMessage);
+        }
       }
     } catch (error) {
       console.error('❌ Error procesando archivo:', error);
-      alert('Error al procesar el archivo. Inténtelo de nuevo.');
+      alert('❌ Error de conexión\n\nNo se pudo procesar el archivo. Verifique su conexión e inténtelo de nuevo.');
     } finally {
       setUploadingFile(false);
     }

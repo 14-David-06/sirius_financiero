@@ -120,9 +120,25 @@ export async function POST(request: NextRequest) {
     // Verificar credenciales
     if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET || 
         !process.env.MICROSOFT_TENANT_ID) {
+      console.error('❌ Faltan credenciales de Microsoft Azure');
+      console.error('Variables faltantes:', {
+        MICROSOFT_CLIENT_ID: !!process.env.MICROSOFT_CLIENT_ID,
+        MICROSOFT_CLIENT_SECRET: !!process.env.MICROSOFT_CLIENT_SECRET,
+        MICROSOFT_TENANT_ID: !!process.env.MICROSOFT_TENANT_ID
+      });
       return NextResponse.json(
-        { error: 'Configuración de Microsoft faltante' },
-        { status: 500 }
+        { 
+          error: 'Configuración de Microsoft no disponible',
+          message: 'Las credenciales de Microsoft Azure no están configuradas en el servidor',
+          requiresSetup: true,
+          instructions: [
+            'Configurar variables de entorno en Vercel:',
+            '- MICROSOFT_CLIENT_ID',
+            '- MICROSOFT_CLIENT_SECRET',
+            '- MICROSOFT_TENANT_ID'
+          ]
+        },
+        { status: 503 }
       );
     }
 
@@ -238,10 +254,28 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error en carga alternativa:', error);
+    
+    // Proporcionar información más detallada del error
+    const errorMessage = (error as Error).message || 'Error desconocido';
+    const isAuthError = errorMessage.includes('token') || errorMessage.includes('Unauthorized') || errorMessage.includes('403') || errorMessage.includes('401');
+    const isPermissionError = errorMessage.includes('permission');
+    
     return NextResponse.json({
       error: 'Error procesando archivo',
-      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
-      solution: 'Verificar configuración de permisos Azure'
+      message: isAuthError 
+        ? 'Error de autenticación con Microsoft Azure' 
+        : isPermissionError 
+          ? 'Permisos insuficientes en Microsoft Azure' 
+          : 'Error interno del servidor',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      solution: 'Verificar configuración de permisos Azure',
+      troubleshooting: isAuthError || isPermissionError 
+        ? [
+            'Verificar credenciales de Azure',
+            'Confirmar permisos Files.ReadWrite.All y Sites.ReadWrite.All',
+            'Revisar aprobación de la aplicación Azure'
+          ]
+        : ['Contactar al administrador del sistema']
     }, { status: 500 });
   }
 }

@@ -212,9 +212,26 @@ export async function POST(request: NextRequest) {
     if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET || 
         !process.env.MICROSOFT_TENANT_ID || !process.env.MICROSOFT_EMAIL) {
       console.error('❌ Faltan credenciales de Microsoft Azure');
+      console.error('Variables faltantes:', {
+        MICROSOFT_CLIENT_ID: !!process.env.MICROSOFT_CLIENT_ID,
+        MICROSOFT_CLIENT_SECRET: !!process.env.MICROSOFT_CLIENT_SECRET,
+        MICROSOFT_TENANT_ID: !!process.env.MICROSOFT_TENANT_ID,
+        MICROSOFT_EMAIL: !!process.env.MICROSOFT_EMAIL
+      });
       return NextResponse.json(
-        { error: 'Configuración de OneDrive faltante' },
-        { status: 500 }
+        { 
+          error: 'Configuración de OneDrive no disponible',
+          message: 'Las credenciales de Microsoft Azure no están configuradas en el servidor',
+          requiresSetup: true,
+          instructions: [
+            'Configurar variables de entorno en Vercel:',
+            '- MICROSOFT_CLIENT_ID',
+            '- MICROSOFT_CLIENT_SECRET',
+            '- MICROSOFT_TENANT_ID',
+            '- MICROSOFT_EMAIL'
+          ]
+        },
+        { status: 503 }
       );
     }
 
@@ -350,10 +367,28 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error cargando archivo a OneDrive:', error);
+    
+    // Proporcionar información más detallada del error
+    const errorMessage = (error as Error).message || 'Error desconocido';
+    const isAuthError = errorMessage.includes('token') || errorMessage.includes('Unauthorized') || errorMessage.includes('403') || errorMessage.includes('401');
+    const isPermissionError = errorMessage.includes('Permisos insuficientes') || errorMessage.includes('permission');
+    
     return NextResponse.json(
       { 
-        error: 'Error interno del servidor',
-        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+        error: 'Error procesando archivo',
+        message: isAuthError 
+          ? 'Error de autenticación con Microsoft Azure' 
+          : isPermissionError 
+            ? 'Permisos insuficientes en Microsoft Azure' 
+            : 'Error interno del servidor',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+        troubleshooting: isAuthError || isPermissionError 
+          ? [
+              'Verificar que las credenciales de Azure sean correctas',
+              'Confirmar que los permisos Files.ReadWrite.All estén configurados',
+              'Revisar que la aplicación Azure esté aprobada por el administrador'
+            ]
+          : ['Contactar al administrador del sistema']
       },
       { status: 500 }
     );
