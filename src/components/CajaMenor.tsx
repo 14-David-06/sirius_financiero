@@ -1072,12 +1072,14 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     Valor Disponible *
                   </label>
                   <input
-                    type="number"
-                    value={formCajaMenor.valor}
-                    onChange={(e) => setFormCajaMenor({...formCajaMenor, valor: parseFloat(e.target.value) || 0})}
+                    type="text"
+                    value={formCajaMenor.valor ? formCajaMenor.valor.toLocaleString('es-CO') : ''}
+                    onChange={(e) => {
+                      const valor = e.target.value.replace(/\D/g, '');
+                      setFormCajaMenor({...formCajaMenor, valor: parseInt(valor) || 0});
+                    }}
                     className="w-full px-4 py-2.5 bg-slate-700/30 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500"
                     placeholder="Monto disponible para gastos"
-                    min="1"
                     required
                   />
                 </div>
@@ -1149,12 +1151,13 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       Valor *
                     </label>
                     <input
-                      type="number"
-                      value={formData.valor}
-                      onChange={(e) => setFormData(prev => ({ ...prev, valor: e.target.value }))}
-                      placeholder="0.00"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      value={formData.valor ? parseInt(formData.valor).toLocaleString('es-CO') : ''}
+                      onChange={(e) => {
+                        const valor = e.target.value.replace(/\D/g, '');
+                        setFormData(prev => ({ ...prev, valor: valor }));
+                      }}
+                      placeholder="0"
                       className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
                       required
                     />
