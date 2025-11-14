@@ -457,6 +457,41 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       return;
     }
     
+    // Calcular saldo disponible actual
+    const totalIngresosCaja = cajaMenorDelMesActual.valor || 0;
+    const totalEgresosCaja = itemsRecords
+      .filter(item => {
+        const mesActual = obtenerMesActual();
+        const fechaItem = item.fecha?.substring(0, 7);
+        return fechaItem === mesActual;
+      })
+      .reduce((sum, item) => sum + (item.valor || 0), 0);
+    const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+    
+    // Validar que el valor del nuevo registro no supere el saldo disponible
+    const valorNuevoRegistro = parseFloat(formData.valor) || 0;
+    
+    if (valorNuevoRegistro <= 0) {
+      alert('❌ El valor debe ser mayor a cero.');
+      return;
+    }
+    
+    // Validar que el valor no sea excesivamente alto (máximo 1.000.000.000 - mil millones)
+    if (valorNuevoRegistro > 1000000000) {
+      alert('❌ El valor ingresado es excesivamente alto.\n\nValor máximo permitido: $1.000.000.000\nValor ingresado: $' + valorNuevoRegistro.toLocaleString('es-CO') + '\n\nPor favor, verifique el monto.');
+      return;
+    }
+    
+    if (saldoDisponible < 0) {
+      alert('❌ La caja menor ya está en déficit. No se pueden registrar más gastos hasta consolidar la caja menor.');
+      return;
+    }
+    
+    if (valorNuevoRegistro > saldoDisponible) {
+      alert(`❌ El valor del registro ($${valorNuevoRegistro.toLocaleString('es-CO')}) supera el saldo disponible de la caja menor.\n\n💰 Saldo disponible: $${saldoDisponible.toLocaleString('es-CO')}\n⚠️ Valor a registrar: $${valorNuevoRegistro.toLocaleString('es-CO')}\n🚫 Excedente: $${(valorNuevoRegistro - saldoDisponible).toLocaleString('es-CO')}\n\nPor favor, ingrese un valor menor o igual al saldo disponible.`);
+      return;
+    }
+    
     try {
       setLoading(true);
       console.log('📝 Enviando item de caja menor:', formData);
@@ -898,6 +933,32 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
           )}
 
+          {/* Alerta: Valores anormalmente altos detectados */}
+          {cajaMenorDelMesActual && itemsRecords.some(item => {
+            const mesActual = obtenerMesActual();
+            const fechaItem = item.fecha?.substring(0, 7);
+            return fechaItem === mesActual && item.valor > 100000000;
+          }) && (
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-red-500/50 mb-8 shadow-xl">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-500/20 rounded-xl border border-red-500/30 flex-shrink-0">
+                  <AlertCircle className="w-7 h-7 text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-red-300 mb-1">
+                    ⚠️ Datos Anormales Detectados
+                  </h3>
+                  <p className="text-sm text-white/80">
+                    Se han detectado registros con valores excesivamente altos que pueden ser erróneos. Esto está afectando los cálculos del saldo y consumo. Por favor, revise los gastos registrados y contacte al administrador para corregir los datos.
+                  </p>
+                  <p className="text-xs text-red-300/80 mt-2">
+                    💡 Los registros con valores superiores a $100.000.000 pueden indicar errores de digitación.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Controles - Diseño Profesional */}
           <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl mb-8">
             <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
@@ -950,7 +1011,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       setShowModal(true);
                     }
                   }}
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25"
+                  disabled={cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25 disabled:hover:shadow-none"
+                  title={cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100 ? 'Caja menor al 100% de consumo - No se pueden registrar más gastos' : 'Registrar nuevo gasto'}
                 >
                   <Plus className="w-5 h-5" />
                   <span>Nuevo Gasto</span>
@@ -1327,6 +1390,47 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
                       required
                     />
+                    {cajaMenorDelMesActual && formData.valor && (() => {
+                      const valorIngresado = parseFloat(formData.valor) || 0;
+                      const totalIngresosCaja = cajaMenorDelMesActual.valor || 0;
+                      const totalEgresosCaja = itemsRecords
+                        .filter(item => {
+                          const mesActual = obtenerMesActual();
+                          const fechaItem = item.fecha?.substring(0, 7);
+                          return fechaItem === mesActual;
+                        })
+                        .reduce((sum, item) => sum + (item.valor || 0), 0);
+                      const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+                      const excedente = valorIngresado - saldoDisponible;
+                      
+                      if (valorIngresado > saldoDisponible) {
+                        return (
+                          <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                              <div className="text-xs text-red-300">
+                                <p className="font-bold">⚠️ Valor supera el saldo disponible</p>
+                                <p className="mt-1">Saldo disponible: <strong>${saldoDisponible.toLocaleString('es-CO')}</strong></p>
+                                <p>Excedente: <strong>${excedente.toLocaleString('es-CO')}</strong></p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      } else if (valorIngresado > saldoDisponible * 0.7) {
+                        return (
+                          <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                              <div className="text-xs text-yellow-300">
+                                <p className="font-bold">⚠️ Alto consumo del saldo</p>
+                                <p className="mt-1">Saldo restante: <strong>${(saldoDisponible - valorIngresado).toLocaleString('es-CO')}</strong></p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
 
@@ -1537,8 +1641,21 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white rounded-xl font-semibold transition-colors shadow-lg"
+                    disabled={loading || ((): boolean => {
+                      if (!cajaMenorDelMesActual || !formData.valor) return false;
+                      const valorIngresado = parseFloat(formData.valor) || 0;
+                      const totalIngresosCaja = cajaMenorDelMesActual.valor || 0;
+                      const totalEgresosCaja = itemsRecords
+                        .filter(item => {
+                          const mesActual = obtenerMesActual();
+                          const fechaItem = item.fecha?.substring(0, 7);
+                          return fechaItem === mesActual;
+                        })
+                        .reduce((sum, item) => sum + (item.valor || 0), 0);
+                      const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+                      return valorIngresado > saldoDisponible;
+                    })()}
+                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors shadow-lg"
                   >
                     {loading ? 'Guardando...' : 'Guardar Item'}
                   </button>
