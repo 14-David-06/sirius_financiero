@@ -18,7 +18,9 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  FileText
+  FileText,
+  Mic,
+  MicOff
 } from 'lucide-react';
 
 interface CajaMenorRecord {
@@ -57,6 +59,16 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [showCajaMenorModal, setShowCajaMenorModal] = useState(false);
   const [cajaMenorActual, setCajaMenorActual] = useState<CajaMenorRecord | null>(null);
+  
+  // Estados para grabación de audio y transcripción
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  
+  // Estados para beneficiarios
+  const [beneficiarios, setBeneficiarios] = useState<Array<{ nombre: string; nitCC: string }>>([]);
+  const [esNuevoBeneficiario, setEsNuevoBeneficiario] = useState(false);
 
   // Datos del formulario para caja menor
   const [formCajaMenor, setFormCajaMenor] = useState({
@@ -222,7 +234,20 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
         setCajaMenorRecords(cajaMenorValidos);
         setItemsRecords(itemsValidos);
-        console.log('📊 Registros Caja Menor válidos:', cajaMenorValidos.length);
+        
+        const beneficiariosUnicos = itemsValidos.reduce((acc: Array<{ nombre: string; nitCC: string }>, item: any) => {
+          const existe = acc.find(b => b.nombre === item.beneficiario);
+          if (!existe && item.beneficiario) {
+            acc.push({
+              nombre: item.beneficiario,
+              nitCC: item.nitCC || ''
+            });
+          }
+          return acc;
+        }, []);
+        
+        setBeneficiarios(beneficiariosUnicos);
+        console.log(' Registros Caja Menor válidos:', cajaMenorValidos.length);
         console.log('📊 Items Caja Menor válidos:', itemsValidos.length);
         
         // Debug detallado de los primeros registros
@@ -279,6 +304,79 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       valor: 2000000,
       realizaRegistro: userData?.nombre || 'Usuario'
     });
+  };
+
+  // Funciones para manejar grabación de audio
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+        transcribeAudio(audioBlob);
+        
+        // Detener el stream para liberar el micrófono
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accediendo al micrófono:', error);
+      alert('Error accediendo al micrófono. Verifique los permisos.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      const response = await fetch('/api/transcribe-audio', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Agregar la transcripción al campo de concepto
+        setFormData(prev => ({
+          ...prev,
+          concepto: prev.concepto ? `${prev.concepto} ${result.transcription}` : result.transcription
+        }));
+      } else {
+        console.error('Error en transcripción:', result.error);
+        alert('Error al transcribir el audio: ' + (result.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error transcribiendo audio:', error);
+      alert('Error al transcribir el audio. Inténtelo de nuevo.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const clearAudioTranscription = () => {
+    setAudioBlob(null);
   };
 
   const handleSubmitCajaMenor = async (e: React.FormEvent) => {
@@ -423,6 +521,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       realizaRegistro: userData?.nombre || 'Usuario'
     });
     setEditingItem(null);
+    setEsNuevoBeneficiario(false);
   };
 
   // Evitar procesamiento durante la carga
@@ -628,7 +727,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           </div>
 
           {/* Tarjetas de resumen - Diseño Profesional */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
             {/* Tarjeta 1: Disponible Caja Menor */}
             <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
               <div className="flex items-start justify-between mb-4">
@@ -724,6 +823,54 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </p>
               </div>
             </div>
+
+            {/* Tarjeta 5: Porcentaje Consumido */}
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-start justify-between mb-4">
+                <div className={`p-3 rounded-xl border ${
+                  totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
+                    ? 'bg-orange-500/20 border-orange-500/30'
+                    : 'bg-cyan-500/20 border-cyan-500/30'
+                }`}>
+                  <FileText className={`w-7 h-7 ${
+                    totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
+                      ? 'text-orange-400'
+                      : 'text-cyan-400'
+                  }`} />
+                </div>
+                {totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
+                  <div className="flex items-center gap-1 bg-orange-500/20 px-2 py-1 rounded-full border border-orange-500/30">
+                    <AlertTriangle className="w-3 h-3 text-orange-400" />
+                    <span className="text-xs font-bold text-orange-300">Alto</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white/70 mb-2">Consumo Actual</p>
+                <p className={`text-3xl font-bold mb-2 ${
+                  totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
+                    ? 'text-orange-400'
+                    : 'text-cyan-400'
+                }`}>
+                  {totalIngresos > 0 ? ((totalEgresos / totalIngresos) * 100).toFixed(1) : '0'}%
+                </p>
+                <div className="w-full bg-slate-700/50 rounded-full h-2 mb-2">
+                  <div 
+                    className={`h-2 rounded-full transition-all duration-500 ${
+                      totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500'
+                        : 'bg-gradient-to-r from-cyan-500 to-blue-500'
+                    }`}
+                    style={{ width: `${totalIngresos > 0 ? Math.min((totalEgresos / totalIngresos) * 100, 100) : 0}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-white/60">
+                  {totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 
+                    ? '⚠️ Requiere consolidación' 
+                    : '✓ Nivel normal'}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Alerta: No hay caja menor del mes actual */}
@@ -808,6 +955,20 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   <Plus className="w-5 h-5" />
                   <span>Nuevo Gasto</span>
                 </button>
+                
+                {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% */}
+                {cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
+                  <button
+                    onClick={() => {
+                      alert('🔄 Función de Consolidación de Caja Menor\n\nEsta funcionalidad permite:\n• Cerrar el periodo actual de caja menor\n• Generar un nuevo anticipo adicional\n• Mantener el historial de gastos\n\n⚠️ Esta función está en desarrollo.');
+                    }}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse"
+                    title="Consolidar caja menor - Consumo mayor al 70%"
+                  >
+                    <AlertTriangle className="w-5 h-5" />
+                    <span>Consolidar Caja Menor</span>
+                  </button>
+                )}
                 
                 <button
                   onClick={handleNuevaCajaMenor}
@@ -1175,28 +1336,77 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       <User className="w-4 h-4 text-blue-400" />
                       Beneficiario *
                     </label>
-                    <input
-                      type="text"
-                      value={formData.beneficiario}
-                      onChange={(e) => setFormData(prev => ({ ...prev, beneficiario: e.target.value }))}
-                      placeholder="Nombre del beneficiario"
-                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
-                      required
-                    />
+                    <select
+                      value={esNuevoBeneficiario ? 'nuevo' : formData.beneficiario}
+                      onChange={(e) => {
+                        if (e.target.value === 'nuevo') {
+                          setEsNuevoBeneficiario(true);
+                          setFormData(prev => ({ ...prev, beneficiario: '', nitCC: '' }));
+                        } else {
+                          setEsNuevoBeneficiario(false);
+                          const beneficiarioSeleccionado = beneficiarios.find(b => b.nombre === e.target.value);
+                          if (beneficiarioSeleccionado) {
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              beneficiario: beneficiarioSeleccionado.nombre,
+                              nitCC: beneficiarioSeleccionado.nitCC 
+                            }));
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 appearance-none cursor-pointer hover:bg-slate-700/80"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239CA3AF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.75rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5rem 1.5rem',
+                        paddingRight: '2.5rem'
+                      }}
+                      required={!esNuevoBeneficiario}
+                    >
+                      <option value="" className="bg-slate-800 text-white/70">Seleccionar beneficiario</option>
+                      {beneficiarios.map((beneficiario, index) => (
+                        <option key={index} value={beneficiario.nombre} className="bg-slate-800 text-white">
+                          👤 {beneficiario.nombre}
+                        </option>
+                      ))}
+                      <option value="nuevo" className="bg-slate-800 text-white">➕ Nuevo Beneficiario</option>
+                    </select>
+                    
+                    {esNuevoBeneficiario && (
+                      <div className="mt-3 animate-fadeIn">
+                        <input
+                          type="text"
+                          value={formData.beneficiario}
+                          onChange={(e) => setFormData(prev => ({ ...prev, beneficiario: e.target.value }))}
+                          placeholder="✏️ Nombre del nuevo beneficiario"
+                          className="w-full px-4 py-3 bg-slate-700/60 border border-blue-400/40 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
                       <Receipt className="w-4 h-4 text-blue-400" />
-                      NIT / CC
+                      NIT / CC {esNuevoBeneficiario && '*'}
                     </label>
-                    <input
-                      type="text"
-                      value={formData.nitCC}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nitCC: e.target.value }))}
-                      placeholder="Número de identificación"
-                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
-                    />
+                    {esNuevoBeneficiario ? (
+                      <input
+                        type="text"
+                        value={formData.nitCC}
+                        onChange={(e) => setFormData(prev => ({ ...prev, nitCC: e.target.value }))}
+                        placeholder="✏️ Número de identificación"
+                        className="w-full px-4 py-3 bg-slate-700/60 border border-blue-400/40 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
+                        required
+                      />
+                    ) : (
+                      <div className="w-full px-4 py-3 bg-slate-700/50 border border-white/10 rounded-xl text-white/80 text-sm flex items-center gap-2">
+                        <Receipt className="w-4 h-4 text-blue-400" />
+                        {formData.nitCC || 'No especificado'}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1205,14 +1415,50 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     <FileText className="w-4 h-4 text-blue-400" />
                     Concepto *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.concepto}
-                    onChange={(e) => setFormData(prev => ({ ...prev, concepto: e.target.value }))}
-                    placeholder="Descripción del gasto"
-                    className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
-                    required
-                  />
+                  
+                  <div className="relative">
+                    <textarea
+                      value={formData.concepto}
+                      onChange={(e) => setFormData(prev => ({ ...prev, concepto: e.target.value }))}
+                      placeholder="Descripción del gasto o use el botón de grabación para dictar..."
+                      rows={4}
+                      className="w-full px-4 py-3 pr-32 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 resize-none"
+                      required
+                    />
+                    
+                    {/* Botones de grabación dentro del textarea */}
+                    <div className="absolute top-3 right-3 flex gap-2">
+                      {!isRecording ? (
+                        <button
+                          type="button"
+                          onClick={startRecording}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-xs font-semibold shadow-lg"
+                          title="Grabar audio"
+                        >
+                          <Mic className="w-3.5 h-3.5" />
+                          Grabar
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={stopRecording}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-xs font-semibold shadow-lg animate-pulse"
+                          title="Detener grabación"
+                        >
+                          <MicOff className="w-3.5 h-3.5" />
+                          Detener
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Indicador de transcripción */}
+                    {isTranscribing && (
+                      <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1.5 bg-yellow-600/90 border border-yellow-500/50 rounded-lg text-yellow-100 text-xs font-medium shadow-lg">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-100"></div>
+                        Transcribiendo...
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
