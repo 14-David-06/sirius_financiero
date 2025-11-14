@@ -74,7 +74,7 @@ export default function SolicitudesCompra() {
   // Datos de usuario de respaldo (fallback) - mantener para compatibilidad
   const datosUsuario = {
     "Santiago Amaya": { area: "Pirolisis", cargo: "Jefe de Planta" },
-    "Luisa Ramirez": { area: "Gestión del Ser", cargo: "Coordinadora Líder de Gestión del Ser" },
+    "Luisa Ramirez": { area: "Laboratorio", cargo: "Coordinadora Líder" },
     "Katherin Roldan": { area: "SST", cargo: "Líder de SST" },
     "Yesenia Ramirez": { area: "Laboratorio", cargo: "Auxiliar de Laboratorio" },
     "Carolina Casas": { area: "Administrativo", cargo: "Auxiliar Administrativo y Contable" },
