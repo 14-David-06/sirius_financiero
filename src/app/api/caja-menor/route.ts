@@ -89,7 +89,8 @@ export async function GET(request: NextRequest) {
         centroCosto: record.fields['Centro Costo'], // Centro Costo
         valor: record.fields['Valor'], // Valor
         realizaRegistro: record.fields['Realiza Registro'], // Realiza Registro
-        cajaMenor: record.fields['Caja Menor'] // Caja Menor (links)
+        cajaMenor: record.fields['Caja Menor'], // Caja Menor (links)
+        comprobante: record.fields['Comprobante'] // Comprobante (attachments)
       })));
       fetchNextPage();
     });
@@ -213,13 +214,13 @@ export async function POST(request: NextRequest) {
         'Realiza Registro': data.realizaRegistro || '' // Realiza Registro
       });
 
-      console.log('✅ Registro de caja menor creado exitosamente:', createdRecord.id);
+      console.log('✅ Registro de caja menor creado exitosamente:', (createdRecord as any).id);
 
       return NextResponse.json({
         success: true,
         message: 'Caja menor creada exitosamente',
-        record: {
-          id: createdRecord.id,
+        cajaMenor: {
+          id: (createdRecord as any).id,
           fechaAnticipo: data.fechaAnticipo,
           beneficiario: data.beneficiario,
           concepto: data.concepto,
@@ -245,8 +246,8 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // Crear el item en la tabla Items Caja Menor usando NOMBRES de campos
-      const createdItem = await base(ITEMS_CAJA_MENOR_TABLE_ID).create({
+      // Crear el item en la tabla Items Caja Menor
+      const itemFields: any = {
         'Fecha': data.fecha,
         'Beneficiario': data.beneficiario,
         'Nit/CC': data.nitCC || '',
@@ -255,15 +256,23 @@ export async function POST(request: NextRequest) {
         'Valor': parseFloat(data.valor),
         'Realiza Registro': data.realizaRegistro || '',
         'Caja Menor': [data.cajaMenorId] // Link al registro de caja menor
-      });
+      };
 
-      console.log('✅ Item creado exitosamente:', createdItem.id);
+      // Agregar comprobante si existe (formato Airtable Attachment)
+      if (data.comprobanteUrl) {
+        itemFields['Comprobante'] = [{ url: data.comprobanteUrl }];
+        console.log('📎 Adjuntando comprobante:', data.comprobanteUrl);
+      }
+
+      const createdItem = await base(ITEMS_CAJA_MENOR_TABLE_ID).create(itemFields);
+
+      console.log('✅ Item creado exitosamente:', (createdItem as any).id);
 
       return NextResponse.json({
         success: true,
         message: 'Item de caja menor creado exitosamente',
         item: {
-          id: createdItem.id,
+          id: (createdItem as any).id,
           fecha: data.fecha,
           beneficiario: data.beneficiario,
           nitCC: data.nitCC,
@@ -301,7 +310,7 @@ export async function POST(request: NextRequest) {
       'Realiza Registro': data.realizaRegistro || '' // Realiza Registro
     });
 
-    console.log('✅ Registro principal creado exitosamente:', createdRecord.id);
+    console.log('✅ Registro principal creado exitosamente:', (createdRecord as any).id);
 
     // Si hay items, crearlos en la tabla Items Caja Menor
     const itemsCreados = [];
@@ -314,15 +323,15 @@ export async function POST(request: NextRequest) {
           [ITEMS_CAJA_MENOR_FIELDS.CONCEPTO]: item.concepto,
           [ITEMS_CAJA_MENOR_FIELDS.CENTRO_COSTO]: item.centroCosto || '',
           [ITEMS_CAJA_MENOR_FIELDS.VALOR]: parseFloat(item.valor),
-          [ITEMS_CAJA_MENOR_FIELDS.CAJA_MENOR]: [createdRecord.id]
+          [ITEMS_CAJA_MENOR_FIELDS.CAJA_MENOR]: [(createdRecord as any).id]
         });
         itemsCreados.push(createdItem);
       }
 
       // Actualizar el registro principal con los links a los items
       if (itemsCreados.length > 0) {
-        await base(CAJA_MENOR_TABLE_ID).update(createdRecord.id, {
-          [CAJA_MENOR_FIELDS.ITEMS_CAJA_MENOR]: itemsCreados.map(item => item.id)
+        await base(CAJA_MENOR_TABLE_ID).update((createdRecord as any).id, {
+          [CAJA_MENOR_FIELDS.ITEMS_CAJA_MENOR]: itemsCreados.map(item => (item as any).id)
         });
       }
     }
@@ -331,11 +340,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       record: {
-        id: createdRecord.id,
+        id: (createdRecord as any).id,
         ...createdRecord.fields
       },
       items: itemsCreados.map(item => ({
-        id: item.id,
+        id: (item as any).id,
         ...item.fields
       })),
       success: true

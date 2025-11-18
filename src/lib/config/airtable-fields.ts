@@ -23,6 +23,10 @@ export const CAJA_MENOR_FIELDS = {
   VALOR: 'Valor Caja Menor',
   REALIZA_REGISTRO: 'Realiza Registro',
   
+  // Campo de consolidación
+  FECHA_CONSOLIDACION: 'Fecha Consolidación',
+  DOCUMENTO_CONSOLIDACION: 'Documento Consolidación',
+  
   // Campo de relación
   ITEMS_CAJA_MENOR: 'Items Caja Menor'
 } as const;

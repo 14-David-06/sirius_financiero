@@ -32,6 +32,22 @@ interface CajaMenorRecord {
   valor: number;
   itemsCajaMenor?: string[]; // Array de IDs de items relacionados
   realizaRegistro?: string; // Nuevo campo: quien realiza el registro
+  fechaConsolidacion?: string; // Fecha de consolidación del periodo
+  documentoConsolidacion?: AirtableAttachment[]; // Array de attachments del documento de consolidación
+}
+
+interface AirtableAttachment {
+  id: string;
+  url: string;
+  filename: string;
+  size: number;
+  type: string;
+  width?: number;
+  height?: number;
+  thumbnails?: {
+    small?: { url: string; width: number; height: number };
+    large?: { url: string; width: number; height: number };
+  };
 }
 
 interface ItemCajaMenor {
@@ -45,6 +61,7 @@ interface ItemCajaMenor {
   valor: number;
   realizaRegistro?: string;
   cajaMenor?: string[]; // Array de IDs de caja menor relacionados
+  comprobante?: AirtableAttachment[]; // Array de attachments
 }
 
 function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogout: () => void }) {
@@ -59,6 +76,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [showCajaMenorModal, setShowCajaMenorModal] = useState(false);
   const [cajaMenorActual, setCajaMenorActual] = useState<CajaMenorRecord | null>(null);
+  const [showConsolidarModal, setShowConsolidarModal] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isConsolidating, setIsConsolidating] = useState(false);
   
   // Estados para grabación de audio y transcripción
   const [isRecording, setIsRecording] = useState(false);
@@ -69,6 +89,57 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   // Estados para beneficiarios
   const [beneficiarios, setBeneficiarios] = useState<Array<{ nombre: string; nitCC: string }>>([]);
   const [esNuevoBeneficiario, setEsNuevoBeneficiario] = useState(false);
+  
+  // Estados para comprobante de pago
+  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
+  const [comprobanteUrl, setComprobanteUrl] = useState<string>('');
+
+  // Función helper para formatear fechas ISO sin problemas de zona horaria
+  const formatearFecha = (fechaISO: string): string => {
+    if (!fechaISO) return 'Sin fecha';
+    try {
+      // Dividir la fecha ISO (YYYY-MM-DD) y crear fecha local
+      const [year, month, day] = fechaISO.split('T')[0].split('-');
+      const fecha = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      
+      if (isNaN(fecha.getTime())) return 'Fecha inválida';
+      
+      return fecha.toLocaleDateString('es-CO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return 'Fecha inválida';
+    }
+  };
+
+  // Función helper para formatear mes y año desde fecha ISO
+  const formatearMesAnio = (fechaISO: string): string => {
+    if (!fechaISO) return '';
+    try {
+      const [year, month] = fechaISO.split('T')[0].split('-');
+      const fecha = new Date(parseInt(year), parseInt(month) - 1, 1);
+      
+      if (isNaN(fecha.getTime())) return '';
+      
+      return fecha.toLocaleDateString('es-CO', { 
+        month: 'long', 
+        year: 'numeric' 
+      }).toUpperCase();
+    } catch {
+      return '';
+    }
+  };
+
+  // Función helper para obtener fecha local en formato YYYY-MM-DD sin offset de timezone
+  const obtenerFechaLocal = (): string => {
+    const ahora = new Date();
+    const year = ahora.getFullYear();
+    const month = String(ahora.getMonth() + 1).padStart(2, '0');
+    const day = String(ahora.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Datos del formulario para caja menor
   const [formCajaMenor, setFormCajaMenor] = useState({
@@ -147,6 +218,11 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     return encontrado;
   }, [cajaMenorRecords]);
 
+  // Verificar si la caja menor del mes actual está consolidada
+  const estaConsolidada = useMemo(() => {
+    return !!cajaMenorDelMesActual?.fechaConsolidacion;
+  }, [cajaMenorDelMesActual]);
+
   // Función para verificar si existe caja menor del mes actual
   const verificarCajaMenorMesActual = useCallback(() => {
     return cajaMenorDelMesActual;
@@ -160,6 +236,20 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   // Memoizar el estado del botón de nueva caja menor
   const buttonState = useMemo(() => {
     const exists = !!cajaMenorDelMesActual;
+    const consolidada = estaConsolidada;
+    
+    // Si está consolidada, debe poder crear una nueva caja menor
+    if (consolidada) {
+      return {
+        exists: false,
+        className: 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white hover:shadow-green-500/25',
+        title: 'Crear nueva caja menor para el próximo periodo',
+        text: 'Nueva Caja Menor',
+        shortText: 'Caja',
+        icon: 'DollarSign'
+      };
+    }
+    
     return {
       exists,
       className: exists
@@ -379,6 +469,256 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     setAudioBlob(null);
   };
 
+  // Función para obtener el nombre de la carpeta de la caja menor actual
+  const obtenerNombreCarpetaCajaMenor = () => {
+    if (!cajaMenorDelMesActual) return null;
+    
+    // Parsear fecha ISO sin problemas de zona horaria
+    const [year, month] = cajaMenorDelMesActual.fechaAnticipo.split('T')[0].split('-');
+    const fecha = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const mes = fecha.toLocaleDateString('es-CO', { month: 'long' }).toLowerCase();
+    const anio = fecha.getFullYear();
+    
+    return `${mes}_${anio}_caja_menor`;
+  };
+
+  // Función para subir comprobante de pago
+  const handleComprobanteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validar tipo de archivo
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('❌ Solo se permiten archivos PDF o imágenes (JPG, PNG)');
+        return;
+      }
+      
+      // Validar tamaño (máximo 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('❌ El archivo no debe superar los 10MB');
+        return;
+      }
+      
+      // Solo guardar el archivo localmente, no subirlo aún a S3
+      setComprobanteFile(file);
+      console.log('📄 Archivo seleccionado:', file.name, 'Tamaño:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+    }
+  };
+
+  const clearComprobante = () => {
+    setComprobanteFile(null);
+    setComprobanteUrl('');
+  };
+
+  const generarPDFConsolidacion = async () => {
+    if (!cajaMenorDelMesActual) return;
+    
+    setIsGeneratingPDF(true);
+    try {
+      // Filtrar items del mes actual
+      const itemsDelMes = itemsRecords.filter(item => {
+        const mesActual = obtenerMesActual();
+        const fechaItem = item.fecha?.substring(0, 7);
+        return fechaItem === mesActual;
+      });
+
+      // Preparar datos para el PDF
+      const datosConsolidacion = {
+        cajaMenor: {
+          fechaAnticipo: cajaMenorDelMesActual.fechaAnticipo,
+          fechaCierre: obtenerFechaLocal(),
+          beneficiario: cajaMenorDelMesActual.beneficiario,
+          nitCC: cajaMenorDelMesActual.nitCC || '',
+          concepto: `CAJA MENOR ${formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}`,
+          valorInicial: cajaMenorDelMesActual.valor
+        },
+        items: itemsDelMes.map((item, index) => ({
+          item: index + 1,
+          fecha: item.fecha,
+          beneficiario: item.beneficiario,
+          nitCC: item.nitCC || '',
+          concepto: item.concepto,
+          centroCosto: item.centroCosto || '',
+          valor: item.valor
+        })),
+        totales: {
+          totalLegalizado: totalEgresos,
+          valorReintegrarSirius: totalIngresos - totalEgresos,
+          valorReintegrarBeneficiario: 0
+        }
+      };
+
+      console.log('📄 Generando PDF de consolidación...', datosConsolidacion);
+
+      const response = await fetch('/api/generate-pdf-consolidacion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(datosConsolidacion),
+      });
+
+      if (response.ok) {
+        // El PDF viene directamente como blob
+        const blob = await response.blob();
+        
+        // Extraer el nombre del archivo del header Content-Disposition
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const fileName = contentDisposition
+          ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+          : 'consolidacion-caja-menor.pdf';
+        
+        // Crear URL temporal y descargar
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Limpiar
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        console.log('✅ PDF descargado exitosamente:', fileName);
+        alert(`✅ PDF descargado exitosamente\n\n📄 Archivo: ${fileName}`);
+      } else {
+        const result = await response.json();
+        throw new Error(result.error || 'Error al generar el PDF');
+      }
+    } catch (error) {
+      console.error('❌ Error generando PDF:', error);
+      alert('Error al generar el PDF: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const confirmarConsolidacion = async () => {
+    if (!cajaMenorDelMesActual) return;
+    
+    // Confirmar acción
+    const confirmacion = confirm(
+      '⚠️ CONFIRMAR CONSOLIDACIÓN\n\n' +
+      '¿Está seguro de consolidar esta caja menor?\n\n' +
+      'Esta acción:\n' +
+      '✓ Generará y subirá el PDF de consolidación\n' +
+      '✓ Registrará la fecha de consolidación\n' +
+      '✓ Finalizará el periodo actual\n\n' +
+      '⚠️ Esta acción NO se puede revertir'
+    );
+
+    if (!confirmacion) return;
+
+    setIsConsolidating(true);
+    try {
+      // Filtrar items del mes actual
+      const itemsDelMes = itemsRecords.filter(item => {
+        const mesActual = obtenerMesActual();
+        const fechaItem = item.fecha?.substring(0, 7);
+        return fechaItem === mesActual;
+      });
+
+      // Preparar datos para el PDF
+      const datosConsolidacion = {
+        cajaMenor: {
+          fechaAnticipo: cajaMenorDelMesActual.fechaAnticipo,
+          fechaCierre: obtenerFechaLocal(),
+          beneficiario: cajaMenorDelMesActual.beneficiario,
+          nitCC: cajaMenorDelMesActual.nitCC || '',
+          concepto: `CAJA MENOR ${formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}`,
+          valorInicial: cajaMenorDelMesActual.valor
+        },
+        items: itemsDelMes.map((item, index) => ({
+          item: index + 1,
+          fecha: item.fecha,
+          beneficiario: item.beneficiario,
+          nitCC: item.nitCC || '',
+          concepto: item.concepto,
+          centroCosto: item.centroCosto || '',
+          valor: item.valor
+        })),
+        totales: {
+          totalLegalizado: totalEgresos,
+          valorReintegrarSirius: totalIngresos - totalEgresos,
+          valorReintegrarBeneficiario: 0
+        }
+      };
+
+      console.log('📄 Generando PDF de consolidación para subir a S3...');
+
+      // Generar PDF
+      const pdfResponse = await fetch('/api/generate-pdf-consolidacion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(datosConsolidacion),
+      });
+
+      if (!pdfResponse.ok) {
+        throw new Error('Error al generar el PDF');
+      }
+
+      // Obtener el PDF como blob
+      const pdfBlob = await pdfResponse.blob();
+      const pdfArrayBuffer = await pdfBlob.arrayBuffer();
+      const pdfBuffer = Array.from(new Uint8Array(pdfArrayBuffer));
+
+      console.log('✅ PDF generado, tamaño:', pdfBlob.size, 'bytes');
+
+      // Obtener nombre de carpeta y fecha de consolidación
+      const nombreCarpeta = obtenerNombreCarpetaCajaMenor();
+      const fechaConsolidacion = obtenerFechaLocal();
+
+      console.log('☁️ Subiendo PDF y actualizando registro...');
+
+      // Consolidar: subir PDF a S3 y actualizar Airtable
+      const consolidarResponse = await fetch('/api/consolidar-caja-menor', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cajaMenorId: cajaMenorDelMesActual.id,
+          pdfBuffer,
+          nombreCarpeta,
+          fechaConsolidacion
+        }),
+      });
+
+      const consolidarResult = await consolidarResponse.json();
+
+      if (!consolidarResponse.ok || !consolidarResult.success) {
+        throw new Error(consolidarResult.error || 'Error al consolidar la caja menor');
+      }
+
+      console.log('✅ Consolidación completada exitosamente');
+
+      // Recargar datos
+      await cargarDatos();
+      
+      // Cerrar modal
+      setShowConsolidarModal(false);
+
+      // Mostrar mensaje de éxito
+      alert(
+        '✅ CONSOLIDACIÓN EXITOSA\n\n' +
+        '📄 PDF generado y almacenado\n' +
+        '📅 Fecha de consolidación registrada\n' +
+        '🔒 Periodo finalizado\n\n' +
+        'El periodo de caja menor ha sido cerrado exitosamente.\n' +
+        'Puede crear una nueva caja menor para el próximo periodo.'
+      );
+
+    } catch (error) {
+      console.error('❌ Error en consolidación:', error);
+      alert('Error al consolidar la caja menor: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setIsConsolidating(false);
+    }
+  };
+
   const handleSubmitCajaMenor = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -499,6 +839,45 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       // Determinar el valor final del centro de costo
       const centroCostoFinal = formData.centroCosto === 'Otro' ? formData.centroCostoOtro : formData.centroCosto;
       
+      // Subir comprobante a S3 si existe un archivo seleccionado
+      let comprobanteUrlFinal = comprobanteUrl;
+      if (comprobanteFile && !comprobanteUrl) {
+        console.log('📄 Subiendo comprobante a S3...');
+        try {
+          const nombreCarpeta = obtenerNombreCarpetaCajaMenor();
+          if (!nombreCarpeta) {
+            throw new Error('No se pudo determinar la carpeta de caja menor');
+          }
+
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', comprobanteFile);
+          uploadFormData.append('carpetaCajaMenor', nombreCarpeta);
+          uploadFormData.append('beneficiario', formData.beneficiario || 'sin-beneficiario');
+
+          const uploadResponse = await fetch('/api/upload-comprobante-caja-menor', {
+            method: 'POST',
+            body: uploadFormData,
+          });
+
+          const uploadResult = await uploadResponse.json();
+
+          if (uploadResponse.ok && uploadResult.success) {
+            comprobanteUrlFinal = uploadResult.fileUrl;
+            console.log('✅ Comprobante subido exitosamente:', comprobanteUrlFinal);
+          } else {
+            throw new Error(uploadResult.error || 'Error al subir el comprobante');
+          }
+        } catch (uploadError) {
+          console.error('❌ Error subiendo comprobante:', uploadError);
+          alert('⚠️ Advertencia: No se pudo subir el comprobante. ¿Desea continuar sin el comprobante?\n\nError: ' + (uploadError instanceof Error ? uploadError.message : 'Error desconocido'));
+          // Permitir continuar sin comprobante si el usuario acepta
+          if (!confirm('¿Continuar guardando el item sin comprobante?')) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+      
       // Crear el item y vincularlo automáticamente a la caja menor del mes actual
       const nuevoItem = {
         fecha: formData.fecha,
@@ -508,7 +887,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         centroCosto: centroCostoFinal,
         valor: parseFloat(formData.valor) || 0,
         realizaRegistro: formData.realizaRegistro,
-        cajaMenorId: cajaMenorDelMesActual.id // Vincular con la caja menor actual
+        cajaMenorId: cajaMenorDelMesActual.id, // Vincular con la caja menor actual
+        comprobanteUrl: comprobanteUrlFinal || undefined // Agregar URL del comprobante si existe
       };
 
       const response = await fetch('/api/caja-menor', {
@@ -557,6 +937,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     });
     setEditingItem(null);
     setEsNuevoBeneficiario(false);
+    setComprobanteFile(null);
+    setComprobanteUrl('');
+    setAudioBlob(null);
   };
 
   // Evitar procesamiento durante la carga
@@ -778,7 +1161,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
               </div>
               <div>
                 <p className="text-sm font-semibold text-white/70 mb-2">
-                  {cajaMenorDelMesActual ? 'Disponible Caja Menor' : 'Sin Caja Menor'}
+                  {cajaMenorDelMesActual ? 'Saldo Inicial Caja Menor' : 'Sin Caja Menor'}
                 </p>
                 <p className="text-3xl font-bold text-green-400 mb-2">
                   ${totalIngresos.toLocaleString('es-CO')}
@@ -908,6 +1291,32 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
           </div>
 
+          {/* Alerta: Caja Menor Consolidada */}
+          {cajaMenorDelMesActual && estaConsolidada && (
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-green-500/50 mb-8 shadow-xl">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30 flex-shrink-0">
+                  <CheckCircle className="w-7 h-7 text-green-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-green-300 mb-1">
+                    ✅ Caja Menor Consolidada - {formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}
+                  </h3>
+                  <p className="text-sm text-white/80">
+                    Esta caja menor fue consolidada el {formatearFecha(cajaMenorDelMesActual.fechaConsolidacion || '')}. 
+                    No se pueden agregar más gastos. Puede crear una nueva caja menor para el próximo periodo.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowCajaMenorModal(true)}
+                  className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold shadow-lg whitespace-nowrap"
+                >
+                  Nueva Caja Menor
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Alerta: No hay caja menor del mes actual */}
           {!cajaMenorDelMesActual && (
             <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-yellow-500/50 mb-8 shadow-xl">
@@ -1007,24 +1416,33 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     if (!cajaMenorDelMesActual) {
                       alert('Debe registrar una caja menor para el mes actual antes de registrar gastos');
                       setShowCajaMenorModal(true);
+                    } else if (estaConsolidada) {
+                      alert('⚠️ Caja Menor Consolidada\n\nEsta caja menor ya fue consolidada y no se pueden agregar más gastos.\n\nDebe crear una nueva caja menor para el próximo periodo.');
                     } else {
                       setShowModal(true);
                     }
                   }}
-                  disabled={cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100}
+                  disabled={
+                    (cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100) || 
+                    estaConsolidada
+                  }
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25 disabled:hover:shadow-none"
-                  title={cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100 ? 'Caja menor al 100% de consumo - No se pueden registrar más gastos' : 'Registrar nuevo gasto'}
+                  title={
+                    estaConsolidada 
+                      ? 'Caja menor consolidada - No se pueden registrar más gastos' 
+                      : cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100 
+                        ? 'Caja menor al 100% de consumo - No se pueden registrar más gastos' 
+                        : 'Registrar nuevo gasto'
+                  }
                 >
                   <Plus className="w-5 h-5" />
                   <span>Nuevo Gasto</span>
                 </button>
                 
-                {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% */}
-                {cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
+                {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% y NO está consolidada */}
+                {cajaMenorDelMesActual && !estaConsolidada && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
                   <button
-                    onClick={() => {
-                      alert('🔄 Función de Consolidación de Caja Menor\n\nEsta funcionalidad permite:\n• Cerrar el periodo actual de caja menor\n• Generar un nuevo anticipo adicional\n• Mantener el historial de gastos\n\n⚠️ Esta función está en desarrollo.');
-                    }}
+                    onClick={() => setShowConsolidarModal(true)}
                     className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse"
                     title="Consolidar caja menor - Consumo mayor al 70%"
                   >
@@ -1098,6 +1516,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         Responsable
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                        Comprobante
+                      </th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
                         Estado
                       </th>
                     </tr>
@@ -1109,15 +1530,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                           <div className="flex items-center gap-3">
                             <Calendar className="w-4 h-4 text-blue-400 group-hover:text-blue-300" />
                             <span className="text-sm text-white font-medium">
-                              {(() => {
-                                try {
-                                  if (!item.fecha) return 'Sin fecha';
-                                  const fecha = new Date(item.fecha);
-                                  return isNaN(fecha.getTime()) ? 'Fecha inválida' : fecha.toLocaleDateString('es-CO');
-                                } catch {
-                                  return 'Fecha inválida';
-                                }
-                              })()}
+                              {formatearFecha(item.fecha)}
                             </span>
                           </div>
                         </td>
@@ -1155,6 +1568,29 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             <User className="w-4 h-4 text-purple-400 group-hover:text-purple-300" />
                             <span className="text-sm text-white font-medium">{item.responsable}</span>
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {(() => {
+                            const comprobante = (item as any).comprobante;
+                            if (comprobante && Array.isArray(comprobante) && comprobante.length > 0) {
+                              const archivo = comprobante[0];
+                              return (
+                                <a
+                                  href={archivo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-xs font-semibold border border-blue-500/30 transition-all duration-200"
+                                  title={`Descargar ${archivo.filename || 'comprobante'}`}
+                                >
+                                  {archivo.type?.includes('pdf') ? '📄' : '🖼️'}
+                                  <span>Ver</span>
+                                </a>
+                              );
+                            }
+                            return (
+                              <span className="text-white/40 text-xs italic">Sin comprobante</span>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <span className={`inline-flex items-center px-3 py-2 rounded-xl text-xs font-semibold border ${
@@ -1609,6 +2045,66 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
                 <div>
                   <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-400" />
+                    Comprobante de Pago
+                  </label>
+                  
+                  {!comprobanteFile ? (
+                    <div className="relative">
+                      <input
+                        type="file"
+                        onChange={handleComprobanteChange}
+                        accept=".pdf,image/*"
+                        disabled={!cajaMenorDelMesActual}
+                        className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all duration-200"
+                      />
+                      {!cajaMenorDelMesActual && (
+                        <p className="mt-2 text-xs text-yellow-300">
+                          ⚠️ Debe existir una caja menor activa para adjuntar comprobantes
+                        </p>
+                      )}
+                      <p className="mt-2 text-xs text-blue-300">
+                        💡 El archivo se cargará al guardar el item
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-700/60 rounded-xl p-4 border border-green-400/40">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">
+                            {comprobanteFile.type.includes('pdf') ? '📄' : '🖼️'}
+                          </span>
+                          <div>
+                            <p className="text-white font-medium text-sm">{comprobanteFile.name}</p>
+                            <p className="text-white/70 text-xs">
+                              {(comprobanteFile.size / 1024 / 1024).toFixed(2)} MB • Se cargará al guardar
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearComprobante}
+                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                      {comprobanteUrl && (
+                        <a
+                          href={comprobanteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-blue-300 hover:text-blue-200 text-xs underline"
+                        >
+                          Ver comprobante
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
                     <User className="w-4 h-4 text-blue-400" />
                     Registrado por
                   </label>
@@ -1655,9 +2151,12 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
                       return valorIngresado > saldoDisponible;
                     })()}
-                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors shadow-lg"
+                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors shadow-lg flex items-center justify-center gap-2"
                   >
-                    {loading ? 'Guardando...' : 'Guardar Item'}
+                    {loading && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    )}
+                    {loading ? (comprobanteFile && !comprobanteUrl ? 'Subiendo comprobante...' : 'Guardando...') : 'Guardar Item'}
                   </button>
                   <button
                     type="button"
@@ -1727,6 +2226,245 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           )}
         </div>
       </div>
+
+      {/* Modal de Vista Previa de Consolidación */}
+      {showConsolidarModal && cajaMenorDelMesActual && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            {/* Header del Modal */}
+            <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-orange-700 px-8 py-6 rounded-t-3xl border-b border-white/20 z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white/20 rounded-xl">
+                    <FileText className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold text-white">Vista Previa de Consolidación</h2>
+                    <p className="text-orange-100 mt-1">Formato de Legalización de Anticipo General</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowConsolidarModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                >
+                  <span className="text-white text-2xl">×</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido del Modal - Vista Previa del Formato */}
+            <div className="p-8">
+              {/* Encabezado del Formato */}
+              <div className="bg-white rounded-xl p-6 mb-6 shadow-lg">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-xl">SR</span>
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-800">SIRIUS</h3>
+                      <p className="text-gray-600 text-sm">Regenerative Solutions SAS ZOMAC</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600">Fecha de Actualización:</p>
+                    <p className="font-bold text-gray-800">{new Date().toLocaleDateString('es-CO')}</p>
+                  </div>
+                </div>
+                <div className="border-t-2 border-blue-600 pt-4">
+                  <h4 className="text-xl font-bold text-center text-gray-800">
+                    FORMATO DE LEGALIZACIÓN DE ANTICIPO GENERAL
+                  </h4>
+                </div>
+              </div>
+
+              {/* Información del Centro de Costos */}
+              <div className="bg-blue-50 rounded-xl p-6 mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600 mb-1">FECHA</p>
+                    <div className="text-gray-800 font-medium">
+                      <p className="text-sm">
+                        <span className="font-semibold">Fecha del anticipo:</span>{' '}
+                        {formatearFecha(cajaMenorDelMesActual.fechaAnticipo)}
+                      </p>
+                      <p className="text-sm mt-1">
+                        <span className="font-semibold">Fecha fin:</span>{' '}
+                        {new Date().toLocaleDateString('es-CO')}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600 mb-1">BENEFICIARIO</p>
+                    <p className="text-gray-800 font-medium">{cajaMenorDelMesActual.beneficiario}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600 mb-1">NIT/CC</p>
+                    <p className="text-gray-800 font-medium">{cajaMenorDelMesActual.nitCC || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-600 mb-1">CONCEPTO</p>
+                    <p className="text-gray-800 font-medium">
+                      CAJA MENOR {formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm font-semibold text-gray-600 mb-1">VALOR CAJA MENOR</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${cajaMenorDelMesActual.valor.toLocaleString('es-CO')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de Items */}
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-blue-600 text-white">
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase">ITEM</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase">FECHA</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase">BENEFICIARIO</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase">NIT</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold uppercase">CONCEPTO</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold uppercase">C.C</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold uppercase">COMPROBANTE</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold uppercase">VALOR</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {itemsRecords
+                        .filter(item => {
+                          const mesActual = obtenerMesActual();
+                          const fechaItem = item.fecha?.substring(0, 7);
+                          return fechaItem === mesActual;
+                        })
+                        .map((item, index) => (
+                          <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{index + 1}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              {formatearFecha(item.fecha)}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{item.beneficiario}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{item.nitCC || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
+                              {item.concepto}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-700">
+                              {item.centroCosto || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              {(() => {
+                                const comprobante = (item as any).comprobante;
+                                if (comprobante && Array.isArray(comprobante) && comprobante.length > 0) {
+                                  const archivo = comprobante[0];
+                                  return (
+                                    <a
+                                      href={archivo.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold transition-colors"
+                                      title={`Ver ${archivo.filename || 'comprobante'}`}
+                                    >
+                                      {archivo.type?.includes('pdf') ? '📄' : '🖼️'}
+                                      Ver
+                                    </a>
+                                  );
+                                }
+                                return <span className="text-gray-400 text-xs">-</span>;
+                              })()}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                              ${item.valor.toLocaleString('es-CO')}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Totales */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <p className="text-sm font-semibold text-gray-600 mb-1">TOTAL LEGALIZADO</p>
+                    <p className="text-2xl font-bold text-blue-600">${totalEgresos.toLocaleString('es-CO')}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <p className="text-sm font-semibold text-gray-600 mb-1">VALOR A REINTEGRAR A SIRIUS</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${(totalIngresos - totalEgresos).toLocaleString('es-CO')}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <p className="text-sm font-semibold text-gray-600 mb-1">VALOR A REINTEGRAR AL BENEFICIARIO</p>
+                    <p className="text-2xl font-bold text-orange-600">$0</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nota Legal */}
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-4 mb-6">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  <strong>Nota:</strong> Adjunto a esta legalización se relacionan los soportes físicos legales y originales que 
+                  soportan los gastos efectuados. Todos los soportes los encuentro ordenados de la misma manera en 
+                  que aparecen en la legalización. Aclaro que por medio de los siguientes firmas certificamos que los 
+                  gastos relacionados corresponden a gastos efectuados para el normal funcionamiento de las actividades 
+                  de Sirius Regenerative Solutions SAS ZOMAC, que se encuentran en el subdominio autorizado dentro del 
+                  mes, no se debe legalizar separadamente a fin de quedar sin gastos registrados dentro del mes en el 
+                  que se hizo el gasto. No has recibido culpa alguna de las actividades dentro del mes.
+                </p>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="flex gap-4">
+                <button
+                  onClick={generarPDFConsolidacion}
+                  disabled={isGeneratingPDF}
+                  className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-blue-500/25 flex items-center justify-center gap-2"
+                >
+                  {isGeneratingPDF ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Generando PDF...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      Descargar PDF
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={confirmarConsolidacion}
+                  disabled={isConsolidating}
+                  className="flex-1 px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl font-bold transition-all duration-200 shadow-lg hover:shadow-green-500/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConsolidating ? (
+                    <>
+                      <span className="inline-block animate-spin">⏳</span>
+                      Consolidando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      Confirmar Consolidación
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowConsolidarModal(false)}
+                  className="px-6 py-4 bg-slate-600 hover:bg-slate-700 text-white rounded-xl font-bold transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
