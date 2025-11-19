@@ -34,6 +34,7 @@ interface ConsolidacionData {
   }>;
   pdfUrl?: string; // URL del PDF de consolidación
   attachmentUrls?: string[]; // URLs adicionales de anexos
+  toEmails?: string[]; // Correos destinatarios
 }
 
 // Crear cliente Graph
@@ -266,11 +267,10 @@ async function sendEmail(data: ConsolidacionData): Promise<void> {
       contentType: 'html',
       content: emailBody
     },
-    toRecipients: [{
-      emailAddress: {
-        address: 'david@siriusregenerative.com'
-      }
-    }],
+    toRecipients: data.toEmails ? data.toEmails.map(email => ({ emailAddress: { address: email } })) : [
+      { emailAddress: { address: 'adm@siriusregenerative.com' } },
+      { emailAddress: { address: 'Contabilidad@siriusregenerative.com' } }
+    ],
     from: {
       emailAddress: {
         address: FROM_EMAIL

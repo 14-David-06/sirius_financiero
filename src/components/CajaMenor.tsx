@@ -659,7 +659,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       // Agregar la URL del PDF a los datos de consolidación para el email
       const datosConsolidacionConPDF = {
         ...datosConsolidacion,
-        pdfUrl: consolidarResult.pdfUrl
+        pdfUrl: consolidarResult.pdfUrl,
+        toEmails: ['adm@siriusregenerative.com', 'Contabilidad@siriusregenerative.com']
       };
 
       // Enviar email de notificación
