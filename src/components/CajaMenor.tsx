@@ -34,6 +34,7 @@ interface CajaMenorRecord {
   realizaRegistro?: string; // Nuevo campo: quien realiza el registro
   fechaConsolidacion?: string; // Fecha de consolidación del periodo
   documentoConsolidacion?: AirtableAttachment[]; // Array de attachments del documento de consolidación
+  estadoCajaMenor?: string; // Estado: "Caja Menor Consiliada" o "Caja Menor Abierta"
 }
 
 interface AirtableAttachment {
@@ -89,10 +90,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   // Estados para beneficiarios
   const [beneficiarios, setBeneficiarios] = useState<Array<{ nombre: string; nitCC: string }>>([]);
   const [esNuevoBeneficiario, setEsNuevoBeneficiario] = useState(false);
-  
-  // Estados para comprobante de pago
-  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
-  const [comprobanteUrl, setComprobanteUrl] = useState<string>('');
 
   // Función helper para formatear fechas ISO sin problemas de zona horaria
   const formatearFecha = (fechaISO: string): string => {
@@ -184,92 +181,85 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     cargarDatos();
   }, []);
 
-  // Función para obtener el mes y año actual
-  const obtenerMesActual = () => {
-    const fecha = new Date();
-    return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-  };
-
-  // Memoizar la caja menor del mes actual para evitar re-renders infinitos
-  const cajaMenorDelMesActual = useMemo(() => {
-    const mesActual = obtenerMesActual();
-    console.log('🔍 Frontend - Buscando caja menor del mes:', mesActual);
-    console.log('🔍 Frontend - Total registros caja menor:', cajaMenorRecords.length);
-    
-    const encontrado = cajaMenorRecords.find(record => {
-      const fechaRecord = record.fechaAnticipo?.substring(0, 7); // YYYY-MM
-      console.log('🔍 Frontend - Comparando:', {
-        fechaRecord,
-        mesActual,
-        coincide: fechaRecord === mesActual,
-        beneficiario: record.beneficiario,
-        concepto: record.concepto
-      });
-      return fechaRecord === mesActual;
-    });
-    
-    console.log('🔍 Frontend - Caja menor encontrada del mes actual:', encontrado ? {
-      id: encontrado.id,
-      beneficiario: encontrado.beneficiario,
-      valor: encontrado.valor,
-      fecha: encontrado.fechaAnticipo
-    } : 'NO ENCONTRADA');
-    
-    return encontrado;
+  // Memoizar todas las cajas menores activas (no consolidadas)
+  const cajasMenoresActivas = useMemo(() => {
+    return cajaMenorRecords.filter(record => 
+      record.estadoCajaMenor === 'Caja Menor Abierta' || !record.estadoCajaMenor
+    );
   }, [cajaMenorRecords]);
 
-  // Verificar si la caja menor del mes actual está consolidada
-  const estaConsolidada = useMemo(() => {
-    return !!cajaMenorDelMesActual?.fechaConsolidacion;
-  }, [cajaMenorDelMesActual]);
+  // Memoizar la última caja menor: prioriza cajas activas, si no hay, trae la última por fecha
+  const ultimaCajaMenor = useMemo(() => {
+    if (cajaMenorRecords.length === 0) return null;
+    
+    // Primero buscar cajas activas
+    const activas = cajaMenorRecords.filter(record => 
+      record.estadoCajaMenor === 'Caja Menor Abierta' || !record.estadoCajaMenor
+    );
+    
+    if (activas.length > 0) {
+      // Si hay cajas activas, retornar la más reciente de las activas
+      const activasOrdenadas = [...activas].sort((a, b) => 
+        new Date(b.fechaAnticipo).getTime() - new Date(a.fechaAnticipo).getTime()
+      );
+      return activasOrdenadas[0];
+    }
+    
+    // Si no hay activas, retornar la última por fecha (consolidada)
+    const ordenados = [...cajaMenorRecords].sort((a, b) => 
+      new Date(b.fechaAnticipo).getTime() - new Date(a.fechaAnticipo).getTime()
+    );
+    return ordenados[0];
+  }, [cajaMenorRecords]);
 
-  // Función para verificar si existe caja menor del mes actual
-  const verificarCajaMenorMesActual = useCallback(() => {
-    return cajaMenorDelMesActual;
-  }, [cajaMenorDelMesActual]);
+  // Verificar si la última caja menor está consolidada
+  const estaConsolidada = useMemo(() => {
+    return ultimaCajaMenor?.estadoCajaMenor === 'Caja Menor Consiliada';
+  }, [ultimaCajaMenor]);
+
+  // Función para verificar la última caja menor
+  const verificarUltimaCajaMenor = useCallback(() => {
+    return ultimaCajaMenor;
+  }, [ultimaCajaMenor]);
 
   // Actualizar el estado de caja menor actual cuando cambie
   useEffect(() => {
-    setCajaMenorActual(cajaMenorDelMesActual || null);
-  }, [cajaMenorDelMesActual]);
+    setCajaMenorActual(ultimaCajaMenor || null);
+  }, [ultimaCajaMenor]);
 
   // Memoizar el estado del botón de nueva caja menor
   const buttonState = useMemo(() => {
-    const exists = !!cajaMenorDelMesActual;
-    const consolidada = estaConsolidada;
+    const hayActivas = cajasMenoresActivas.length > 0;
     
-    // Si está consolidada, debe poder crear una nueva caja menor
-    if (consolidada) {
+    if (hayActivas) {
       return {
-        exists: false,
-        className: 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white hover:shadow-green-500/25',
-        title: 'Crear nueva caja menor para el próximo periodo',
+        className: 'bg-gradient-to-r from-gray-600 to-gray-700 text-white/50 cursor-not-allowed',
+        title: 'Debe consolidar las cajas menores activas antes de crear una nueva',
         text: 'Nueva Caja Menor',
         shortText: 'Caja',
-        icon: 'DollarSign'
+        icon: 'DollarSign',
+        disabled: true
       };
     }
     
     return {
-      exists,
-      className: exists
-        ? 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white/80 cursor-not-allowed'
-        : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white hover:shadow-green-500/25',
-      title: exists ? `Caja menor de ${obtenerMesActual()} ya registrada` : 'Crear nueva caja menor',
-      text: exists ? 'Caja Menor Registrada' : 'Nueva Caja Menor',
-      shortText: exists ? 'Registrada' : 'Caja',
-      icon: exists ? 'CheckCircle' : 'DollarSign'
+      className: 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white hover:shadow-green-500/25',
+      title: 'Crear nueva caja menor',
+      text: 'Nueva Caja Menor',
+      shortText: 'Caja',
+      icon: 'DollarSign',
+      disabled: false
     };
-  }, [cajaMenorDelMesActual]);
+  }, [cajasMenoresActivas]);
 
   // Memoizar el handler del botón de nueva caja menor
   const handleNuevaCajaMenor = useCallback(() => {
-    if (cajaMenorDelMesActual) {
-      alert(`❌ Ya existe una Caja Menor para ${obtenerMesActual()}\n\nBeneficiario: ${cajaMenorDelMesActual.beneficiario}\nValor: $${cajaMenorDelMesActual.valor?.toLocaleString('es-CO')}\n\n⚠️ Solo se permite una caja menor por mes y no es modificable.`);
-    } else {
-      setShowCajaMenorModal(true);
+    if (cajasMenoresActivas.length > 0) {
+      alert('❌ No se puede crear una nueva caja menor\n\nDebe consolidar todas las cajas menores activas antes de crear una nueva.');
+      return;
     }
-  }, [cajaMenorDelMesActual]);
+    setShowCajaMenorModal(true);
+  }, [cajasMenoresActivas]);
 
   // Actualizar el campo "Realiza Registro" cuando cambie el usuario
   useEffect(() => {
@@ -471,10 +461,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
   // Función para obtener el nombre de la carpeta de la caja menor actual
   const obtenerNombreCarpetaCajaMenor = () => {
-    if (!cajaMenorDelMesActual) return null;
+    if (!ultimaCajaMenor) return null;
     
     // Parsear fecha ISO sin problemas de zona horaria
-    const [year, month] = cajaMenorDelMesActual.fechaAnticipo.split('T')[0].split('-');
+    const [year, month] = ultimaCajaMenor.fechaAnticipo.split('T')[0].split('-');
     const fecha = new Date(parseInt(year), parseInt(month) - 1, 1);
     const mes = fecha.toLocaleDateString('es-CO', { month: 'long' }).toLowerCase();
     const anio = fecha.getFullYear();
@@ -482,57 +472,29 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     return `${mes}_${anio}_caja_menor`;
   };
 
-  // Función para subir comprobante de pago
-  const handleComprobanteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Validar tipo de archivo
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-      if (!allowedTypes.includes(file.type)) {
-        alert('❌ Solo se permiten archivos PDF o imágenes (JPG, PNG)');
-        return;
-      }
-      
-      // Validar tamaño (máximo 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        alert('❌ El archivo no debe superar los 10MB');
-        return;
-      }
-      
-      // Solo guardar el archivo localmente, no subirlo aún a S3
-      setComprobanteFile(file);
-      console.log('📄 Archivo seleccionado:', file.name, 'Tamaño:', (file.size / 1024 / 1024).toFixed(2), 'MB');
-    }
-  };
 
-  const clearComprobante = () => {
-    setComprobanteFile(null);
-    setComprobanteUrl('');
-  };
 
   const generarPDFConsolidacion = async () => {
-    if (!cajaMenorDelMesActual) return;
+    if (!ultimaCajaMenor) return;
     
     setIsGeneratingPDF(true);
     try {
-      // Filtrar items del mes actual
-      const itemsDelMes = itemsRecords.filter(item => {
-        const mesActual = obtenerMesActual();
-        const fechaItem = item.fecha?.substring(0, 7);
-        return fechaItem === mesActual;
-      });
+      // Filtrar items de la última caja menor
+      const itemsDeLaCaja = itemsRecords.filter(item => 
+        item.cajaMenor?.includes(ultimaCajaMenor.id)
+      );
 
       // Preparar datos para el PDF
       const datosConsolidacion = {
         cajaMenor: {
-          fechaAnticipo: cajaMenorDelMesActual.fechaAnticipo,
+          fechaAnticipo: ultimaCajaMenor.fechaAnticipo,
           fechaCierre: obtenerFechaLocal(),
-          beneficiario: cajaMenorDelMesActual.beneficiario,
-          nitCC: cajaMenorDelMesActual.nitCC || '',
-          concepto: `CAJA MENOR ${formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}`,
-          valorInicial: cajaMenorDelMesActual.valor
+          beneficiario: ultimaCajaMenor.beneficiario,
+          nitCC: ultimaCajaMenor.nitCC || '',
+          concepto: `CAJA MENOR ${formatearMesAnio(ultimaCajaMenor.fechaAnticipo)}`,
+          valorInicial: ultimaCajaMenor.valor
         },
-        items: itemsDelMes.map((item, index) => ({
+        items: itemsDeLaCaja.map((item, index) => ({
           item: index + 1,
           fecha: item.fecha,
           beneficiario: item.beneficiario,
@@ -595,7 +557,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   };
 
   const confirmarConsolidacion = async () => {
-    if (!cajaMenorDelMesActual) return;
+    if (!ultimaCajaMenor) return;
     
     // Confirmar acción
     const confirmacion = confirm(
@@ -612,31 +574,30 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
     setIsConsolidating(true);
     try {
-      // Filtrar items del mes actual
-      const itemsDelMes = itemsRecords.filter(item => {
-        const mesActual = obtenerMesActual();
-        const fechaItem = item.fecha?.substring(0, 7);
-        return fechaItem === mesActual;
-      });
+      // Filtrar items de la última caja menor
+      const itemsDeLaCaja = itemsRecords.filter(item => 
+        item.cajaMenor?.includes(ultimaCajaMenor.id)
+      );
 
       // Preparar datos para el PDF
       const datosConsolidacion = {
         cajaMenor: {
-          fechaAnticipo: cajaMenorDelMesActual.fechaAnticipo,
+          fechaAnticipo: ultimaCajaMenor.fechaAnticipo,
           fechaCierre: obtenerFechaLocal(),
-          beneficiario: cajaMenorDelMesActual.beneficiario,
-          nitCC: cajaMenorDelMesActual.nitCC || '',
-          concepto: `CAJA MENOR ${formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}`,
-          valorInicial: cajaMenorDelMesActual.valor
+          beneficiario: ultimaCajaMenor.beneficiario,
+          nitCC: ultimaCajaMenor.nitCC || '',
+          concepto: `CAJA MENOR ${formatearMesAnio(ultimaCajaMenor.fechaAnticipo)}`,
+          valorInicial: ultimaCajaMenor.valor
         },
-        items: itemsDelMes.map((item, index) => ({
+        items: itemsDeLaCaja.map((item, index) => ({
           item: index + 1,
           fecha: item.fecha,
           beneficiario: item.beneficiario,
           nitCC: item.nitCC || '',
           concepto: item.concepto,
           centroCosto: item.centroCosto || '',
-          valor: item.valor
+          valor: item.valor,
+          comprobanteUrl: item.comprobante?.[0]?.url || undefined
         })),
         totales: {
           totalLegalizado: totalEgresos,
@@ -680,7 +641,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cajaMenorId: cajaMenorDelMesActual.id,
+          cajaMenorId: ultimaCajaMenor.id,
           pdfBuffer,
           nombreCarpeta,
           fechaConsolidacion
@@ -695,6 +656,36 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
       console.log('✅ Consolidación completada exitosamente');
 
+      // Agregar la URL del PDF a los datos de consolidación para el email
+      const datosConsolidacionConPDF = {
+        ...datosConsolidacion,
+        pdfUrl: consolidarResult.pdfUrl
+      };
+
+      // Enviar email de notificación
+      try {
+        console.log('📧 Enviando email de notificación...');
+        const emailResponse = await fetch('/api/send-email-consolidacion', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(datosConsolidacionConPDF),
+        });
+
+        const emailResult = await emailResponse.json();
+        
+        if (emailResponse.ok && emailResult.success) {
+          console.log('✅ Email enviado exitosamente');
+        } else {
+          console.warn('⚠️ Error enviando email:', emailResult.error);
+          // No bloquear el flujo si falla el email
+        }
+      } catch (emailError) {
+        console.error('❌ Error enviando email de notificación:', emailError);
+        // No bloquear el flujo si falla el email
+      }
+
       // Recargar datos
       await cargarDatos();
       
@@ -706,7 +697,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         '✅ CONSOLIDACIÓN EXITOSA\n\n' +
         '📄 PDF generado y almacenado\n' +
         '📅 Fecha de consolidación registrada\n' +
-        '🔒 Periodo finalizado\n\n' +
+        '🔒 Periodo finalizado\n' +
+        '📧 Notificación enviada por email\n\n' +
         'El periodo de caja menor ha sido cerrado exitosamente.\n' +
         'Puede crear una nueva caja menor para el próximo periodo.'
       );
@@ -724,12 +716,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     
     if (!formCajaMenor.beneficiario || !formCajaMenor.concepto || formCajaMenor.valor <= 0) {
       alert('Por favor complete todos los campos');
-      return;
-    }
-
-    // Verificar que no exista ya una caja menor del mes actual
-    if (cajaMenorDelMesActual) {
-      alert(`❌ Ya existe una Caja Menor registrada para ${obtenerMesActual()}.\n\nSolo se permite una caja menor por mes y no se puede modificar una vez creada.\n\nCaja Menor existente:\n- Beneficiario: ${cajaMenorDelMesActual.beneficiario}\n- Concepto: ${cajaMenorDelMesActual.concepto}\n- Valor: $${cajaMenorDelMesActual.valor?.toLocaleString('es-CO')}`);
       return;
     }
 
@@ -759,14 +745,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       const result = await response.json();
 
       if (!response.ok) {
-        // Si es un error 409 (Conflict), significa que ya existe una caja menor del mes
-        if (response.status === 409 && result.existingRecord) {
-          alert(`❌ ${result.error}\n\nCaja Menor existente:\n- Beneficiario: ${result.existingRecord.beneficiario}\n- Valor: $${result.existingRecord.valor?.toLocaleString('es-CO')}\n- Mes: ${result.existingRecord.mes}\n\n⚠️ Solo se permite una caja menor por mes.`);
-        } else {
-          throw new Error(result.error || 'Error al crear la caja menor');
-        }
-        setLoading(false);
-        return;
+        throw new Error(result.error || 'Error al crear la caja menor');
       }
 
       if (result.success) {
@@ -789,22 +768,19 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Verificar que existe caja menor del mes actual
-    if (!cajaMenorDelMesActual) {
-      alert('❌ Debe registrar una caja menor para el mes actual antes de registrar items.\n\nPor favor, cree primero la Caja Menor del mes.');
+    // Verificar que existe al menos una caja menor activa
+    if (cajasMenoresActivas.length === 0) {
+      alert('❌ No hay cajas menores activas para registrar items.\n\nPor favor, cree una caja menor primero.');
       setShowModal(false);
       setShowCajaMenorModal(true);
       return;
     }
     
-    // Calcular saldo disponible actual
-    const totalIngresosCaja = cajaMenorDelMesActual.valor || 0;
+    // Calcular saldo disponible actual (de la primera caja menor activa)
+    const cajaActiva = cajasMenoresActivas[0];
+    const totalIngresosCaja = cajaActiva?.valor || 0;
     const totalEgresosCaja = itemsRecords
-      .filter(item => {
-        const mesActual = obtenerMesActual();
-        const fechaItem = item.fecha?.substring(0, 7);
-        return fechaItem === mesActual;
-      })
+      .filter(item => item.cajaMenor?.includes(cajaActiva?.id || ''))
       .reduce((sum, item) => sum + (item.valor || 0), 0);
     const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
     
@@ -839,46 +815,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       // Determinar el valor final del centro de costo
       const centroCostoFinal = formData.centroCosto === 'Otro' ? formData.centroCostoOtro : formData.centroCosto;
       
-      // Subir comprobante a S3 si existe un archivo seleccionado
-      let comprobanteUrlFinal = comprobanteUrl;
-      if (comprobanteFile && !comprobanteUrl) {
-        console.log('📄 Subiendo comprobante a S3...');
-        try {
-          const nombreCarpeta = obtenerNombreCarpetaCajaMenor();
-          if (!nombreCarpeta) {
-            throw new Error('No se pudo determinar la carpeta de caja menor');
-          }
-
-          const uploadFormData = new FormData();
-          uploadFormData.append('file', comprobanteFile);
-          uploadFormData.append('carpetaCajaMenor', nombreCarpeta);
-          uploadFormData.append('beneficiario', formData.beneficiario || 'sin-beneficiario');
-
-          const uploadResponse = await fetch('/api/upload-comprobante-caja-menor', {
-            method: 'POST',
-            body: uploadFormData,
-          });
-
-          const uploadResult = await uploadResponse.json();
-
-          if (uploadResponse.ok && uploadResult.success) {
-            comprobanteUrlFinal = uploadResult.fileUrl;
-            console.log('✅ Comprobante subido exitosamente:', comprobanteUrlFinal);
-          } else {
-            throw new Error(uploadResult.error || 'Error al subir el comprobante');
-          }
-        } catch (uploadError) {
-          console.error('❌ Error subiendo comprobante:', uploadError);
-          alert('⚠️ Advertencia: No se pudo subir el comprobante. ¿Desea continuar sin el comprobante?\n\nError: ' + (uploadError instanceof Error ? uploadError.message : 'Error desconocido'));
-          // Permitir continuar sin comprobante si el usuario acepta
-          if (!confirm('¿Continuar guardando el item sin comprobante?')) {
-            setLoading(false);
-            return;
-          }
-        }
-      }
-      
-      // Crear el item y vincularlo automáticamente a la caja menor del mes actual
+      // Crear el item y vincularlo automáticamente a la primera caja menor activa
       const nuevoItem = {
         fecha: formData.fecha,
         beneficiario: formData.beneficiario,
@@ -887,8 +824,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         centroCosto: centroCostoFinal,
         valor: parseFloat(formData.valor) || 0,
         realizaRegistro: formData.realizaRegistro,
-        cajaMenorId: cajaMenorDelMesActual.id, // Vincular con la caja menor actual
-        comprobanteUrl: comprobanteUrlFinal || undefined // Agregar URL del comprobante si existe
+        cajaMenorId: cajaActiva?.id || '' // Vincular con la primera caja menor activa
       };
 
       const response = await fetch('/api/caja-menor', {
@@ -937,8 +873,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     });
     setEditingItem(null);
     setEsNuevoBeneficiario(false);
-    setComprobanteFile(null);
-    setComprobanteUrl('');
     setAudioBlob(null);
   };
 
@@ -1005,6 +939,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     categoria: string;
     responsable: string;
     comprobante?: string;
+    cajaMenorId?: string[]; // Para filtrar items de la caja menor
   };
 
   const todosLosItems: ItemUnificado[] = [
@@ -1052,7 +987,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         estado: 'aprobado',
         categoria: 'Gasto',
         responsable: item.beneficiario || 'Sistema',
-        comprobante: undefined
+        comprobante: undefined,
+        cajaMenorId: item.cajaMenor
       }))
   ];
 
@@ -1060,13 +996,12 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     // Validar que el item existe y tiene las propiedades necesarias
     if (!item || typeof item !== 'object') return false;
     
-    // Si no hay caja menor del mes actual, no mostrar ningún registro
-    if (!cajaMenorDelMesActual) return false;
+    // Si no hay última caja menor, no mostrar ningún registro
+    if (!ultimaCajaMenor) return false;
     
-    // Solo mostrar registros del mes actual
-    const mesActual = obtenerMesActual();
-    const fechaItem = item.fecha?.substring(0, 7); // YYYY-MM
-    if (fechaItem !== mesActual) return false;
+    // Solo mostrar registros de cajas menores activas
+    if (item.tipo === 'anticipo' && !cajasMenoresActivas.some(caja => caja.id === item.id)) return false;
+    if (item.tipo === 'gasto' && !item.cajaMenorId?.some(id => cajasMenoresActivas.some(caja => caja.id === id))) return false;
     
     const searchText = busqueda.toLowerCase();
     const matchBusqueda = (item.concepto || '').toLowerCase().includes(searchText) ||
@@ -1082,26 +1017,23 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     return matchBusqueda && matchTipo && matchEstado;
   });
 
-  // Calcular totales solo si existe caja menor del mes actual
-  const totalIngresos = cajaMenorDelMesActual ? (cajaMenorDelMesActual.valor || 0) : 0;
+  // Calcular totales de todas las cajas menores activas
+  const totalIngresos = cajasMenoresActivas.reduce((sum, caja) => sum + (caja.valor || 0), 0);
   
-  // Calcular egresos solo del mes actual si existe caja menor
-  const totalEgresos = cajaMenorDelMesActual 
-    ? itemsRecords
-        .filter(item => {
-          const mesActual = obtenerMesActual();
-          const fechaItem = item.fecha?.substring(0, 7); // YYYY-MM
-          return fechaItem === mesActual;
-        })
-        .reduce((sum, item) => sum + (item.valor || 0), 0)
-    : 0;
+  // Calcular egresos de todas las cajas menores activas
+  const totalEgresos = itemsRecords
+    .filter(item => {
+      // Items que pertenecen a cajas menores activas
+      return cajasMenoresActivas.some(caja => item.cajaMenor?.includes(caja.id));
+    })
+    .reduce((sum, item) => sum + (item.valor || 0), 0);
 
   const saldoActual = totalIngresos - totalEgresos;
 
   // Debug: Log de estado actual
   console.log('📊 Estado Dashboard Caja Menor:', {
-    cajaMenorDelMesActual: !!cajaMenorDelMesActual,
-    mesActual: obtenerMesActual(),
+    ultimaCajaMenor: !!ultimaCajaMenor,
+    estaConsolidada,
     totalIngresos,
     totalEgresos,
     saldoActual,
@@ -1152,7 +1084,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30">
                   <DollarSign className="w-7 h-7 text-green-400" />
                 </div>
-                {cajaMenorDelMesActual && (
+                {ultimaCajaMenor && (
                   <div className="flex items-center gap-1 bg-green-500/20 px-2 py-1 rounded-full border border-green-500/30">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                     <span className="text-xs font-bold text-green-300">Activa</span>
@@ -1161,15 +1093,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
               </div>
               <div>
                 <p className="text-sm font-semibold text-white/70 mb-2">
-                  {cajaMenorDelMesActual ? 'Saldo Inicial Caja Menor' : 'Sin Caja Menor'}
+                  {cajasMenoresActivas.length > 0 ? 'Total Cajas Menores Activas' : 'Sin Cajas Menores'}
                 </p>
                 <p className="text-3xl font-bold text-green-400 mb-2">
                   ${totalIngresos.toLocaleString('es-CO')}
                 </p>
-                {cajaMenorDelMesActual ? (
+                {cajasMenoresActivas.length > 0 ? (
                   <p className="text-xs text-white/60 flex items-center gap-1">
                     <User className="w-3 h-3" />
-                    {cajaMenorDelMesActual.beneficiario}
+                    {cajasMenoresActivas.length} caja{cajasMenoresActivas.length > 1 ? 's' : ''} activa{cajasMenoresActivas.length > 1 ? 's' : ''}
                   </p>
                 ) : (
                   <p className="text-xs text-white/60 flex items-center gap-1">
@@ -1292,7 +1224,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           </div>
 
           {/* Alerta: Caja Menor Consolidada */}
-          {cajaMenorDelMesActual && estaConsolidada && (
+          {ultimaCajaMenor && estaConsolidada && (
             <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-green-500/50 mb-8 shadow-xl">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30 flex-shrink-0">
@@ -1300,10 +1232,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-green-300 mb-1">
-                    ✅ Caja Menor Consolidada - {formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}
+                    ✅ Caja Menor Consolidada - {formatearMesAnio(ultimaCajaMenor.fechaAnticipo)}
                   </h3>
                   <p className="text-sm text-white/80">
-                    Esta caja menor fue consolidada el {formatearFecha(cajaMenorDelMesActual.fechaConsolidacion || '')}. 
+                    Esta caja menor fue consolidada el {formatearFecha(ultimaCajaMenor.fechaConsolidacion || '')}. 
                     No se pueden agregar más gastos. Puede crear una nueva caja menor para el próximo periodo.
                   </p>
                 </div>
@@ -1318,7 +1250,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           )}
 
           {/* Alerta: No hay caja menor del mes actual */}
-          {!cajaMenorDelMesActual && (
+          {!ultimaCajaMenor && (
             <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-yellow-500/50 mb-8 shadow-xl">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-yellow-500/20 rounded-xl border border-yellow-500/30 flex-shrink-0">
@@ -1326,10 +1258,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-yellow-300 mb-1">
-                    Caja Menor no registrada para {obtenerMesActual()}
+                    No hay Caja Menor registrada
                   </h3>
                   <p className="text-sm text-white/80">
-                    Para registrar gastos, primero debe crear la caja menor del mes actual especificando quién estará a cargo y el monto disponible.
+                    Para registrar gastos, primero debe crear una caja menor especificando quién estará a cargo y el monto disponible.
                   </p>
                 </div>
                 <button
@@ -1343,10 +1275,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           )}
 
           {/* Alerta: Valores anormalmente altos detectados */}
-          {cajaMenorDelMesActual && itemsRecords.some(item => {
-            const mesActual = obtenerMesActual();
-            const fechaItem = item.fecha?.substring(0, 7);
-            return fechaItem === mesActual && item.valor > 100000000;
+          {ultimaCajaMenor && itemsRecords.some(item => {
+            return item.cajaMenor?.includes(ultimaCajaMenor.id) && item.valor > 100000000;
           }) && (
             <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-red-500/50 mb-8 shadow-xl">
               <div className="flex items-center gap-4">
@@ -1409,61 +1339,60 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
               </div>
 
-              {/* Botones de acción */}
-              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                <button
-                  onClick={() => {
-                    if (!cajaMenorDelMesActual) {
-                      alert('Debe registrar una caja menor para el mes actual antes de registrar gastos');
-                      setShowCajaMenorModal(true);
-                    } else if (estaConsolidada) {
-                      alert('⚠️ Caja Menor Consolidada\n\nEsta caja menor ya fue consolidada y no se pueden agregar más gastos.\n\nDebe crear una nueva caja menor para el próximo periodo.');
-                    } else {
-                      setShowModal(true);
-                    }
-                  }}
-                  disabled={
-                    (cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100) || 
-                    estaConsolidada
-                  }
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25 disabled:hover:shadow-none"
-                  title={
-                    estaConsolidada 
-                      ? 'Caja menor consolidada - No se pueden registrar más gastos' 
-                      : cajaMenorDelMesActual && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100 
-                        ? 'Caja menor al 100% de consumo - No se pueden registrar más gastos' 
-                        : 'Registrar nuevo gasto'
-                  }
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Nuevo Gasto</span>
-                </button>
-                
-                {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% y NO está consolidada */}
-                {cajaMenorDelMesActual && !estaConsolidada && totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
+              {/* Botones de acción - Solo visibles si hay cajas menores activas */}
+              {cajasMenoresActivas.length > 0 && (
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                   <button
-                    onClick={() => setShowConsolidarModal(true)}
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse"
-                    title="Consolidar caja menor - Consumo mayor al 70%"
+                    onClick={() => {
+                      if (totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100) {
+                        alert('❌ Cajas menores al 100% de consumo\n\nNo se pueden registrar más gastos.');
+                      } else {
+                        setShowModal(true);
+                      }
+                    }}
+                    disabled={totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25 disabled:hover:shadow-none"
+                    title={
+                      totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100
+                        ? 'Cajas menores al 100% de consumo - No se pueden registrar más gastos'
+                        : 'Registrar nuevo gasto'
+                    }
                   >
-                    <AlertTriangle className="w-5 h-5" />
-                    <span>Consolidar Caja Menor</span>
+                    <Plus className="w-5 h-5" />
+                    <span>Nuevo Gasto</span>
                   </button>
-                )}
-                
-                <button
-                  onClick={handleNuevaCajaMenor}
-                  className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg ${buttonState.className}`}
-                  title={buttonState.title}
-                >
-                  {buttonState.icon === 'CheckCircle' ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    <DollarSign className="w-5 h-5" />
+                  
+                  {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% */}
+                  {totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
+                    <button
+                      onClick={() => setShowConsolidarModal(true)}
+                      className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse"
+                      title="Consolidar caja menor - Consumo mayor al 70%"
+                    >
+                      <AlertTriangle className="w-5 h-5" />
+                      <span>Consolidar Caja Menor</span>
+                    </button>
                   )}
-                  <span>{buttonState.text}</span>
-                </button>
-              </div>
+                </div>
+              )}
+              
+              {/* Botón Nueva Caja Menor - Solo visible si NO hay cajas activas */}
+              {cajasMenoresActivas.length === 0 && (
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                  <button
+                    onClick={handleNuevaCajaMenor}
+                    className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg ${buttonState.className}`}
+                    title={buttonState.title}
+                  >
+                    {buttonState.icon === 'CheckCircle' ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <DollarSign className="w-5 h-5" />
+                    )}
+                    <span>{buttonState.text}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1514,9 +1443,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                         Responsable
-                      </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
-                        Comprobante
                       </th>
                       <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
                         Estado
@@ -1634,7 +1560,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     <DollarSign className="w-6 h-6 text-green-400" />
                   </div>
                   <h3 className="text-xl font-bold text-white">
-                    Nueva Caja Menor - {obtenerMesActual()}
+                    Nueva Caja Menor
                   </h3>
                 </div>
                 <button
@@ -1651,11 +1577,11 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <h4 className="text-amber-400 font-bold text-sm mb-1">
-                      ⚠️ IMPORTANTE - Solo UNA Caja Menor por Mes
+                      ⚠️ IMPORTANTE - Control de Cajas Menores
                     </h4>
                     <p className="text-amber-200/90 text-xs leading-relaxed">
-                      • Una vez registrada la caja menor del mes, <strong>NO se puede modificar</strong><br/>
-                      • Solo se permite una caja menor por mes calendario<br/>
+                      • Una vez registrada la caja menor, <strong>NO se puede modificar</strong><br/>
+                      • Debe consolidar las cajas activas antes de crear una nueva<br/>
                       • Asegúrate de que todos los datos sean correctos antes de guardar
                     </p>
                   </div>
@@ -1826,15 +1752,11 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
                       required
                     />
-                    {cajaMenorDelMesActual && formData.valor && (() => {
+                    {ultimaCajaMenor && formData.valor && (() => {
                       const valorIngresado = parseFloat(formData.valor) || 0;
-                      const totalIngresosCaja = cajaMenorDelMesActual.valor || 0;
+                      const totalIngresosCaja = ultimaCajaMenor.valor || 0;
                       const totalEgresosCaja = itemsRecords
-                        .filter(item => {
-                          const mesActual = obtenerMesActual();
-                          const fechaItem = item.fecha?.substring(0, 7);
-                          return fechaItem === mesActual;
-                        })
+                        .filter(item => item.cajaMenor?.includes(ultimaCajaMenor.id))
                         .reduce((sum, item) => sum + (item.valor || 0), 0);
                       const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
                       const excedente = valorIngresado - saldoDisponible;
@@ -2045,66 +1967,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
                 <div>
                   <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-400" />
-                    Comprobante de Pago
-                  </label>
-                  
-                  {!comprobanteFile ? (
-                    <div className="relative">
-                      <input
-                        type="file"
-                        onChange={handleComprobanteChange}
-                        accept=".pdf,image/*"
-                        disabled={!cajaMenorDelMesActual}
-                        className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all duration-200"
-                      />
-                      {!cajaMenorDelMesActual && (
-                        <p className="mt-2 text-xs text-yellow-300">
-                          ⚠️ Debe existir una caja menor activa para adjuntar comprobantes
-                        </p>
-                      )}
-                      <p className="mt-2 text-xs text-blue-300">
-                        💡 El archivo se cargará al guardar el item
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-700/60 rounded-xl p-4 border border-green-400/40">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">
-                            {comprobanteFile.type.includes('pdf') ? '📄' : '🖼️'}
-                          </span>
-                          <div>
-                            <p className="text-white font-medium text-sm">{comprobanteFile.name}</p>
-                            <p className="text-white/70 text-xs">
-                              {(comprobanteFile.size / 1024 / 1024).toFixed(2)} MB • Se cargará al guardar
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={clearComprobante}
-                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                      {comprobanteUrl && (
-                        <a
-                          href={comprobanteUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-blue-300 hover:text-blue-200 text-xs underline"
-                        >
-                          Ver comprobante
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
                     <User className="w-4 h-4 text-blue-400" />
                     Registrado por
                   </label>
@@ -2117,17 +1979,17 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   </p>
                 </div>
 
-                {cajaMenorDelMesActual && (
+                {ultimaCajaMenor && (
                   <div className="p-4 bg-blue-500/10 border border-blue-400/30 rounded-xl">
                     <div className="flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
                       <div>
                         <h4 className="text-blue-400 font-bold text-sm mb-1">
-                          ✅ Se vinculará a la Caja Menor de {obtenerMesActual()}
+                          ✅ Se vinculará a la última Caja Menor activa
                         </h4>
                         <p className="text-blue-200/90 text-xs leading-relaxed">
-                          Responsable: <strong>{cajaMenorDelMesActual.beneficiario}</strong><br/>
-                          Valor disponible: <strong>${cajaMenorDelMesActual.valor?.toLocaleString('es-CO')}</strong>
+                          Responsable: <strong>{ultimaCajaMenor.beneficiario}</strong><br/>
+                          Valor disponible: <strong>${ultimaCajaMenor.valor?.toLocaleString('es-CO')}</strong>
                         </p>
                       </div>
                     </div>
@@ -2138,15 +2000,11 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   <button
                     type="submit"
                     disabled={loading || ((): boolean => {
-                      if (!cajaMenorDelMesActual || !formData.valor) return false;
+                      if (!ultimaCajaMenor || !formData.valor) return false;
                       const valorIngresado = parseFloat(formData.valor) || 0;
-                      const totalIngresosCaja = cajaMenorDelMesActual.valor || 0;
+                      const totalIngresosCaja = ultimaCajaMenor.valor || 0;
                       const totalEgresosCaja = itemsRecords
-                        .filter(item => {
-                          const mesActual = obtenerMesActual();
-                          const fechaItem = item.fecha?.substring(0, 7);
-                          return fechaItem === mesActual;
-                        })
+                        .filter(item => item.cajaMenor?.includes(ultimaCajaMenor.id))
                         .reduce((sum, item) => sum + (item.valor || 0), 0);
                       const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
                       return valorIngresado > saldoDisponible;
@@ -2156,7 +2014,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     {loading && (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     )}
-                    {loading ? (comprobanteFile && !comprobanteUrl ? 'Subiendo comprobante...' : 'Guardando...') : 'Guardar Item'}
+                    {loading ? 'Guardando...' : 'Guardar Item'}
                   </button>
                   <button
                     type="button"
@@ -2183,9 +2041,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white">
-                    Resumen de Caja Menor - {obtenerMesActual()}
+                    Resumen de Caja Menor Actual
                   </h3>
-                  <p className="text-sm text-white/70">Estado actual del periodo</p>
+                  <p className="text-sm text-white/70">Última caja registrada: {formatearFecha(cajaMenorActual.fechaAnticipo)}</p>
                 </div>
               </div>
               
@@ -2228,7 +2086,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       </div>
 
       {/* Modal de Vista Previa de Consolidación */}
-      {showConsolidarModal && cajaMenorDelMesActual && (
+      {showConsolidarModal && ultimaCajaMenor && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             {/* Header del Modal */}
@@ -2286,7 +2144,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     <div className="text-gray-800 font-medium">
                       <p className="text-sm">
                         <span className="font-semibold">Fecha del anticipo:</span>{' '}
-                        {formatearFecha(cajaMenorDelMesActual.fechaAnticipo)}
+                        {formatearFecha(ultimaCajaMenor.fechaAnticipo)}
                       </p>
                       <p className="text-sm mt-1">
                         <span className="font-semibold">Fecha fin:</span>{' '}
@@ -2296,22 +2154,22 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-600 mb-1">BENEFICIARIO</p>
-                    <p className="text-gray-800 font-medium">{cajaMenorDelMesActual.beneficiario}</p>
+                    <p className="text-gray-800 font-medium">{ultimaCajaMenor.beneficiario}</p>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-600 mb-1">NIT/CC</p>
-                    <p className="text-gray-800 font-medium">{cajaMenorDelMesActual.nitCC || '-'}</p>
+                    <p className="text-gray-800 font-medium">{ultimaCajaMenor.nitCC || '-'}</p>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-600 mb-1">CONCEPTO</p>
                     <p className="text-gray-800 font-medium">
-                      CAJA MENOR {formatearMesAnio(cajaMenorDelMesActual.fechaAnticipo)}
+                      CAJA MENOR {formatearMesAnio(ultimaCajaMenor.fechaAnticipo)}
                     </p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-sm font-semibold text-gray-600 mb-1">VALOR CAJA MENOR</p>
                     <p className="text-2xl font-bold text-green-600">
-                      ${cajaMenorDelMesActual.valor.toLocaleString('es-CO')}
+                      ${ultimaCajaMenor.valor.toLocaleString('es-CO')}
                     </p>
                   </div>
                 </div>
@@ -2335,11 +2193,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {itemsRecords
-                        .filter(item => {
-                          const mesActual = obtenerMesActual();
-                          const fechaItem = item.fecha?.substring(0, 7);
-                          return fechaItem === mesActual;
-                        })
+                        .filter(item => item.cajaMenor?.includes(ultimaCajaMenor.id))
                         .map((item, index) => (
                           <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-4 py-3 text-sm font-medium text-gray-900">{index + 1}</td>

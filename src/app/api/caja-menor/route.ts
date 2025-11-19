@@ -63,7 +63,10 @@ export async function GET(request: NextRequest) {
           concepto: record.fields['Concepto Caja Menor'], 
           valor: record.fields['Valor Caja Menor'], 
           itemsCajaMenor: record.fields['Items Caja Menor'], 
-          realizaRegistro: record.fields['Realiza Registro']
+          realizaRegistro: record.fields['Realiza Registro'],
+          fechaConsolidacion: record.fields['Fecha Consolidacion'],
+          documentoConsolidacion: record.fields['Documento Consiliacion'],
+          estadoCajaMenor: record.fields['Estado Caja Menor']
         });
       });
       fetchNextPage();
@@ -163,46 +166,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      // ⚠️ VALIDACIÓN CRÍTICA: Verificar que no exista ya una caja menor del mes actual
-      const fechaSolicitud = new Date(data.fechaAnticipo);
-      const mesActual = `${fechaSolicitud.getFullYear()}-${String(fechaSolicitud.getMonth() + 1).padStart(2, '0')}`;
-      
-      console.log('🔍 Verificando si existe caja menor para el mes:', mesActual);
-      
-      // Consultar registros del mes actual
-      const registrosDelMes: any[] = [];
-      await base(CAJA_MENOR_TABLE_ID).select({
-        filterByFormula: `AND(YEAR({Fecha Anticipo}) = ${fechaSolicitud.getFullYear()}, MONTH({Fecha Anticipo}) = ${fechaSolicitud.getMonth() + 1})`,
-        maxRecords: 10
-      }).eachPage((pageRecords, fetchNextPage) => {
-        registrosDelMes.push(...pageRecords);
-        fetchNextPage();
-      });
-
-      if (registrosDelMes.length > 0) {
-        const registroExistente = registrosDelMes[0];
-        const beneficiario = registroExistente.fields['Beneficiario'] || 'Desconocido';
-        const valor = registroExistente.fields['Valor Caja Menor'] || 0;
-        
-        console.log('❌ Ya existe una caja menor para este mes:', {
-          id: registroExistente.id,
-          beneficiario,
-          valor,
-          mes: mesActual
-        });
-        
-        return NextResponse.json({
-          error: `Ya existe una Caja Menor registrada para ${mesActual}. Solo se permite una caja menor por mes.`,
-          success: false,
-          existingRecord: {
-            beneficiario,
-            valor,
-            mes: mesActual
-          }
-        }, { status: 409 }); // 409 Conflict
-      }
-
-      console.log('✅ No existe caja menor previa para este mes, procediendo a crear...');
+      console.log('✅ Campos validados, procediendo a crear caja menor...');
 
       // Crear el registro en la tabla Caja Menor usando NOMBRES de campos
       const createdRecord = await base(CAJA_MENOR_TABLE_ID).create({
