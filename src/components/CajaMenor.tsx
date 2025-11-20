@@ -966,6 +966,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   // Combinar datos para mostrar en la tabla
   type ItemUnificado = {
     id: string;
+    item?: number;
     fecha: string;
     concepto: string;
     valor: number;
@@ -974,7 +975,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     estado: string;
     categoria: string;
     responsable: string;
-    comprobante?: string;
+    comprobante?: AirtableAttachment[];
     cajaMenorId?: string[]; // Para filtrar items de la caja menor
   };
 
@@ -992,6 +993,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       )
       .map(record => ({
         id: record.id,
+        item: undefined,
         fecha: record.fechaAnticipo,
         concepto: record.concepto,
         valor: Number(record.valor) || 0,
@@ -1000,7 +1002,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         estado: 'aprobado',
         categoria: 'Anticipo',
         responsable: record.realizaRegistro || record.beneficiario || 'Sistema',
-        comprobante: undefined
+        comprobante: record.documentoConsolidacion
       })),
     // Filtrar y mapear registros de Items (solo los que tienen datos válidos)
     ...itemsRecords
@@ -1015,6 +1017,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       )
       .map(item => ({
         id: item.id,
+        item: item.item,
         fecha: item.fecha,
         concepto: item.concepto,
         valor: Number(item.valor) || 0,
@@ -1023,7 +1026,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         estado: 'aprobado',
         categoria: 'Gasto',
         responsable: item.beneficiario || 'Sistema',
-        comprobante: undefined,
+        comprobante: item.comprobante,
         cajaMenorId: item.cajaMenor
       }))
   ];
@@ -1460,6 +1463,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 <table className="w-full min-w-[800px]">
                   <thead>
                     <tr className="border-b border-white/20 bg-slate-700/60">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                        #
+                      </th>
                       <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                         Fecha
                       </th>
@@ -1479,13 +1485,18 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         Responsable
                       </th>
                       <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
-                        Estado
+                        Comprobante
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
-                    {itemsFiltrados.map((item) => (
+                    {itemsFiltrados.map((item, index) => (
                       <tr key={item.id} className="hover:bg-slate-700/40 transition-all duration-200 group">
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center">
+                          <span className="text-xs md:text-sm text-white font-medium">
+                            {item.item || (index + 0)}
+                          </span>
+                        </td>
                         <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2 md:gap-3">
                             <Calendar className="w-3 h-3 md:w-4 md:h-4 text-blue-400 group-hover:text-blue-300 flex-shrink-0" />
@@ -1498,11 +1509,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                           <div className="text-xs md:text-sm text-white font-medium truncate max-w-[120px] md:max-w-xs">
                             {item.concepto || 'Sin concepto'}
                           </div>
-                          {item.comprobante && (
-                            <div className="text-xs text-white/60 mt-1">
-                              {item.comprobante}
-                            </div>
-                          )}
                         </td>
                         <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-right">
                           <span className={`text-xs md:text-sm font-bold ${
@@ -1531,50 +1537,43 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         </td>
                         <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center">
                           {(() => {
-                            const comprobante = (item as any).comprobante;
+                            const comprobante = item.comprobante;
                             if (comprobante && Array.isArray(comprobante) && comprobante.length > 0) {
-                              const archivo = comprobante[0];
                               return (
-                                <a
-                                  href={archivo.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg text-xs font-semibold border border-blue-500/30 transition-all duration-200"
-                                  title={`Descargar ${archivo.filename || 'comprobante'}`}
-                                >
-                                  {archivo.type?.includes('pdf') ? '📄' : '🖼️'}
-                                  <span>Ver</span>
-                                </a>
+                                <div className="flex flex-wrap justify-center gap-1">
+                                  {comprobante.slice(0, 3).map((archivo: AirtableAttachment, idx: number) => (
+                                    <div key={idx} className="relative">
+                                      {archivo.type?.includes('image') && archivo.thumbnails?.small ? (
+                                        <img
+                                          src={archivo.thumbnails.small.url}
+                                          alt={archivo.filename}
+                                          className="w-8 h-8 rounded cursor-pointer border border-white/20 hover:border-white/40 transition-all"
+                                          onClick={() => window.open(archivo.url, '_blank')}
+                                          title={`Ver ${archivo.filename}`}
+                                        />
+                                      ) : (
+                                        <a
+                                          href={archivo.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center justify-center w-8 h-8 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded border border-blue-500/30 transition-all"
+                                          title={`Descargar ${archivo.filename || 'comprobante'}`}
+                                        >
+                                          {archivo.type?.includes('pdf') ? '📄' : '📎'}
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {comprobante.length > 3 && (
+                                    <span className="text-xs text-white/60">+{comprobante.length - 3}</span>
+                                  )}
+                                </div>
                               );
                             }
                             return (
                               <span className="text-white/40 text-xs italic">Sin comprobante</span>
                             );
                           })()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className={`inline-flex items-center px-3 py-2 rounded-xl text-xs font-semibold border ${
-                            item.estado === 'aprobado' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
-                            item.estado === 'pendiente' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' :
-                            'bg-red-500/20 text-red-300 border-red-500/30'
-                          }`}>
-                            {item.estado === 'aprobado' ? (
-                              <>
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Aprobado
-                              </>
-                            ) : item.estado === 'pendiente' ? (
-                              <>
-                                <Clock className="w-3 h-3 mr-1" />
-                                Pendiente
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="w-3 h-3 mr-1" />
-                                Rechazado
-                              </>
-                            )}
-                          </span>
                         </td>
                       </tr>
                     ))}
@@ -1732,7 +1731,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
         {/* Modal de nuevo/editar registro - Diseño Profesional */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-[9999] mt-16">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-[9999] mt-24">
             <div className="bg-slate-800/95 backdrop-blur-md rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/30 shadow-2xl">
               <div className="sticky top-0 bg-slate-800/98 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 border-b border-white/20 flex items-center justify-between">
                 <div className="flex items-center gap-2 md:gap-3">
