@@ -156,7 +156,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     centroCosto: '',
     centroCostoOtro: '',
     valor: '',
-    realizaRegistro: userData?.nombre || 'Usuario'
+    realizaRegistro: userData?.nombre || 'Usuario',
+    comprobanteFile: null as File | null
   });
 
   const categorias = [
@@ -816,6 +817,38 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       // Determinar el valor final del centro de costo
       const centroCostoFinal = formData.centroCosto === 'Otro' ? formData.centroCostoOtro : formData.centroCosto;
       
+      let comprobanteUrl = '';
+      
+      // Subir archivo si existe
+      if (formData.comprobanteFile) {
+        console.log('📤 Subiendo comprobante...');
+        
+        // Generar carpeta basada en el mes y año actual
+        const fechaActual = new Date();
+        const mes = fechaActual.toLocaleString('es-CO', { month: 'long' }).toLowerCase();
+        const año = fechaActual.getFullYear();
+        const carpetaCajaMenor = `${mes}_${año}`;
+        
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', formData.comprobanteFile);
+        formDataUpload.append('carpetaCajaMenor', carpetaCajaMenor);
+        formDataUpload.append('beneficiario', formData.beneficiario);
+        
+        const uploadResponse = await fetch('/api/upload-comprobante-caja-menor', {
+          method: 'POST',
+          body: formDataUpload,
+        });
+        
+        const uploadResult = await uploadResponse.json();
+        
+        if (!uploadResponse.ok) {
+          throw new Error(uploadResult.error || 'Error al subir el comprobante');
+        }
+        
+        comprobanteUrl = uploadResult.fileUrl;
+        console.log('✅ Comprobante subido:', comprobanteUrl);
+      }
+      
       // Crear el item y vincularlo automáticamente a la primera caja menor activa
       const nuevoItem = {
         fecha: formData.fecha,
@@ -825,7 +858,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         centroCosto: centroCostoFinal,
         valor: parseFloat(formData.valor) || 0,
         realizaRegistro: formData.realizaRegistro,
-        cajaMenorId: cajaActiva?.id || '' // Vincular con la primera caja menor activa
+        cajaMenorId: cajaActiva?.id || '', // Vincular con la primera caja menor activa
+        comprobanteUrl: comprobanteUrl || undefined
       };
 
       const response = await fetch('/api/caja-menor', {
@@ -870,7 +904,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       centroCosto: '',
       centroCostoOtro: '',
       valor: '',
-      realizaRegistro: userData?.nombre || 'Usuario'
+      realizaRegistro: userData?.nombre || 'Usuario',
+      comprobanteFile: null
     });
     setEditingItem(null);
     setEsNuevoBeneficiario(false);
@@ -1968,6 +2003,32 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
                 <div>
                   <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-400" />
+                    Documento soporte (Opcional)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setFormData(prev => ({ ...prev, comprobanteFile: file }));
+                      }}
+                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                    />
+                    <p className="text-xs text-white/50 mt-2">
+                      Formatos permitidos: PDF, JPG, PNG. Tamaño máximo: 10MB
+                    </p>
+                    {formData.comprobanteFile && (
+                      <p className="text-xs text-green-400 mt-1">
+                        📄 Archivo seleccionado: {formData.comprobanteFile.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
                     <User className="w-4 h-4 text-blue-400" />
                     Registrado por
                   </label>
@@ -2188,7 +2249,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         <th className="px-4 py-3 text-left text-xs font-bold uppercase">NIT</th>
                         <th className="px-4 py-3 text-left text-xs font-bold uppercase">CONCEPTO</th>
                         <th className="px-4 py-3 text-center text-xs font-bold uppercase">C.C</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold uppercase">COMPROBANTE</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold uppercase">DOCUMENTO SOPORTE</th>
                         <th className="px-4 py-3 text-right text-xs font-bold uppercase">VALOR</th>
                       </tr>
                     </thead>
