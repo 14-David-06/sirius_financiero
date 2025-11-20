@@ -1587,7 +1587,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         Categoría
                       </th>
                       <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider hidden lg:table-cell">
-                        Responsable
+                        Beneficiario
                       </th>
                       <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
                         Comprobante

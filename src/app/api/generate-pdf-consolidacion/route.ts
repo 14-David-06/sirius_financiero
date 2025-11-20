@@ -2,6 +2,48 @@ import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+
+// Configuración de AWS S3
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION!,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+const FIRMAS_MAP = {
+  'martin': process.env.SIGNATURE_MARTIN_PATH!,
+  'joys': process.env.SIGNATURE_JOYS_PATH!
+};
+
+// Función para obtener firma como base64
+async function getFirmaBase64(tipo: keyof typeof FIRMAS_MAP): Promise<string> {
+  try {
+    const key = FIRMAS_MAP[tipo];
+    const bucket = process.env.AWS_S3_BUCKET!;
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const response = await s3Client.send(command);
+
+    if (!response.Body) {
+      console.warn(`⚠️ Firma ${tipo} no encontrada`);
+      return '';
+    }
+
+    const buffer = Buffer.from(await response.Body.transformToByteArray());
+    const contentType = key.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  } catch (error) {
+    console.error(`❌ Error obteniendo firma ${tipo}:`, error);
+    return '';
+  }
+}
 
 interface ItemConsolidacion {
   item: number;
@@ -30,7 +72,7 @@ interface DatosConsolidacion {
   };
 }
 
-function generateConsolidacionHTML(datos: DatosConsolidacion): string {
+async function generateConsolidacionHTML(datos: DatosConsolidacion): Promise<string> {
   // Leer y convertir el logo a base64
   const logoPath = path.join(process.cwd(), 'public', 'Logo-Sirius.png');
   let logoBase64 = '';
@@ -41,6 +83,15 @@ function generateConsolidacionHTML(datos: DatosConsolidacion): string {
   } catch (error) {
     console.error('❌ Error al cargar el logo:', error);
   }
+
+  // Obtener firmas como base64
+  console.log('📝 Obteniendo firmas digitales...');
+  const firmaMartinBase64 = await getFirmaBase64('martin');
+  const firmaJoysBase64 = await getFirmaBase64('joys');
+  console.log('✅ Firmas cargadas:', {
+    martin: firmaMartinBase64 ? 'OK' : 'ERROR',
+    joys: firmaJoysBase64 ? 'OK' : 'ERROR'
+  });
   
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -375,20 +426,74 @@ function generateConsolidacionHTML(datos: DatosConsolidacion): string {
           left: 4px;
         }
         
-        /* ========== FOOTER ========== */
-        .footer {
+        /* ========== FIRMAS ========== */
+        .firmas-section {
           margin-top: 40px;
           padding-top: 20px;
           border-top: 1px solid #E5E9F0;
+          page-break-inside: avoid;
+        }
+        
+        .firmas-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          margin-top: 20px;
+        }
+        
+        .firma-item {
           text-align: center;
+        }
+        
+        .firma-imagen {
+          width: 120px;
+          height: 60px;
+          margin: 0 auto 8px;
+          border: none;
+          border-radius: 4px;
+          background: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        
+        .firma-imagen img {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+        }
+        
+        .firma-linea {
+          width: 100%;
+          height: 1px;
+          background: #3C4858;
+          margin: 8px 0 4px;
+        }
+        
+        .firma-nombre {
+          font-size: 9pt;
+          font-weight: 600;
+          color: #3C4858;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        
+        .firma-cargo {
           font-size: 8pt;
           color: #6B7280;
+          font-weight: 500;
         }
         
         .footer-company {
           font-weight: 600;
           color: #0154AC;
           margin-bottom: 4px;
+        }
+        
+        .footer {
+          text-align: center;
+          margin-top: 40px;
         }
         
         @media print {
@@ -503,7 +608,28 @@ function generateConsolidacionHTML(datos: DatosConsolidacion): string {
         </div>
       </div>
       
-      <!-- Footer -->
+      <!-- Firmas Digitales -->
+      <div class="firmas-section">
+        <div class="firmas-grid">
+          <div class="firma-item">
+            <div class="firma-imagen">
+              ${firmaMartinBase64 ? `<img src="${firmaMartinBase64}" alt="Firma Martín Herrera Lara" />` : '<div style="color: #6B7280; font-size: 8pt;">Firma no disponible</div>'}
+            </div>
+            <div class="firma-linea"></div>
+            <div class="firma-nombre">Martín Herrera Lara</div>
+            <div class="firma-cargo">CEO - Director Ejecutivo</div>
+          </div>
+          
+          <div class="firma-item">
+            <div class="firma-imagen">
+              ${firmaJoysBase64 ? `<img src="${firmaJoysBase64}" alt="Firma Joys Fernanda Moreno" />` : '<div style="color: #6B7280; font-size: 8pt;">Firma no disponible</div>'}
+            </div>
+            <div class="firma-linea"></div>
+            <div class="firma-nombre">Joys Fernanda Moreno</div>
+            <div class="firma-cargo">Coordinadora Líder de Gerencia</div>
+          </div>
+        </div>
+      </div>      <!-- Footer -->
       <div class="footer">
         <div class="footer-company">Sirius Regenerative Solutions S.A.S ZOMAC</div>
         <div>Documento generado electrónicamente • ${formatDate(datos.cajaMenor.fechaCierre)}</div>
@@ -526,7 +652,7 @@ export async function POST(request: NextRequest) {
 
     // Generar el HTML para el PDF
     console.log('📝 Generando contenido HTML...');
-    const htmlContent = generateConsolidacionHTML(datos);
+    const htmlContent = await generateConsolidacionHTML(datos);
     console.log('✅ HTML generado, longitud:', htmlContent.length);
 
     // Generar PDF usando Puppeteer
