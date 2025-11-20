@@ -65,6 +65,18 @@ interface ItemCajaMenor {
   comprobante?: AirtableAttachment[]; // Array de attachments
 }
 
+interface FormDataType {
+  fecha: string;
+  beneficiario: string;
+  nitCC: string;
+  concepto: string;
+  centroCosto: string;
+  centroCostoOtro: string;
+  valor: string;
+  realizaRegistro: string;
+  comprobanteFile: File | null;
+}
+
 function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogout: () => void }) {
   const [cajaMenorRecords, setCajaMenorRecords] = useState<CajaMenorRecord[]>([]);
   const [itemsRecords, setItemsRecords] = useState<ItemCajaMenor[]>([]);
@@ -148,17 +160,89 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   });
 
   // Datos del formulario para items
-  const [formData, setFormData] = useState({
-    fecha: new Date().toISOString().split('T')[0],
-    beneficiario: '',
-    nitCC: '',
-    concepto: '',
-    centroCosto: '',
-    centroCostoOtro: '',
-    valor: '',
-    realizaRegistro: userData?.nombre || 'Usuario',
-    comprobanteFile: null as File | null
+  const [formData, setFormData] = useState<FormDataType>(() => {
+    // Cargar datos guardados del localStorage al inicializar
+    if (typeof window !== 'undefined') {
+      try {
+        const savedData = localStorage.getItem('cajaMenorFormData');
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          // Solo usar datos guardados si no han pasado más de 24 horas
+          const savedTime = localStorage.getItem('cajaMenorFormDataTime');
+          if (savedTime && (Date.now() - parseInt(savedTime)) < 24 * 60 * 60 * 1000) {
+            return { ...parsedData, realizaRegistro: userData?.nombre || 'Usuario' };
+          }
+        }
+      } catch (error) {
+        console.warn('Error loading saved form data:', error);
+      }
+    }
+    return {
+      fecha: new Date().toISOString().split('T')[0],
+      beneficiario: '',
+      nitCC: '',
+      concepto: '',
+      centroCosto: '',
+      centroCostoOtro: '',
+      valor: '',
+      realizaRegistro: userData?.nombre || 'Usuario',
+      comprobanteFile: null as File | null
+    };
   });
+
+  // Función para guardar datos en localStorage
+  const saveFormDataToStorage = (data: typeof formData) => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Solo guardar si hay datos relevantes (no solo valores por defecto)
+        const hasData = data.beneficiario || data.concepto || data.valor || data.centroCosto;
+        if (hasData) {
+          localStorage.setItem('cajaMenorFormData', JSON.stringify(data));
+          localStorage.setItem('cajaMenorFormDataTime', Date.now().toString());
+        }
+      } catch (error) {
+        console.warn('Error saving form data:', error);
+      }
+    }
+  };
+
+  // Función para limpiar datos del localStorage
+  const clearFormDataFromStorage = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('cajaMenorFormData');
+        localStorage.removeItem('cajaMenorFormDataTime');
+      } catch (error) {
+        console.warn('Error clearing form data:', error);
+      }
+    }
+  };
+
+  // Estado para mostrar indicador de datos guardados
+  const [hasSavedData, setHasSavedData] = useState(false);
+
+  // Verificar si hay datos guardados al cargar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedData = localStorage.getItem('cajaMenorFormData');
+        const savedTime = localStorage.getItem('cajaMenorFormDataTime');
+        if (savedData && savedTime && (Date.now() - parseInt(savedTime)) < 24 * 60 * 60 * 1000) {
+          const parsedData = JSON.parse(savedData);
+          const hasData = parsedData.beneficiario || parsedData.concepto || parsedData.valor || parsedData.centroCosto;
+          setHasSavedData(hasData);
+        }
+      } catch (error) {
+        console.warn('Error checking saved data:', error);
+      }
+    }
+  }, []);
+
+  // Actualizar indicador cuando cambie formData
+  useEffect(() => {
+    const hasData = !!(formData.beneficiario || formData.concepto || formData.valor || formData.centroCosto);
+    setHasSavedData(hasData);
+  }, [formData]);
 
   const categorias = [
     'Transporte',
@@ -910,6 +994,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     setEditingItem(null);
     setEsNuevoBeneficiario(false);
     setAudioBlob(null);
+    // Limpiar datos guardados cuando se resetea el formulario
+    clearFormDataFromStorage();
   };
 
   // Evitar procesamiento durante la carga
@@ -1392,12 +1478,34 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     title={
                       totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100
                         ? 'Cajas menores al 100% de consumo - No se pueden registrar más gastos'
-                        : 'Registrar nuevo gasto'
+                        : hasSavedData 
+                          ? 'Registrar nuevo gasto (hay datos guardados que se cargarán automáticamente)'
+                          : 'Registrar nuevo gasto'
                     }
                   >
                     <Plus className="w-4 h-4 md:w-5 md:h-5" />
                     <span>Nuevo Gasto</span>
+                    {hasSavedData && (
+                      <div className="ml-2 w-2 h-2 bg-yellow-400 rounded-full animate-pulse" title="Hay datos guardados en el formulario"></div>
+                    )}
                   </button>
+                  
+                  {/* Botón para limpiar datos guardados */}
+                  {hasSavedData && (
+                    <button
+                      onClick={() => {
+                        if (confirm('¿Deseas eliminar los datos guardados del formulario? Esta acción no se puede deshacer.')) {
+                          clearFormDataFromStorage();
+                          setHasSavedData(false);
+                        }
+                      }}
+                      className="flex items-center justify-center gap-2 px-3 md:px-4 py-2 md:py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base"
+                      title="Limpiar datos guardados del formulario"
+                    >
+                      <span className="text-lg">🗑️</span>
+                      <span className="hidden sm:inline">Limpiar</span>
+                    </button>
+                  )}
                   
                   {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% */}
                   {totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
