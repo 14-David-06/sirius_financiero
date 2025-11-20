@@ -1052,7 +1052,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   // Combinar datos para mostrar en la tabla
   type ItemUnificado = {
     id: string;
-    item?: number;
     fecha: string;
     concepto: string;
     valor: number;
@@ -1079,7 +1078,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       )
       .map(record => ({
         id: record.id,
-        item: undefined,
         fecha: record.fechaAnticipo,
         concepto: record.concepto,
         valor: Number(record.valor) || 0,
@@ -1103,7 +1101,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       )
       .map(item => ({
         id: item.id,
-        item: item.item,
         fecha: item.fecha,
         concepto: item.concepto,
         valor: Number(item.valor) || 0,
@@ -1602,7 +1599,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       <tr key={item.id} className="hover:bg-slate-700/40 transition-all duration-200 group">
                         <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center">
                           <span className="text-xs md:text-sm text-white font-medium">
-                            {item.item || (index + 0)}
+                            {index + 0}
                           </span>
                         </td>
                         <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap">
