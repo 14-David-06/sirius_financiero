@@ -1088,34 +1088,32 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         <div className="max-w-full mx-auto px-6 py-8">
           
           {/* Header Profesional */}
-          <div className="mb-8">
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-6 border border-white/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30">
-                    <DollarSign className="w-10 h-10 text-green-400" />
-                  </div>
-                  <div>
-                    <h1 className="text-4xl font-bold text-white">
-                      Caja Menor
-                    </h1>
-                    <p className="text-white/90 mt-1 text-lg">
-                      Gestión integral de fondos menores - Control mensual con trazabilidad completa
-                    </p>
-                  </div>
+          <div className="mb-6 md:mb-8">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-4 md:px-8 py-4 md:py-6 border border-white/30">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-4">
+                <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30 flex-shrink-0">
+                  <DollarSign className="w-8 h-8 md:w-10 md:h-10 text-green-400" />
                 </div>
-                <div className="flex items-center gap-2 bg-green-500/20 px-4 py-2 rounded-full border border-green-500/30">
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-2xl md:text-4xl font-bold text-white leading-tight">
+                    Caja Menor
+                  </h1>
+                  <p className="text-white/90 mt-1 text-sm md:text-lg leading-relaxed">
+                    Gestión integral de fondos menores - Control mensual con trazabilidad completa
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-green-500/20 px-3 md:px-4 py-2 rounded-full border border-green-500/30 flex-shrink-0">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-green-300 font-semibold text-sm">Sistema Activo</span>
+                  <span className="text-green-300 font-semibold text-xs md:text-sm">Sistema Activo</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tarjetas de resumen - Diseño Profesional */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
             {/* Tarjeta 1: Disponible Caja Menor */}
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30">
                   <DollarSign className="w-7 h-7 text-green-400" />
@@ -1149,15 +1147,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
 
             {/* Tarjeta 2: Total Egresos */}
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-red-500/20 rounded-xl border border-red-500/30">
-                  <DollarSign className="w-7 h-7 text-red-400" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <div className="p-2 md:p-3 bg-red-500/20 rounded-xl border border-red-500/30">
+                  <DollarSign className="w-5 h-5 md:w-7 md:h-7 text-red-400" />
                 </div>
               </div>
               <div>
-                <p className="text-sm font-semibold text-white/70 mb-2">Total Egresos</p>
-                <p className="text-3xl font-bold text-red-400 mb-2">
+                <p className="text-xs md:text-sm font-semibold text-white/70 mb-1 md:mb-2">Total Egresos</p>
+                <p className="text-2xl md:text-3xl font-bold text-red-400 mb-1 md:mb-2">
                   ${totalEgresos.toLocaleString('es-CO')}
                 </p>
                 <p className="text-xs text-white/60 flex items-center gap-1">
@@ -1168,10 +1166,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
 
             {/* Tarjeta 3: Saldo Actual */}
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 ${saldoActual >= 0 ? 'bg-blue-500/20 border-blue-500/30' : 'bg-orange-500/20 border-orange-500/30'} rounded-xl border`}>
-                  <DollarSign className={`w-7 h-7 ${saldoActual >= 0 ? 'text-blue-400' : 'text-orange-400'}`} />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <div className={`p-2 md:p-3 ${saldoActual >= 0 ? 'bg-blue-500/20 border-blue-500/30' : 'bg-orange-500/20 border-orange-500/30'} rounded-xl border`}>
+                  <DollarSign className={`w-5 h-5 md:w-7 md:h-7 ${saldoActual >= 0 ? 'text-blue-400' : 'text-orange-400'}`} />
                 </div>
                 {saldoActual < 0 && (
                   <div className="flex items-center gap-1 bg-orange-500/20 px-2 py-1 rounded-full border border-orange-500/30">
@@ -1181,8 +1179,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 )}
               </div>
               <div>
-                <p className="text-sm font-semibold text-white/70 mb-2">Saldo Actual</p>
-                <p className={`text-3xl font-bold mb-2 ${saldoActual >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>
+                <p className="text-xs md:text-sm font-semibold text-white/70 mb-1 md:mb-2">Saldo Actual</p>
+                <p className={`text-2xl md:text-3xl font-bold mb-1 md:mb-2 ${saldoActual >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>
                   ${Math.abs(saldoActual).toLocaleString('es-CO')}
                 </p>
                 <p className="text-xs text-white/60">
@@ -1192,15 +1190,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
 
             {/* Tarjeta 4: Total Registros */}
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-purple-500/20 rounded-xl border border-purple-500/30">
-                  <Receipt className="w-7 h-7 text-purple-400" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <div className="p-2 md:p-3 bg-purple-500/20 rounded-xl border border-purple-500/30">
+                  <Receipt className="w-5 h-5 md:w-7 md:h-7 text-purple-400" />
                 </div>
               </div>
               <div>
-                <p className="text-sm font-semibold text-white/70 mb-2">Total Registros</p>
-                <p className="text-3xl font-bold text-purple-400 mb-2">
+                <p className="text-xs md:text-sm font-semibold text-white/70 mb-1 md:mb-2">Total Registros</p>
+                <p className="text-2xl md:text-3xl font-bold text-purple-400 mb-1 md:mb-2">
                   {itemsFiltrados.length}
                 </p>
                 <p className="text-xs text-white/60 flex items-center gap-1">
@@ -1211,14 +1209,14 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
 
             {/* Tarjeta 5: Porcentaje Consumido */}
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-xl border ${
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl hover:shadow-2xl transition-all duration-300 col-span-2 md:col-span-1">
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <div className={`p-2 md:p-3 rounded-xl border ${
                   totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
                     ? 'bg-orange-500/20 border-orange-500/30'
                     : 'bg-cyan-500/20 border-cyan-500/30'
                 }`}>
-                  <FileText className={`w-7 h-7 ${
+                  <FileText className={`w-5 h-5 md:w-7 md:h-7 ${
                     totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
                       ? 'text-orange-400'
                       : 'text-cyan-400'
@@ -1232,8 +1230,8 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 )}
               </div>
               <div>
-                <p className="text-sm font-semibold text-white/70 mb-2">Consumo Actual</p>
-                <p className={`text-3xl font-bold mb-2 ${
+                <p className="text-xs md:text-sm font-semibold text-white/70 mb-1 md:mb-2">Consumo Actual</p>
+                <p className={`text-2xl md:text-3xl font-bold mb-1 md:mb-2 ${
                   totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70
                     ? 'text-orange-400'
                     : 'text-cyan-400'
@@ -1261,23 +1259,23 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
           {/* Alerta: Caja Menor Consolidada */}
           {ultimaCajaMenor && estaConsolidada && (
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-green-500/50 mb-8 shadow-xl">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30 flex-shrink-0">
-                  <CheckCircle className="w-7 h-7 text-green-400" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-5 border border-green-500/50 mb-6 md:mb-8 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+                <div className="p-2 md:p-3 bg-green-500/20 rounded-xl border border-green-500/30 flex-shrink-0">
+                  <CheckCircle className="w-5 h-5 md:w-7 md:h-7 text-green-400" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-green-300 mb-1">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base md:text-lg font-bold text-green-300 mb-1">
                     ✅ Caja Menor Consolidada - {formatearMesAnio(ultimaCajaMenor.fechaAnticipo)}
                   </h3>
-                  <p className="text-sm text-white/80">
+                  <p className="text-sm text-white/80 leading-relaxed">
                     Esta caja menor fue consolidada el {formatearFecha(ultimaCajaMenor.fechaConsolidacion || '')}. 
                     No se pueden agregar más gastos. Puede crear una nueva caja menor para el próximo periodo.
                   </p>
                 </div>
                 <button
                   onClick={() => setShowCajaMenorModal(true)}
-                  className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold shadow-lg whitespace-nowrap"
+                  className="px-4 py-2 md:px-5 md:py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold shadow-lg whitespace-nowrap text-sm md:text-base"
                 >
                   Nueva Caja Menor
                 </button>
@@ -1287,22 +1285,22 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
           {/* Alerta: No hay caja menor del mes actual */}
           {!ultimaCajaMenor && (
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-yellow-500/50 mb-8 shadow-xl">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-yellow-500/20 rounded-xl border border-yellow-500/30 flex-shrink-0">
-                  <AlertTriangle className="w-7 h-7 text-yellow-400" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-5 border border-yellow-500/50 mb-6 md:mb-8 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+                <div className="p-2 md:p-3 bg-yellow-500/20 rounded-xl border border-yellow-500/30 flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 md:w-7 md:h-7 text-yellow-400" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-yellow-300 mb-1">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base md:text-lg font-bold text-yellow-300 mb-1">
                     No hay Caja Menor registrada
                   </h3>
-                  <p className="text-sm text-white/80">
+                  <p className="text-sm text-white/80 leading-relaxed">
                     Para registrar gastos, primero debe crear una caja menor especificando quién estará a cargo y el monto disponible.
                   </p>
                 </div>
                 <button
                   onClick={() => setShowCajaMenorModal(true)}
-                  className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors font-semibold shadow-lg whitespace-nowrap"
+                  className="px-4 py-2 md:px-5 md:py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors font-semibold shadow-lg whitespace-nowrap text-sm md:text-base"
                 >
                   Registrar Caja Menor
                 </button>
@@ -1314,19 +1312,19 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           {ultimaCajaMenor && itemsRecords.some(item => {
             return item.cajaMenor?.includes(ultimaCajaMenor.id) && item.valor > 100000000;
           }) && (
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-5 border border-red-500/50 mb-8 shadow-xl">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-red-500/20 rounded-xl border border-red-500/30 flex-shrink-0">
-                  <AlertCircle className="w-7 h-7 text-red-400" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-5 border border-red-500/50 mb-6 md:mb-8 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+                <div className="p-2 md:p-3 bg-red-500/20 rounded-xl border border-red-500/30 flex-shrink-0">
+                  <AlertCircle className="w-5 h-5 md:w-7 md:h-7 text-red-400" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-red-300 mb-1">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base md:text-lg font-bold text-red-300 mb-1">
                     ⚠️ Datos Anormales Detectados
                   </h3>
-                  <p className="text-sm text-white/80">
+                  <p className="text-sm text-white/80 leading-relaxed mb-2">
                     Se han detectado registros con valores excesivamente altos que pueden ser erróneos. Esto está afectando los cálculos del saldo y consumo. Por favor, revise los gastos registrados y contacte al administrador para corregir los datos.
                   </p>
-                  <p className="text-xs text-red-300/80 mt-2">
+                  <p className="text-xs text-red-300/80">
                     💡 Los registros con valores superiores a $100.000.000 pueden indicar errores de digitación.
                   </p>
                 </div>
@@ -1335,27 +1333,27 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           )}
 
           {/* Controles - Diseño Profesional */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl mb-8">
-            <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-              <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl mb-6 md:mb-8">
+            <div className="flex flex-col lg:flex-row gap-4 md:gap-6 items-start lg:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 flex-1 w-full">
                 {/* Búsqueda */}
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50" />
+                <div className="relative flex-1 max-w-full sm:max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-white/50" />
                   <input
                     type="text"
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                     placeholder="Buscar por concepto, beneficiario..."
-                    className="w-full pl-10 pr-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
+                    className="w-full pl-9 md:pl-10 pr-4 py-2 md:py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 text-sm md:text-base"
                   />
                 </div>
 
                 {/* Filtros */}
-                <div className="flex gap-3">
+                <div className="flex gap-2 md:gap-3">
                   <select
                     value={filtroTipo}
                     onChange={(e) => setFiltroTipo(e.target.value)}
-                    className="px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 min-w-[140px]"
+                    className="px-3 md:px-4 py-2 md:py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 min-w-[120px] md:min-w-[140px] text-sm md:text-base"
                   >
                     <option value="todos">Todos los tipos</option>
                     <option value="ingreso">Ingresos</option>
@@ -1365,7 +1363,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   <select
                     value={filtroEstado}
                     onChange={(e) => setFiltroEstado(e.target.value)}
-                    className="px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 min-w-[140px]"
+                    className="px-3 md:px-4 py-2 md:py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 min-w-[120px] md:min-w-[140px] text-sm md:text-base"
                   >
                     <option value="todos">Todos los estados</option>
                     <option value="pendiente">Pendiente</option>
@@ -1377,7 +1375,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
               {/* Botones de acción - Solo visibles si hay cajas menores activas */}
               {cajasMenoresActivas.length > 0 && (
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 w-full lg:w-auto">
                   <button
                     onClick={() => {
                       if (totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100) {
@@ -1387,14 +1385,14 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       }
                     }}
                     disabled={totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100}
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25 disabled:hover:shadow-none"
+                    className="flex items-center justify-center gap-2 px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-blue-500/25 disabled:hover:shadow-none text-sm md:text-base"
                     title={
                       totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 100
                         ? 'Cajas menores al 100% de consumo - No se pueden registrar más gastos'
                         : 'Registrar nuevo gasto'
                     }
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-4 h-4 md:w-5 md:h-5" />
                     <span>Nuevo Gasto</span>
                   </button>
                   
@@ -1402,10 +1400,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   {totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
                     <button
                       onClick={() => setShowConsolidarModal(true)}
-                      className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse"
+                      className="flex items-center justify-center gap-2 px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse text-sm md:text-base"
                       title="Consolidar caja menor - Consumo mayor al 70%"
                     >
-                      <AlertTriangle className="w-5 h-5" />
+                      <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />
                       <span>Consolidar Caja Menor</span>
                     </button>
                   )}
@@ -1414,16 +1412,16 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
               
               {/* Botón Nueva Caja Menor - Solo visible si NO hay cajas activas */}
               {cajasMenoresActivas.length === 0 && (
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 w-full lg:w-auto">
                   <button
                     onClick={handleNuevaCajaMenor}
-                    className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg ${buttonState.className}`}
+                    className={`flex items-center justify-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base ${buttonState.className}`}
                     title={buttonState.title}
                   >
                     {buttonState.icon === 'CheckCircle' ? (
-                      <CheckCircle className="w-5 h-5" />
+                      <CheckCircle className="w-4 h-4 md:w-5 md:h-5" />
                     ) : (
-                      <DollarSign className="w-5 h-5" />
+                      <DollarSign className="w-4 h-4 md:w-5 md:h-5" />
                     )}
                     <span>{buttonState.text}</span>
                   </button>
@@ -1433,54 +1431,54 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           </div>
 
           {/* Tabla - Diseño Profesional */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl border border-white/30 overflow-hidden shadow-xl mb-8">
-            <div className="overflow-x-auto">
+          <div className="bg-slate-800/40 backdrop-blur-md rounded-xl border border-white/30 overflow-hidden shadow-xl mb-6 md:mb-8">
+            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
               {loading ? (
-                <div className="flex items-center justify-center p-16">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
-                  <span className="ml-4 text-white font-semibold">Cargando datos...</span>
+                <div className="flex items-center justify-center p-8 md:p-16">
+                  <div className="animate-spin rounded-full h-8 w-8 md:h-12 md:w-12 border-b-2 border-blue-400"></div>
+                  <span className="ml-3 md:ml-4 text-white font-semibold text-sm md:text-base">Cargando datos...</span>
                 </div>
               ) : error ? (
-                <div className="flex flex-col items-center justify-center p-16 text-center">
-                  <AlertCircle className="w-16 h-16 text-red-400 mb-6" />
-                  <p className="text-red-400 font-bold mb-3 text-lg">Error al cargar datos</p>
-                  <p className="text-white/70 mb-6 max-w-md">{error}</p>
+                <div className="flex flex-col items-center justify-center p-8 md:p-16 text-center">
+                  <AlertCircle className="w-12 h-12 md:w-16 md:h-16 text-red-400 mb-4 md:mb-6" />
+                  <p className="text-red-400 font-bold mb-2 md:mb-3 text-base md:text-lg">Error al cargar datos</p>
+                  <p className="text-white/70 mb-4 md:mb-6 max-w-md text-sm md:text-base">{error}</p>
                   <button
                     onClick={cargarDatos}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg"
+                    className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base"
                   >
                     Reintentar
                   </button>
                 </div>
               ) : itemsFiltrados.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-16 text-center">
-                  <Receipt className="w-16 h-16 text-white/40 mb-6" />
-                  <p className="text-white/70 text-lg font-semibold">No se encontraron registros</p>
+                <div className="flex flex-col items-center justify-center p-8 md:p-16 text-center">
+                  <Receipt className="w-12 h-12 md:w-16 md:h-16 text-white/40 mb-4 md:mb-6" />
+                  <p className="text-white/70 text-base md:text-lg font-semibold">No se encontraron registros</p>
                   <p className="text-white/50 text-sm mt-2">Intenta ajustar los filtros o crear un nuevo registro</p>
                 </div>
               ) : (
-                <table className="w-full">
+                <table className="w-full min-w-[800px]">
                   <thead>
                     <tr className="border-b border-white/20 bg-slate-700/60">
-                      <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                         Fecha
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
                         Concepto
                       </th>
-                      <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-right text-xs font-bold text-white uppercase tracking-wider">
                         Monto
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider hidden sm:table-cell">
                         Tipo
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider hidden md:table-cell">
                         Categoría
                       </th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider hidden lg:table-cell">
                         Responsable
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
                         Estado
                       </th>
                     </tr>
@@ -1488,16 +1486,16 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   <tbody className="divide-y divide-white/10">
                     {itemsFiltrados.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-700/40 transition-all duration-200 group">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <Calendar className="w-4 h-4 text-blue-400 group-hover:text-blue-300" />
-                            <span className="text-sm text-white font-medium">
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2 md:gap-3">
+                            <Calendar className="w-3 h-3 md:w-4 md:h-4 text-blue-400 group-hover:text-blue-300 flex-shrink-0" />
+                            <span className="text-xs md:text-sm text-white font-medium">
                               {formatearFecha(item.fecha)}
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-white font-medium truncate max-w-xs">
+                        <td className="px-3 md:px-6 py-3 md:py-4">
+                          <div className="text-xs md:text-sm text-white font-medium truncate max-w-[120px] md:max-w-xs">
                             {item.concepto || 'Sin concepto'}
                           </div>
                           {item.comprobante && (
@@ -1506,15 +1504,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className={`text-sm font-bold ${
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-right">
+                          <span className={`text-xs md:text-sm font-bold ${
                             item.tipo === 'anticipo' ? 'text-green-400' : 'text-red-400'
                           }`}>
                             {item.tipo === 'anticipo' ? '+' : '-'}${(Number(item.valor) || 0).toLocaleString('es-CO')}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center hidden sm:table-cell">
+                          <span className={`inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-semibold ${
                             item.tipo === 'anticipo' 
                               ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
                               : 'bg-red-500/20 text-red-300 border border-red-500/30'
@@ -1522,16 +1520,16 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             {item.tipo === 'anticipo' ? '💰 Caja Menor' : '🛒 Gasto'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-white/90 font-medium">{item.categoria}</span>
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap hidden md:table-cell">
+                          <span className="text-xs md:text-sm text-white/90 font-medium">{item.categoria}</span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <User className="w-4 h-4 text-purple-400 group-hover:text-purple-300" />
-                            <span className="text-sm text-white font-medium">{item.responsable}</span>
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap hidden lg:table-cell">
+                          <div className="flex items-center gap-2 md:gap-3">
+                            <User className="w-3 h-3 md:w-4 md:h-4 text-purple-400 group-hover:text-purple-300 flex-shrink-0" />
+                            <span className="text-xs md:text-sm text-white font-medium">{item.responsable}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center">
                           {(() => {
                             const comprobante = (item as any).comprobante;
                             if (comprobante && Array.isArray(comprobante) && comprobante.length > 0) {
@@ -1734,14 +1732,14 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
         {/* Modal de nuevo/editar registro - Diseño Profesional */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] mt-16">
-            <div className="bg-slate-800/95 backdrop-blur-md rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto border border-white/30 shadow-2xl">
-              <div className="sticky top-0 bg-slate-800/98 backdrop-blur-md px-8 py-6 border-b border-white/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-500/20 rounded-xl border border-blue-500/30">
-                    <Plus className="w-6 h-6 text-blue-400" />
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-[9999] mt-16">
+            <div className="bg-slate-800/95 backdrop-blur-md rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/30 shadow-2xl">
+              <div className="sticky top-0 bg-slate-800/98 backdrop-blur-md px-4 md:px-8 py-4 md:py-6 border-b border-white/20 flex items-center justify-between">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="p-1.5 md:p-2 bg-blue-500/20 rounded-xl border border-blue-500/30">
+                    <Plus className="w-4 h-4 md:w-6 md:h-6 text-blue-400" />
                   </div>
-                  <h3 className="text-2xl font-bold text-white">
+                  <h3 className="text-lg md:text-2xl font-bold text-white">
                     {editingItem ? 'Editar Registro' : 'Nuevo Registro de Caja Menor'}
                   </h3>
                 </div>
@@ -1750,31 +1748,31 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     setShowModal(false);
                     resetForm();
                   }}
-                  className="p-3 hover:bg-slate-700/50 rounded-xl transition-all duration-200 border border-white/20 hover:border-white/40"
+                  className="p-2 md:p-3 hover:bg-slate-700/50 rounded-xl transition-all duration-200 border border-white/20 hover:border-white/40"
                 >
-                  <span className="w-5 h-5 text-white/80">✕</span>
+                  <span className="w-4 h-4 md:w-5 md:h-5 text-white/80">✕</span>
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-8 space-y-6">
+              <form onSubmit={handleSubmit} className="p-4 md:p-8 space-y-4 md:space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-400" />
+                    <label className="block text-sm font-bold text-white mb-2 md:mb-3 flex items-center gap-2">
+                      <Calendar className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />
                       Fecha *
                     </label>
                     <input
                       type="date"
                       value={formData.fecha}
                       onChange={(e) => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
-                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
+                      className="w-full px-3 md:px-4 py-2 md:py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 text-sm md:text-base"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-blue-400" />
+                    <label className="block text-sm font-bold text-white mb-2 md:mb-3 flex items-center gap-2">
+                      <DollarSign className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />
                       Valor *
                     </label>
                     <input
@@ -1785,7 +1783,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         setFormData(prev => ({ ...prev, valor: valor }));
                       }}
                       placeholder="0"
-                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200"
+                      className="w-full px-3 md:px-4 py-2 md:py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 text-sm md:text-base"
                       required
                     />
                     {ultimaCajaMenor && formData.valor && (() => {
@@ -2058,7 +2056,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-4">
                   <button
                     type="submit"
                     disabled={loading || ((): boolean => {
@@ -2071,10 +2069,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
                       return valorIngresado > saldoDisponible;
                     })()}
-                    className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors shadow-lg flex items-center justify-center gap-2"
+                    className="flex-1 px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors shadow-lg flex items-center justify-center gap-2 text-sm md:text-base"
                   >
                     {loading && (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-white"></div>
                     )}
                     {loading ? 'Guardando...' : 'Guardar Item'}
                   </button>
@@ -2084,7 +2082,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       setShowModal(false);
                       resetForm();
                     }}
-                    className="px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-xl font-semibold transition-colors"
+                    className="px-4 md:px-6 py-2 md:py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-xl font-semibold transition-colors text-sm md:text-base"
                   >
                     Cancelar
                   </button>
@@ -2096,47 +2094,47 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
           {/* Resumen de estado de la caja menor */}
           {cajaMenorActual && (
-            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-6 border border-white/30 shadow-xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-green-500/20 rounded-xl border border-green-500/30">
-                  <DollarSign className="w-6 h-6 text-green-400" />
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 md:mb-6">
+                <div className="p-2 md:p-3 bg-green-500/20 rounded-xl border border-green-500/30 flex-shrink-0">
+                  <DollarSign className="w-5 h-5 md:w-6 md:h-6 text-green-400" />
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg md:text-xl font-bold text-white">
                     Resumen de Caja Menor Actual
                   </h3>
-                  <p className="text-sm text-white/70">Última caja registrada: {formatearFecha(cajaMenorActual.fechaAnticipo)}</p>
+                  <p className="text-xs md:text-sm text-white/70">Última caja registrada: {formatearFecha(cajaMenorActual.fechaAnticipo)}</p>
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="bg-slate-700/30 rounded-lg p-4 border border-white/10">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
+                <div className="bg-slate-700/30 rounded-lg p-3 md:p-4 border border-white/10">
                   <p className="text-xs text-white/60 mb-1">Responsable</p>
-                  <p className="text-white font-bold text-lg">{cajaMenorActual.beneficiario}</p>
+                  <p className="text-white font-bold text-sm md:text-lg truncate">{cajaMenorActual.beneficiario}</p>
                 </div>
                 
-                <div className="bg-slate-700/30 rounded-lg p-4 border border-white/10">
+                <div className="bg-slate-700/30 rounded-lg p-3 md:p-4 border border-white/10">
                   <p className="text-xs text-white/60 mb-1">Registrado por</p>
-                  <p className="text-blue-300 font-bold text-lg">{cajaMenorActual.realizaRegistro || 'No especificado'}</p>
+                  <p className="text-blue-300 font-bold text-sm md:text-lg truncate">{cajaMenorActual.realizaRegistro || 'No especificado'}</p>
                 </div>
                 
-                <div className="bg-green-900/20 rounded-lg p-4 border border-green-500/30">
+                <div className="bg-green-900/20 rounded-lg p-3 md:p-4 border border-green-500/30">
                   <p className="text-xs text-green-300/80 mb-1">Monto Inicial</p>
-                  <p className="text-green-400 font-bold text-lg">
+                  <p className="text-green-400 font-bold text-sm md:text-lg">
                     ${cajaMenorActual.valor?.toLocaleString('es-CO')}
                   </p>
                 </div>
                 
-                <div className="bg-red-900/20 rounded-lg p-4 border border-red-500/30">
+                <div className="bg-red-900/20 rounded-lg p-3 md:p-4 border border-red-500/30">
                   <p className="text-xs text-red-300/80 mb-1">Total Gastado</p>
-                  <p className="text-red-400 font-bold text-lg">
+                  <p className="text-red-400 font-bold text-sm md:text-lg">
                     ${totalEgresos.toLocaleString('es-CO')}
                   </p>
                 </div>
                 
-                <div className={`${saldoActual >= 0 ? 'bg-blue-900/20 border-blue-500/30' : 'bg-orange-900/20 border-orange-500/30'} rounded-lg p-4 border`}>
+                <div className={`${saldoActual >= 0 ? 'bg-blue-900/20 border-blue-500/30' : 'bg-orange-900/20 border-orange-500/30'} rounded-lg p-3 md:p-4 border col-span-2 md:col-span-1`}>
                   <p className={`text-xs ${saldoActual >= 0 ? 'text-blue-300/80' : 'text-orange-300/80'} mb-1`}>Saldo Disponible</p>
-                  <p className={`${saldoActual >= 0 ? 'text-blue-400' : 'text-orange-400'} font-bold text-xl`}>
+                  <p className={`${saldoActual >= 0 ? 'text-blue-400' : 'text-orange-400'} font-bold text-lg md:text-xl`}>
                     ${saldoActual.toLocaleString('es-CO')}
                     {saldoActual < 0 && <span className="text-xs ml-1">(Déficit)</span>}
                   </p>
@@ -2149,50 +2147,50 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
 
       {/* Modal de Vista Previa de Consolidación */}
       {showConsolidarModal && ultimaCajaMenor && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4">
+          <div className="bg-slate-800/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 w-full max-w-5xl max-h-[95vh] overflow-y-auto">
             {/* Header del Modal */}
-            <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-orange-700 px-8 py-6 rounded-t-3xl border-b border-white/20 z-10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-xl">
-                    <FileText className="w-8 h-8 text-white" />
+            <div className="sticky top-0 bg-gradient-to-r from-orange-600 to-orange-700 px-4 md:px-8 py-4 md:py-6 rounded-t-3xl border-b border-white/20 z-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-2 md:gap-4">
+                  <div className="p-2 md:p-3 bg-white/20 rounded-xl flex-shrink-0">
+                    <FileText className="w-6 h-6 md:w-8 md:h-8 text-white" />
                   </div>
-                  <div>
-                    <h2 className="text-3xl font-bold text-white">Vista Previa de Consolidación</h2>
-                    <p className="text-orange-100 mt-1">Formato de Legalización de Anticipo General</p>
+                  <div className="min-w-0">
+                    <h2 className="text-xl md:text-3xl font-bold text-white">Vista Previa de Consolidación</h2>
+                    <p className="text-orange-100 mt-1 text-sm md:text-base">Formato de Legalización de Anticipo General</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowConsolidarModal(false)}
-                  className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                  className="p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0"
                 >
-                  <span className="text-white text-2xl">×</span>
+                  <span className="text-white text-xl md:text-2xl">×</span>
                 </button>
               </div>
             </div>
 
             {/* Contenido del Modal - Vista Previa del Formato */}
-            <div className="p-8">
+            <div className="p-4 md:p-8">
               {/* Encabezado del Formato */}
-              <div className="bg-white rounded-xl p-6 mb-6 shadow-lg">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-xl">SR</span>
+              <div className="bg-white rounded-xl p-4 md:p-6 mb-4 md:mb-6 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-start justify-between mb-4 gap-4">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-white font-bold text-lg md:text-xl">SR</span>
                     </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-gray-800">SIRIUS</h3>
-                      <p className="text-gray-600 text-sm">Regenerative Solutions SAS ZOMAC</p>
+                    <div className="min-w-0">
+                      <h3 className="text-xl md:text-2xl font-bold text-gray-800">SIRIUS</h3>
+                      <p className="text-gray-600 text-xs md:text-sm">Regenerative Solutions SAS ZOMAC</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600">Fecha de Actualización:</p>
-                    <p className="font-bold text-gray-800">{new Date().toLocaleDateString('es-CO')}</p>
+                  <div className="text-left sm:text-right">
+                    <p className="text-xs md:text-sm text-gray-600">Fecha de Actualización:</p>
+                    <p className="font-bold text-gray-800 text-sm md:text-base">{new Date().toLocaleDateString('es-CO')}</p>
                   </div>
                 </div>
                 <div className="border-t-2 border-blue-600 pt-4">
-                  <h4 className="text-xl font-bold text-center text-gray-800">
+                  <h4 className="text-lg md:text-xl font-bold text-center text-gray-800">
                     FORMATO DE LEGALIZACIÓN DE ANTICIPO GENERAL
                   </h4>
                 </div>
