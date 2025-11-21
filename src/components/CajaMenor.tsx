@@ -150,6 +150,13 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     return `${year}-${month}-${day}`;
   };
 
+  // Función helper para detectar si es fin de mes
+  const esFinDeMes = (): boolean => {
+    const ahora = new Date();
+    const ultimoDiaMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
+    return ahora.getDate() === ultimoDiaMes;
+  };
+
   // Datos del formulario para caja menor
   const [formCajaMenor, setFormCajaMenor] = useState({
     beneficiario: '',
@@ -1504,17 +1511,33 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     </button>
                   )}
                   
-                  {/* Botón Consolidar Caja Menor - Solo visible si consumo >= 70% */}
-                  {totalIngresos > 0 && (totalEgresos / totalIngresos) * 100 >= 70 && (
-                    <button
-                      onClick={() => setShowConsolidarModal(true)}
-                      className="flex items-center justify-center gap-2 px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-orange-500/25 animate-pulse text-sm md:text-base"
-                      title="Consolidar caja menor - Consumo mayor al 70%"
-                    >
-                      <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />
-                      <span>Consolidar Caja Menor</span>
-                    </button>
-                  )}
+                  {/* Botón Consolidar Caja Menor - Provisional al fin de mes o original si >= 70% */}
+                  {(() => {
+                    const porcentajeConsumo = totalIngresos > 0 ? (totalEgresos / totalIngresos) * 100 : 0;
+                    const mostrarBoton = totalIngresos > 0 && (porcentajeConsumo >= 70 || esFinDeMes());
+                    const esBotonOriginal = porcentajeConsumo >= 70;
+                    
+                    if (!mostrarBoton) return null;
+                    
+                    return (
+                      <button
+                        onClick={() => setShowConsolidarModal(true)}
+                        className={`flex items-center justify-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base ${
+                          esBotonOriginal 
+                            ? 'bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 hover:shadow-orange-500/25 animate-pulse' 
+                            : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/25'
+                        } text-white`}
+                        title={esBotonOriginal ? "Consolidar caja menor - Consumo mayor al 70%" : "Consolidar caja menor - Fin de Mes"}
+                      >
+                        {esBotonOriginal ? (
+                          <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />
+                        ) : (
+                          <Clock className="w-4 h-4 md:w-5 md:h-5" />
+                        )}
+                        <span>Consolidar Caja Menor</span>
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
               
