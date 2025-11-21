@@ -1,9 +1,12 @@
 'use client';
 
 import ResumenGerencial from '@/components/ResumenGerencial';
+import RoleGuard from '@/components/RoleGuard';
 
 export default function ResumenGerencialPage() {
   return (
-    <ResumenGerencial />
+    <RoleGuard allowedRoles={['Administrador', 'Gerencia', 'Desarrollador']}>
+      <ResumenGerencial />
+    </RoleGuard>
   );
 }

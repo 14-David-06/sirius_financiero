@@ -1,5 +1,12 @@
+'use client';
+
 import DiagnosticPanel from '@/components/DiagnosticPanel';
+import RoleGuard from '@/components/RoleGuard';
 
 export default function DiagnosticPage() {
-  return <DiagnosticPanel />;
+  return (
+    <RoleGuard allowedRoles={['Administrador', 'Gerencia', 'Desarrollador']}>
+      <DiagnosticPanel />
+    </RoleGuard>
+  );
 }

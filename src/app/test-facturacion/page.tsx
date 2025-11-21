@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import RoleGuard from '@/components/RoleGuard';
 
 export default function TestFacturacion() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,31 +32,33 @@ export default function TestFacturacion() {
   }, []);
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Test API Facturación</h1>
-      
-      <button 
-        onClick={testAPI}
-        className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
-        disabled={loading}
-      >
-        {loading ? 'Cargando...' : 'Probar API'}
-      </button>
+    <RoleGuard allowedRoles={['Administrador', 'Gerencia', 'Desarrollador']}>
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-4">Test API Facturación</h1>
+        
+        <button 
+          onClick={testAPI}
+          className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
+          disabled={loading}
+        >
+          {loading ? 'Cargando...' : 'Probar API'}
+        </button>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          Error: {error}
-        </div>
-      )}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            Error: {error}
+          </div>
+        )}
 
-      {data && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-          <h2 className="font-bold">Respuesta exitosa:</h2>
-          <pre className="mt-2 text-sm">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </div>
-      )}
-    </div>
+        {data && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+            <h2 className="font-bold">Respuesta exitosa:</h2>
+            <pre className="mt-2 text-sm">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </RoleGuard>
   );
 }
