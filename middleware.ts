@@ -16,6 +16,21 @@ const adminRoutes = [
   '/monitoreo-solicitudes',
 ];
 
+// Rutas exclusivas para colaboradores
+const collaboratorOnlyRoutes = [
+  '/solicitudes-compra',
+];
+
+// Rutas que requieren permisos elevados (no colaboradores)
+const elevatedRoutes = [
+  '/monitoreo-solicitudes',
+  '/caja-menor',
+  '/movimientos-bancarios',
+  '/indicadores-produccion',
+  '/simulador-proyecciones',
+  '/resumen-gerencial',
+];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -61,6 +76,18 @@ export function middleware(request: NextRequest) {
       }
     }
 
+    // Verificar restricciones para colaboradores
+    if (decoded.categoria === 'Colaborador') {
+      const isElevatedRoute = elevatedRoutes.some(route => 
+        pathname.startsWith(route)
+      );
+
+      if (isElevatedRoute) {
+        // Los colaboradores solo pueden acceder a solicitudes-compra
+        return NextResponse.redirect(new URL('/solicitudes-compra', request.url));
+      }
+    }
+
     // Agregar datos del usuario a los headers para que estén disponibles en las páginas
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-user-cedula', decoded.cedula);
@@ -85,6 +112,11 @@ export const config = {
   matcher: [
     '/solicitudes-compra/:path*',
     '/monitoreo-solicitudes/:path*',
+    '/caja-menor/:path*',
+    '/movimientos-bancarios/:path*',
+    '/indicadores-produccion/:path*',
+    '/simulador-proyecciones/:path*',
+    '/resumen-gerencial/:path*',
     '/seguimiento-pedidos/:path*',
   ],
 };

@@ -111,128 +111,124 @@ export default function Navbar() {
                       >
                         <span className="group-hover:translate-x-1 transition-transform duration-200">Solicitudes de Compra</span>
                       </Link>
-                      {/* <Link
-                        href="/mis-solicitudes"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
-                      >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Mis Solicitudes</span>
-                      </Link> */}
-                      <Link
-                        href="/monitoreo-solicitudes"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
-                      >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de solicitudes</span>
-                      </Link>
-                      <Link
-                        href="/caja-menor"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
-                      >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Caja Menor</span>
-                      </Link>
+                      {/* Mostrar opciones adicionales solo para no colaboradores */}
+                      {userData?.categoria !== 'Colaborador' && (
+                        <>
+                          <Link
+                            href="/monitoreo-solicitudes"
+                            className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                            onClick={closeDropdowns}
+                          >
+                            <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de solicitudes</span>
+                          </Link>
+                          <Link
+                            href="/caja-menor"
+                            className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                            onClick={closeDropdowns}
+                          >
+                            <span className="group-hover:translate-x-1 transition-transform duration-200">Caja Menor</span>
+                          </Link>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {/* Finanzas */}
-                <div className="relative">
-                  <button
-                    onClick={() => toggleDropdown('finanzas')}
-                    className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
-                  >
-                    <span>Finanzas</span>
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                  {activeDropdown === 'finanzas' && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-emerald-900/95 to-cyan-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
-                      <Link
-                        href="/movimientos-bancarios"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
+                {/* Mostrar menús adicionales solo para no colaboradores */}
+                {userData?.categoria !== 'Colaborador' && (
+                  <>
+                    {/* Finanzas */}
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleDropdown('finanzas')}
+                        className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
                       >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Movimientos Bancarios</span>
-                      </Link>
-                      {/* <Link
-                        href="/monitoreo-facturas"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
-                      >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de Facturas</span>
-                      </Link> */}
-                      <Link
-                        href="/indicadores-produccion"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
-                      >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Análisis de Costos y Precios de Referencia</span>
-                      </Link>
+                        <span>Finanzas</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {activeDropdown === 'finanzas' && (
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-emerald-900/95 to-cyan-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
+                          <Link
+                            href="/movimientos-bancarios"
+                            className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                            onClick={closeDropdowns}
+                          >
+                            <span className="group-hover:translate-x-1 transition-transform duration-200">Movimientos Bancarios</span>
+                          </Link>
+                          <Link
+                            href="/indicadores-produccion"
+                            className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                            onClick={closeDropdowns}
+                          >
+                            <span className="group-hover:translate-x-1 transition-transform duration-200">Análisis de Costos y Precios de Referencia</span>
+                          </Link>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Proyecciones */}
-                <div className="relative">
-                  <button
-                    onClick={() => toggleDropdown('proyecciones')}
-                    className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
-                  >
-                    <span>Proyecciones</span>
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                  {activeDropdown === 'proyecciones' && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-green-900/95 to-teal-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
-                      <Link
-                        href="/simulador-proyecciones"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
+                    {/* Proyecciones */}
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleDropdown('proyecciones')}
+                        className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
                       >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Simulador de Proyecciones</span>
-                      </Link>
+                        <span>Proyecciones</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {activeDropdown === 'proyecciones' && (
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-green-900/95 to-teal-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
+                          <Link
+                            href="/simulador-proyecciones"
+                            className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                            onClick={closeDropdowns}
+                          >
+                            <span className="group-hover:translate-x-1 transition-transform duration-200">Simulador de Proyecciones</span>
+                          </Link>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Resumen Gerencial */}
-                <div className="relative">
-                  <button
-                    onClick={() => toggleDropdown('resumen')}
-                    className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
-                  >
-                    <span>Resumen Gerencial</span>
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                  {activeDropdown === 'resumen' && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-amber-900/95 to-orange-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
-                      <Link
-                        href="/resumen-gerencial"
-                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
-                        onClick={closeDropdowns}
+                    {/* Resumen Gerencial */}
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleDropdown('resumen')}
+                        className="flex items-center space-x-1 text-white/90 hover:text-white transition-colors duration-200 font-medium drop-shadow-md"
                       >
-                        <span className="group-hover:translate-x-1 transition-transform duration-200">Dashboard Ejecutivo</span>
-                      </Link>
+                        <span>Resumen Gerencial</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {activeDropdown === 'resumen' && (
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-gradient-to-br from-amber-900/95 to-orange-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/20 py-3 z-50 animate-in slide-in-from-top-2 duration-200">
+                          <Link
+                            href="/resumen-gerencial"
+                            className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                            onClick={closeDropdowns}
+                          >
+                            <span className="group-hover:translate-x-1 transition-transform duration-200">Dashboard Ejecutivo</span>
+                          </Link>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Airtable Logo */}
-                <div className="flex items-center">
-                  <a
-                    href="https://airtable.com/appBNCVj4Njbyu1En/tbluOb37XJkZeNDT7/viwlwwuAOmEiPsOVJ?blocks=hide"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block hover:scale-105 transition-transform duration-200"
-                  >
-                    <Image
-                      src="/logo_airtable.webp"
-                      alt="Airtable"
-                      width={50}
-                      height={32}
-                      className="object-contain opacity-80 hover:opacity-100 transition-opacity duration-200"
-                    />
-                  </a>
-                </div>
+                    {/* Airtable Logo */}
+                    <div className="flex items-center">
+                      <a
+                        href="https://airtable.com/appBNCVj4Njbyu1En/tbluOb37XJkZeNDT7/viwlwwuAOmEiPsOVJ?blocks=hide"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block hover:scale-105 transition-transform duration-200"
+                      >
+                        <Image
+                          src="/logo_airtable.webp"
+                          alt="Airtable"
+                          width={50}
+                          height={32}
+                          className="object-contain opacity-80 hover:opacity-100 transition-opacity duration-200"
+                        />
+                      </a>
+                    </div>
+                  </>
+                )}
 
                 {/* User Menu */}
                 <div className="relative">
@@ -324,115 +320,109 @@ export default function Navbar() {
                       <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
                       <span className="group-hover:translate-x-1 transition-transform duration-200">Solicitudes de Compra</span>
                     </Link>
-                    {/* <Link
-                      href="/mis-solicitudes"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Mis Solicitudes</span>
-                    </Link> */}
-                    <Link
-                      href="/monitoreo-solicitudes"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de solicitudes</span>
-                    </Link>
-                    <Link
-                      href="/caja-menor"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Caja Menor</span>
-                    </Link>
+                    {/* Mostrar opciones adicionales solo para no colaboradores */}
+                    {userData?.categoria !== 'Colaborador' && (
+                      <>
+                        <Link
+                          href="/monitoreo-solicitudes"
+                          className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                          <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de solicitudes</span>
+                        </Link>
+                        <Link
+                          href="/caja-menor"
+                          className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                          <span className="group-hover:translate-x-1 transition-transform duration-200">Caja Menor</span>
+                        </Link>
+                      </>
+                    )}
                   </div>
 
-                  {/* Finanzas Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center px-4 py-2 bg-gradient-to-r from-emerald-800/30 to-emerald-700/30 rounded-xl">
-                      <div className="w-2 h-2 bg-emerald-400 rounded-full mr-3"></div>
-                      <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Finanzas</h3>
-                    </div>
-                    <Link
-                      href="/movimientos-bancarios"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Movimientos Bancarios</span>
-                    </Link>
-                    {/* <Link
-                      href="/monitoreo-facturas"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Monitoreo de Facturas</span>
-                    </Link> */}
-                    <Link
-                      href="/indicadores-produccion"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Análisis de Costos y Precios de Referencia</span>
-                    </Link>
-                  </div>
+                  {/* Mostrar secciones adicionales solo para no colaboradores */}
+                  {userData?.categoria !== 'Colaborador' && (
+                    <>
+                      {/* Finanzas Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center px-4 py-2 bg-gradient-to-r from-emerald-800/30 to-emerald-700/30 rounded-xl">
+                          <div className="w-2 h-2 bg-emerald-400 rounded-full mr-3"></div>
+                          <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Finanzas</h3>
+                        </div>
+                        <Link
+                          href="/movimientos-bancarios"
+                          className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                          <span className="group-hover:translate-x-1 transition-transform duration-200">Movimientos Bancarios</span>
+                        </Link>
+                        <Link
+                          href="/indicadores-produccion"
+                          className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                          <span className="group-hover:translate-x-1 transition-transform duration-200">Análisis de Costos y Precios de Referencia</span>
+                        </Link>
+                      </div>
 
-                  {/* Proyecciones Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center px-4 py-2 bg-gradient-to-r from-green-800/30 to-green-700/30 rounded-xl">
-                      <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
-                      <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Proyecciones</h3>
-                    </div>
-                    <Link
-                      href="/simulador-proyecciones"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Simulador de Proyecciones</span>
-                    </Link>
-                  </div>
+                      {/* Proyecciones Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center px-4 py-2 bg-gradient-to-r from-green-800/30 to-green-700/30 rounded-xl">
+                          <div className="w-2 h-2 bg-green-400 rounded-full mr-3"></div>
+                          <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Proyecciones</h3>
+                        </div>
+                        <Link
+                          href="/simulador-proyecciones"
+                          className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                          <span className="group-hover:translate-x-1 transition-transform duration-200">Simulador de Proyecciones</span>
+                        </Link>
+                      </div>
 
-                  {/* Resumen Gerencial Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-800/30 to-amber-700/30 rounded-xl">
-                      <div className="w-2 h-2 bg-amber-400 rounded-full mr-3"></div>
-                      <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Resumen Gerencial</h3>
-                    </div>
-                    <Link
-                      href="/resumen-gerencial"
-                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
-                      <span className="group-hover:translate-x-1 transition-transform duration-200">Dashboard Ejecutivo</span>
-                    </Link>
-                  </div>
+                      {/* Resumen Gerencial Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center px-4 py-2 bg-gradient-to-r from-amber-800/30 to-amber-700/30 rounded-xl">
+                          <div className="w-2 h-2 bg-amber-400 rounded-full mr-3"></div>
+                          <h3 className="text-white/90 text-sm font-semibold uppercase tracking-wider">Resumen Gerencial</h3>
+                        </div>
+                        <Link
+                          href="/resumen-gerencial"
+                          className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                          <span className="group-hover:translate-x-1 transition-transform duration-200">Dashboard Ejecutivo</span>
+                        </Link>
+                      </div>
 
-                  {/* Airtable Logo Mobile */}
-                  <div className="flex justify-center py-4">
-                    <a
-                      href="https://airtable.com/appBNCVj4Njbyu1En/tbluOb37XJkZeNDT7/viwlwwuAOmEiPsOVJ?blocks=hide"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20 hover:bg-white/15 transition-all duration-300"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <Image
-                        src="/logo_airtable.webp"
-                        alt="Airtable"
-                        width={24}
-                        height={24}
-                        className="object-contain opacity-80"
-                      />
-                      <span className="text-white/80 text-sm font-medium">Ver en Airtable</span>
-                    </a>
-                  </div>
+                      {/* Airtable Logo Mobile */}
+                      <div className="flex justify-center py-4">
+                        <a
+                          href="https://airtable.com/appBNCVj4Njbyu1En/tbluOb37XJkZeNDT7/viwlwwuAOmEiPsOVJ?blocks=hide"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20 hover:bg-white/15 transition-all duration-300"
+                          onClick={() => setIsMenuOpen(false)}
+                        >
+                          <Image
+                            src="/logo_airtable.webp"
+                            alt="Airtable"
+                            width={24}
+                            height={24}
+                            className="object-contain opacity-80"
+                          />
+                          <span className="text-white/80 text-sm font-medium">Ver en Airtable</span>
+                        </a>
+                      </div>
+                    </>
+                  )}
 
                   {/* Logout Button */}
                   <div className="pt-2 border-t border-white/20">
