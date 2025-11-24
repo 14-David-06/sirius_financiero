@@ -150,7 +150,7 @@ export default function MisSolicitudes() {
           {/* Header */}
           <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
             <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg mb-2">
-              Mis Solicitudes de Compra
+              Mis Solicitudes de Compras
             </h1>
             <p className="text-white/80">
               {userData?.nombre} • {userData?.categoria}
