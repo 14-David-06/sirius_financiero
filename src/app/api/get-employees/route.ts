@@ -105,9 +105,9 @@ export async function POST(request: NextRequest) {
     // Usar la misma lógica pero con filtros
     const apiKey = process.env.AIRTABLE_API_KEY;
     const baseId = process.env.AIRTABLE_BASE_ID;
-    const tableName = process.env.AIRTABLE_TEAM_TABLE_NAME || 'Equipo Financiero';
+    const tableName = process.env.AIRTABLE_TEAM_TABLE_NAME;
 
-    if (!apiKey || !baseId) {
+    if (!apiKey || !baseId || !tableName) {
       return NextResponse.json(
         { error: 'Missing database configuration' },
         { status: 500 }
