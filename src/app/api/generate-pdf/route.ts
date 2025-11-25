@@ -81,9 +81,13 @@ export async function POST(request: NextRequest) {
 
     // Generar nombre del archivo según el formato requerido
     const fechaActual = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const nombreLimpio = data.solicitudData.nombreSolicitante
-      .replace(/\s+/g, '')
-      .replace(/[^a-zA-Z0-9]/g, '');
+    // Preferir id del usuario si está disponible para evitar incluir datos sensibles en el nombre
+    const usuarioId = data.userRecordId || data.solicitudData?.userRecordId;
+    const nombreLimpio = usuarioId
+      ? usuarioId.replace(/[^a-zA-Z0-9]/g, '')
+      : (data.solicitudData.nombreSolicitante || '')
+          .replace(/\s+/g, '')
+          .replace(/[^a-zA-Z0-9]/g, '');
     const fileName = `solicitudcompra${nombreLimpio}${fechaActual}.pdf`;
     const fullPath = `solicitudes de compras/${fileName}`;
     
@@ -98,7 +102,7 @@ export async function POST(request: NextRequest) {
       ContentDisposition: 'inline',
       Metadata: {
         'tipo-documento': 'solicitud-compra',
-        'solicitante': data.solicitudData.nombreSolicitante,
+        'solicitante': usuarioId || data.solicitudData.nombreSolicitante,
         'area': data.solicitudData.areaSolicitante,
         'fecha-generacion': new Date().toISOString(),
         'numero-items': data.solicitudData.items.length.toString()
@@ -122,7 +126,7 @@ export async function POST(request: NextRequest) {
       fileName: fileName,
       fullPath: fullPath,
       metadata: {
-        solicitante: data.solicitudData.nombreSolicitante,
+        solicitante: usuarioId || data.solicitudData.nombreSolicitante,
         area: data.solicitudData.areaSolicitante,
         numeroItems: data.solicitudData.items.length,
         fechaGeneracion: fechaActual

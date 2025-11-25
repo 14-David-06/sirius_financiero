@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
+import { securityHeaders } from '@/lib/security/validation';
 
 interface SolicitudCompraData {
   // Datos del solicitante
@@ -123,6 +125,25 @@ export async function POST(request: NextRequest) {
       }
     };
 
+    // Si existe sesión autenticada, intentar extraer el recordId del usuario
+    let userRecordId: string | undefined = undefined;
+    try {
+      const token = request.cookies.get('auth-token')?.value;
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+      if (token) {
+        const decoded = jwt.verify(token, JWT_SECRET) as Record<string, unknown>;
+        userRecordId = typeof decoded.recordId === 'string' ? decoded.recordId : undefined;
+        if (userRecordId) {
+          // Campo link a Equipo Financiero (ID del registro)
+          solicitudRecord.fields['Equipo Financiero'] = [userRecordId];
+        }
+      }
+    } catch (err) {
+      // No bloquear: si el token es inválido o no existe, continuamos sin el enlace
+      console.warn('No se pudo obtener recordId desde la sesión:', err);
+      userRecordId = undefined;
+    }
+
     // SOLO AGREGAR ITEMS SI EXISTEN
     if (itemsCreados.length > 0) {
       solicitudRecord.fields['Items Compras y Adquisiciones'] = itemsCreados;
@@ -229,9 +250,10 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          solicitudData: data,
-          solicitudId: solicitudId
-        })
+            solicitudData: data,
+            solicitudId: solicitudId,
+            userRecordId: userRecordId
+          })
       });
 
       if (pdfResponse.ok) {

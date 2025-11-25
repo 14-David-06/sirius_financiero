@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Employee, AirtableField } from '../types/compras';
+import { useAuthSession } from '@/lib/hooks/useAuthSession';
 
 interface SolicitudCompraData {
   nombreSolicitante: string;
@@ -61,6 +62,8 @@ export default function SolicitudesCompra() {
   const [cotizacionFile, setCotizacionFile] = useState<File | null>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [cotizacionAttachment, setCotizacionAttachment] = useState<AirtableField | null>(null);
+  
+  const { isAuthenticated, userData, isLoading } = useAuthSession();
   
   const costCentersByArea = {
     "Laboratorio": ["Hongos", "Bacterias", "Análisis"],
@@ -239,6 +242,14 @@ export default function SolicitudesCompra() {
   useEffect(() => {
     loadEmployees();
   }, [loadEmployees]);
+
+  // Efecto para establecer el usuario por defecto como el usuario logueado
+  // Ahora fijamos siempre el solicitante al usuario logueado (si existe)
+  useEffect(() => {
+    if (userData?.nombre && selectedUser !== userData.nombre) {
+      setSelectedUser(userData.nombre);
+    }
+  }, [userData?.nombre, selectedUser]);
 
   const getUserData = (username: string) => {
     // Buscar primero en los empleados cargados desde la base de datos
@@ -610,20 +621,34 @@ export default function SolicitudesCompra() {
                       Cargando empleados...
                     </div>
                   ) : (
-                    <select
-                      value={selectedUser}
-                      onChange={(e) => setSelectedUser(e.target.value)}
-                      className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
-                      required
-                    >
-                      <option value="" className="text-gray-900 bg-white">Seleccione un usuario</option>
-                      {getEmployeeOptions().map(employee => (
-                        <option key={employee.id} value={employee.name} className="text-gray-900 bg-white">
-                          {employee.name} - {employee.cargo} ({employee.area})
+                    // Si el usuario está autenticado, fijamos el dropdown al usuario logueado
+                    (isAuthenticated && userData?.nombre) ? (
+                      <select
+                        value={selectedUser}
+                        disabled
+                        className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 opacity-80 cursor-not-allowed"
+                        required
+                      >
+                        <option value={selectedUser} className="text-gray-900 bg-white">
+                          {selectedUser} - {getUserData(selectedUser).cargo} ({getUserData(selectedUser).area})
                         </option>
-                      ))}
-                      <option value="otro" className="text-gray-900 bg-white">Otro Usuario</option>
-                    </select>
+                      </select>
+                    ) : (
+                      <select
+                        value={selectedUser}
+                        onChange={(e) => setSelectedUser(e.target.value)}
+                        className="w-full p-4 bg-white/15 border border-white/30 rounded-2xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300"
+                        required
+                      >
+                        <option value="" className="text-gray-900 bg-white">Seleccione un usuario</option>
+                        {getEmployeeOptions().map(employee => (
+                          <option key={employee.id} value={employee.name} className="text-gray-900 bg-white">
+                            {employee.name} - {employee.cargo} ({employee.area})
+                          </option>
+                        ))}
+                        <option value="otro" className="text-gray-900 bg-white">Otro Usuario</option>
+                      </select>
+                    )
                   )}
                   {employeesError && (
                     <div className="flex items-center justify-between mt-2">
