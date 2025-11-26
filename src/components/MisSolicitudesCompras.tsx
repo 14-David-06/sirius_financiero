@@ -200,20 +200,6 @@ export default function MisSolicitudes() {
                         {solicitud.prioridadSolicitud || 'Media'}
                       </span>
                     </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/70 text-sm">Valor Total:</span>
-                      <span className="text-white font-semibold">
-                        {formatCurrency(solicitud.valorTotal || 0)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/70 text-sm">Items:</span>
-                      <span className="text-white">
-                        {solicitud.items.length} producto{solicitud.items.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
 
                     {solicitud.razonSocialProveedor && (
                       <div className="flex items-start justify-between">
@@ -283,32 +269,24 @@ export default function MisSolicitudes() {
                 </div>
               </div>
 
-              {/* Items */}
+              {/* Descripción de la Solicitud */}
               <div className="bg-white/10 rounded-lg p-4">
-                <h3 className="text-white font-semibold mb-3">Items Solicitados</h3>
-                <div className="space-y-3">
-                  {selectedSolicitud.items.map((item, index) => (
-                    <div key={index} className="bg-white/10 rounded-lg p-3">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="text-white font-medium">{item.objeto}</h4>
-                        <span className="text-white font-semibold">
-                          {formatCurrency(item.valorItem)}
-                        </span>
-                      </div>
-                      <div className="text-white/70 text-sm">
-                        Cantidad: {item.cantidad}
-                      </div>
+                <h3 className="text-white font-semibold mb-3">Descripción de la Solicitud</h3>
+                <div className="text-white/80 whitespace-pre-wrap">
+                  {selectedSolicitud.descripcionSolicitud && typeof selectedSolicitud.descripcionSolicitud === 'object' && 'value' in selectedSolicitud.descripcionSolicitud
+                    ? (selectedSolicitud.descripcionSolicitud as any).value
+                    : selectedSolicitud.descripcionSolicitud}
+                </div>
+                {selectedSolicitud.descripcionIA && (
+                  <div className="mt-4">
+                    <h4 className="text-white font-semibold mb-2">Interpretación IA</h4>
+                    <div className="text-white/80 whitespace-pre-wrap">
+                      {selectedSolicitud.descripcionIA && typeof selectedSolicitud.descripcionIA === 'object' && 'value' in selectedSolicitud.descripcionIA
+                        ? (selectedSolicitud.descripcionIA as any).value
+                        : selectedSolicitud.descripcionIA}
                     </div>
-                  ))}
-                </div>
-                <div className="mt-4 pt-3 border-t border-white/20">
-                  <div className="flex justify-between items-center">
-                    <span className="text-white font-semibold">Total:</span>
-                    <span className="text-white font-bold text-lg">
-                      {formatCurrency(selectedSolicitud.valorTotal || 0)}
-                    </span>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Proveedor */}
