@@ -111,6 +111,13 @@ export default function Navbar() {
                       >
                         <span className="group-hover:translate-x-1 transition-transform duration-200">Solicitudes de Compra</span>
                       </Link>
+                      <Link
+                        href="/mis-solicitudes-compras"
+                        className="group flex items-center px-4 py-3 text-sm text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 mx-2 rounded-lg"
+                        onClick={closeDropdowns}
+                      >
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">Mis Solicitudes de Compras</span>
+                      </Link>
                       {/* Mostrar opciones adicionales solo para no colaboradores */}
                       {userData?.categoria !== 'Colaborador' && (
                         <>

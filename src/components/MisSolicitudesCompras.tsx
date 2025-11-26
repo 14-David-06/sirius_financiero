@@ -101,9 +101,9 @@ export default function MisSolicitudes() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
+      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-32"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
         <div className="absolute inset-0 bg-black/40"></div>
@@ -119,9 +119,9 @@ export default function MisSolicitudes() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-24"
+      <div className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat relative flex items-center justify-center pt-32"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
         <div className="absolute inset-0 bg-black/40"></div>
@@ -140,12 +140,12 @@ export default function MisSolicitudes() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
       style={{
-        backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167682/20032025-DSC_3429_1_1_kudfki.jpg)'
+        backgroundImage: 'url(/18032025-DSC_2933.jpg)'
       }}
     >
       <div className="absolute inset-0 bg-black/40"></div>
       
-      <div className="relative z-10 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-32 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl">
