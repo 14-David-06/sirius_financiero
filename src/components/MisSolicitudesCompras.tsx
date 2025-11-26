@@ -3,30 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { FileText, Calendar, AlertCircle, Eye } from 'lucide-react';
-
-interface SolicitudCompra {
-  id: string;
-  nombreSolicitante: string;
-  areaSolicitante: string;
-  cargoSolicitante: string;
-  prioridadSolicitud: 'Alta' | 'Media' | 'Baja';
-  estado: string;
-  fechaCreacion: string;
-  valorTotal: number;
-  items: Array<{
-    objeto: string;
-    cantidad: number;
-    valorItem: number;
-  }>;
-  razonSocialProveedor?: string;
-}
+import { CompraCompleta } from '@/types/compras';
 
 export default function MisSolicitudes() {
   const { isAuthenticated, userData, isLoading } = useAuthSession();
-  const [solicitudes, setSolicitudes] = useState<SolicitudCompra[]>([]);
+  const [solicitudes, setSolicitudes] = useState<CompraCompleta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudCompra | null>(null);
+  const [selectedSolicitud, setSelectedSolicitud] = useState<CompraCompleta | null>(null);
 
   useEffect(() => {
     if (isAuthenticated && userData) {
@@ -38,12 +22,12 @@ export default function MisSolicitudes() {
   const fetchMisSolicitudes = async () => {
     try {
       setLoading(true);
-      // Usar el nombre del usuario para filtrar las solicitudes
-      const response = await fetch(`/api/compras?user=${encodeURIComponent(userData?.nombre || '')}`);
+      // Usar el nombre del usuario y el área para filtrar las solicitudes
+      const response = await fetch(`/api/consultamiscompras?user=${encodeURIComponent(userData?.nombre || '')}&area=${encodeURIComponent(userData?.categoria || '')}`);
       
       if (response.ok) {
         const data = await response.json();
-        setSolicitudes(data.solicitudes || []);
+        setSolicitudes(data.compras || []);
       } else {
         setError('Error al cargar las solicitudes');
       }
@@ -196,15 +180,15 @@ export default function MisSolicitudes() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-1">
-                        Solicitud #{solicitud.id.slice(-8)}
+                        Solicitud de {solicitud.nombreSolicitante}
                       </h3>
                       <div className="flex items-center text-white/70 text-sm">
                         <Calendar className="w-4 h-4 mr-1" />
-                        {formatDate(solicitud.fechaCreacion)}
+                        {formatDate(solicitud.fechaSolicitud)}
                       </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-lg text-sm font-medium border ${getEstadoColor(solicitud.estado)}`}>
-                      {solicitud.estado}
+                    <span className={`px-3 py-1 rounded-lg text-sm font-medium border ${getEstadoColor(solicitud.estadoSolicitud)}`}>
+                      {solicitud.estadoSolicitud}
                     </span>
                   </div>
 
@@ -212,15 +196,15 @@ export default function MisSolicitudes() {
                   <div className="space-y-3 mb-4">
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Prioridad:</span>
-                      <span className={`font-medium ${getPrioridadColor(solicitud.prioridadSolicitud)}`}>
-                        {solicitud.prioridadSolicitud}
+                      <span className={`font-medium ${getPrioridadColor(solicitud.prioridadSolicitud || 'Media')}`}>
+                        {solicitud.prioridadSolicitud || 'Media'}
                       </span>
                     </div>
                     
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Valor Total:</span>
                       <span className="text-white font-semibold">
-                        {formatCurrency(solicitud.valorTotal)}
+                        {formatCurrency(solicitud.valorTotal || 0)}
                       </span>
                     </div>
 
@@ -262,7 +246,7 @@ export default function MisSolicitudes() {
           <div className="bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-6">
               <h2 className="text-2xl font-bold text-white">
-                Solicitud #{selectedSolicitud.id.slice(-8)}
+                Solicitud de {selectedSolicitud.nombreSolicitante}
               </h2>
               <button
                 onClick={() => setSelectedSolicitud(null)}
@@ -277,11 +261,11 @@ export default function MisSolicitudes() {
             <div className="space-y-4">
               {/* Estado y fecha */}
               <div className="flex justify-between items-center">
-                <span className={`px-4 py-2 rounded-lg text-sm font-medium border ${getEstadoColor(selectedSolicitud.estado)}`}>
-                  {selectedSolicitud.estado}
+                <span className={`px-4 py-2 rounded-lg text-sm font-medium border ${getEstadoColor(selectedSolicitud.estadoSolicitud)}`}>
+                  {selectedSolicitud.estadoSolicitud}
                 </span>
                 <span className="text-white/70">
-                  {formatDate(selectedSolicitud.fechaCreacion)}
+                  {formatDate(selectedSolicitud.fechaSolicitud)}
                 </span>
               </div>
 
@@ -289,11 +273,11 @@ export default function MisSolicitudes() {
               <div className="bg-white/10 rounded-lg p-4">
                 <h3 className="text-white font-semibold mb-2">Información del Solicitante</h3>
                 <div className="space-y-1 text-sm">
-                  <p className="text-white/80">Área: {selectedSolicitud.areaSolicitante}</p>
+                  <p className="text-white/80">Área: {selectedSolicitud.areaCorrespondiente}</p>
                   <p className="text-white/80">Cargo: {selectedSolicitud.cargoSolicitante}</p>
                   <p className="text-white/80">Prioridad: 
-                    <span className={`ml-1 font-medium ${getPrioridadColor(selectedSolicitud.prioridadSolicitud)}`}>
-                      {selectedSolicitud.prioridadSolicitud}
+                    <span className={`ml-1 font-medium ${getPrioridadColor(selectedSolicitud.prioridadSolicitud || 'Media')}`}>
+                      {selectedSolicitud.prioridadSolicitud || 'Media'}
                     </span>
                   </p>
                 </div>
@@ -321,7 +305,7 @@ export default function MisSolicitudes() {
                   <div className="flex justify-between items-center">
                     <span className="text-white font-semibold">Total:</span>
                     <span className="text-white font-bold text-lg">
-                      {formatCurrency(selectedSolicitud.valorTotal)}
+                      {formatCurrency(selectedSolicitud.valorTotal || 0)}
                     </span>
                   </div>
                 </div>
