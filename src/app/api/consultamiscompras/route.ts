@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=Fecha de solicitud&sort[0][direction]=desc`;
     
     // Construir filtro para usuario y/o área
-    let filterConditions = [];
+    const filterConditions = [];
     if (filterByUser) {
       const escapedUser = escapeAirtableQuery(filterByUser);
       filterConditions.push(`{Nombre Solicitante} = "${escapedUser}"`);
