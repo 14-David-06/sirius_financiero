@@ -16,6 +16,7 @@ interface MensajeChat {
     'Mensaje': string;
     'Realiza Registro'?: string;
     'Solicitud de Compra': string[];
+    'Fecha/Hora Visto'?: string;
   };
 }
 
@@ -81,7 +82,8 @@ export async function GET(request: NextRequest) {
       nombreRemitente: record.fields['Nombre Remitente'],
       mensaje: record.fields['Mensaje'],
       realizaRegistro: record.fields['Realiza Registro'],
-      solicitudCompra: record.fields['Solicitud de Compra']
+      solicitudCompra: record.fields['Solicitud de Compra'],
+      fechaHoraVisto: record.fields['Fecha/Hora Visto']
     }));
 
     console.log(`Encontrados ${mensajes.length} mensajes para la compra ${sanitizedCompraId}`);
@@ -181,6 +183,71 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error en chat API POST:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Actualizar mensaje (marcar como visto)
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, fechaHoraVisto } = body;
+
+    // Validar campos requeridos
+    if (!id || !fechaHoraVisto) {
+      return NextResponse.json(
+        { error: 'ID y fechaHoraVisto son requeridos' },
+        { status: 400 }
+      );
+    }
+
+    // Verificar que las variables de entorno estén configuradas
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY || !CONVERSACIONES_TABLE_ID) {
+      return NextResponse.json(
+        { error: 'Configuración de Airtable incompleta' },
+        { status: 500 }
+      );
+    }
+
+    // Preparar datos para actualizar en Airtable
+    const updateData = {
+      fields: {
+        'Fecha/Hora Visto': fechaHoraVisto
+      }
+    };
+
+    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${CONVERSACIONES_TABLE_ID}/${id}`;
+
+    console.log('Chat API - PATCH', `Actualizando mensaje visto: ${id}`);
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Chat API - PATCH Error', `Error de Airtable: ${response.status} - ${errorText}`);
+      throw new Error(`Error al actualizar mensaje: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    return NextResponse.json({
+      success: true,
+      message: 'Mensaje actualizado exitosamente',
+      record: result
+    });
+
+  } catch (error) {
+    console.error('Error en chat API PATCH:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

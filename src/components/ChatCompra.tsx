@@ -3,6 +3,54 @@
 import { useState, useEffect, useRef } from 'react';
 import { UserData } from '@/types/compras';
 
+// Declarar tipos para Speech Recognition
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  readonly length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
 interface MensajeChat {
   id: string;
   idConversacion: number;
@@ -12,6 +60,7 @@ interface MensajeChat {
   mensaje: string;
   realizaRegistro?: string;
   solicitudCompra: string[];
+  fechaHoraVisto?: string;
 }
 
 interface ChatCompraProps {
@@ -26,7 +75,11 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mensajesMarcadosComoVistosRef = useRef<Set<string>>(new Set());
+  const mensajesMarcadosInicialmenteRef = useRef<boolean>(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,8 +90,29 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
   }, [compraId]);
 
   useEffect(() => {
+    // Resetear el tracking de mensajes marcados como vistos cuando cambia la compra
+    mensajesMarcadosComoVistosRef.current.clear();
+    mensajesMarcadosInicialmenteRef.current = false;
+  }, [compraId]);
+
+  useEffect(() => {
+    if (mensajes.length > 0 && !mensajesMarcadosInicialmenteRef.current && userData.categoria !== 'Administrador' && userData.categoria !== 'Gerencia' && userData.categoria !== 'Desarrollador') {
+      marcarMensajesComoVistos();
+      mensajesMarcadosInicialmenteRef.current = true;
+    }
+  }, [mensajes, userData.categoria]);
+
+  useEffect(() => {
     scrollToBottom();
   }, [mensajes]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   const cargarMensajes = async () => {
     try {
@@ -86,6 +160,8 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
       todosLosMensajes.sort((a, b) => new Date(a.fechaHoraMensaje).getTime() - new Date(b.fechaHoraMensaje).getTime());
 
       setMensajes(todosLosMensajes);
+
+      // Los mensajes se marcarán como vistos automáticamente por el useEffect
     } catch (error) {
       console.error('Error al cargar los mensajes:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
@@ -97,6 +173,8 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
           console.log('Cargando mensajes locales como fallback');
           setMensajes(mensajesLocales);
           setError(`Error de conexión. Mostrando mensajes locales. ${errorMessage}`);
+
+          // Los mensajes se marcarán como vistos automáticamente por el useEffect
           return;
         }
       } catch (localStorageError) {
@@ -106,6 +184,53 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
       setError(`Error al cargar los mensajes: ${errorMessage}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const marcarMensajesComoVistos = async () => {
+    let mensajesNoVistos: MensajeChat[] = [];
+    
+    try {
+      // Solo marcar mensajes del admin como vistos cuando el solicitante los lee
+      mensajesNoVistos = mensajes.filter(
+        msg => msg.remitente === 'Administrador de Compras' && 
+               !msg.fechaHoraVisto && 
+               !mensajesMarcadosComoVistosRef.current.has(msg.id)
+      );
+
+      if (mensajesNoVistos.length === 0) return;
+
+      // Marcar como procesados para evitar loops
+      mensajesNoVistos.forEach(msg => mensajesMarcadosComoVistosRef.current.add(msg.id));
+
+      // Actualizar en Airtable
+      const updatePromises = mensajesNoVistos.map(async (mensaje) => {
+        const response = await fetch('/api/chat-compras', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: mensaje.id,
+            fechaHoraVisto: new Date().toISOString()
+          }),
+        });
+        return response.ok;
+      });
+
+      await Promise.all(updatePromises);
+
+      // Actualizar estado local
+      setMensajes(prev => prev.map(msg =>
+        mensajesNoVistos.some(m => m.id === msg.id)
+          ? { ...msg, fechaHoraVisto: new Date().toISOString() }
+          : msg
+      ));
+
+    } catch (error) {
+      console.error('Error al marcar mensajes como vistos:', error);
+      // Si hay error, remover de la lista de procesados para permitir reintento
+      mensajesNoVistos.forEach((msg: MensajeChat) => mensajesMarcadosComoVistosRef.current.delete(msg.id));
     }
   };
 
@@ -142,7 +267,8 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
             nombreRemitente: userData.nombre,
             mensaje: nuevoMensaje.trim(),
             realizaRegistro: userData.nombre,
-            solicitudCompra: [compraId]
+            solicitudCompra: [compraId],
+            fechaHoraVisto: undefined
           };
 
           // Guardar en localStorage
@@ -168,6 +294,50 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
       alert(`Error al enviar el mensaje: ${errorMessage}`);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const iniciarGrabacion = () => {
+    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
+      alert('Tu navegador no soporta reconocimiento de voz. Intenta con Chrome o Edge.');
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'es-CO'; // Español de Colombia
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setNuevoMensaje(prev => prev + (prev ? ' ' : '') + transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Error en reconocimiento de voz:', event.error);
+      setIsRecording(false);
+      if (event.error !== 'no-speech') {
+        alert('Error al reconocer voz: ' + event.error);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const detenerGrabacion = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 
@@ -246,15 +416,27 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
                 className={`flex flex-col max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${mensaje.remitente === 'Administrador de Compras' ? 'self-end' : 'self-start'}`}
               >
                 <div className={`rounded-2xl px-4 py-3 ${getMessageStyle(mensaje.remitente)}`}>
-                  <div className="text-xs opacity-75 mb-1">
+                  <div className="text-xs opacity-75 mb-1 flex items-center gap-1">
                     {mensaje.nombreRemitente} • {formatDate(mensaje.fechaHoraMensaje)}
                   </div>
                   <div className="whitespace-pre-wrap">{mensaje.mensaje}</div>
-                  {mensaje.realizaRegistro && (
-                    <div className="text-xs opacity-75 mt-2 italic">
-                      Registro: {mensaje.realizaRegistro}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between mt-2">
+                    {mensaje.realizaRegistro && (
+                      <div className="text-xs opacity-75 italic">
+                        Registro: {mensaje.realizaRegistro}
+                      </div>
+                    )}
+                    {mensaje.remitente === 'Administrador de Compras' && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-400">
+                          {mensaje.fechaHoraVisto ? 'visto' : 'enviado'}
+                        </span>
+                        <span className={`text-xs ${mensaje.fechaHoraVisto ? 'text-green-400' : 'text-gray-600'}`}>
+                          ✓✓
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -264,25 +446,48 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
 
         {/* Input Area */}
         <div className="border-t border-white/20 p-6">
-          <div className="flex gap-3 justify-center">
-            <textarea
-              value={nuevoMensaje}
-              onChange={(e) => setNuevoMensaje(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  enviarMensaje();
-                }
-              }}
-              placeholder="Escribe tu mensaje..."
-              className="w-full max-w-sm bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder-white/70 focus:outline-none focus:border-blue-400 resize-none"
-              rows={2}
-              disabled={isSending}
-            />
+          <div className="flex justify-center">
+            <div className="relative w-full max-w-sm">
+              <textarea
+                value={nuevoMensaje}
+                onChange={(e) => setNuevoMensaje(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    enviarMensaje();
+                  }
+                }}
+                placeholder="Escribe tu mensaje..."
+                className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 pr-12 text-white placeholder-white/70 focus:outline-none focus:border-blue-400 resize-none"
+                rows={2}
+                disabled={isSending}
+              />
+              <button
+                onClick={isRecording ? detenerGrabacion : iniciarGrabacion}
+                disabled={isSending}
+                className={`absolute top-2 right-2 p-1 rounded-md transition-all duration-300 ${
+                  isRecording
+                    ? 'bg-red-600 text-white animate-pulse'
+                    : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={isRecording ? 'Detener grabación' : 'Grabar mensaje de voz'}
+              >
+                {isRecording ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                  </svg>
+                )}
+              </button>
+            </div>
             <button
               onClick={enviarMensaje}
               disabled={!nuevoMensaje.trim() || isSending}
-              className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-3"
             >
               {isSending ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b border-white"></div>

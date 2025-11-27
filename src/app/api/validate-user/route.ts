@@ -132,6 +132,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           user: {
             cedula: sanitizeInput(user.Cedula || ''),
             nombre: sanitizeInput(user.Nombre || 'No disponible'),
+            cargo: sanitizeInput(user['Categoria Usuario'] || 'No disponible'),
             categoria: sanitizeInput(user['Categoria Usuario'] || 'No disponible'),
             idChat: sanitizeInput(user.ID_Chat || 'No disponible'),
           }

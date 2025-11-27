@@ -48,7 +48,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           recordId: typeof decoded.recordId === 'string' ? decoded.recordId : undefined,
           cedula: typeof decoded.cedula === 'string' ? decoded.cedula : '',
           nombre: typeof decoded.nombre === 'string' ? decoded.nombre : '',
-          categoria: typeof decoded.categoria === 'string' ? decoded.categoria : ''
+          cargo: typeof decoded.categoria === 'string' ? decoded.categoria : '',
+          categoria: typeof decoded.categoria === 'string' ? decoded.categoria : '',
+          idChat: typeof decoded.idChat === 'string' ? decoded.idChat : ''
         }
       }),
       {
