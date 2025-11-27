@@ -29,7 +29,6 @@ export default function MonitoreoSolicitudes() {
           backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
         }}
       >
-        <div className="absolute inset-0 bg-black/50"></div>
         <div className="relative z-10">
           <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl">
             <div className="flex items-center justify-center space-x-4">
@@ -50,7 +49,6 @@ export default function MonitoreoSolicitudes() {
           backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752167074/20032025-DSC_3427_1_1_zmq71m.jpg)'
         }}
       >
-        <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative z-10">
           <ValidacionUsuario
             onValidationSuccess={handleValidationSuccess}
@@ -80,14 +78,11 @@ export default function MonitoreoSolicitudes() {
         backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
       }}
     >
-      <div className="absolute inset-0 bg-black/50 min-h-full"></div>
       <div className="relative z-10 pt-24">
-        <div className="bg-black/50 min-h-screen">
-          <DashboardCompras
-            userData={userData}
-            onLogout={handleLogout}
-          />
-        </div>
+        <DashboardCompras
+          userData={userData}
+          onLogout={handleLogout}
+        />
       </div>
     </div>
   );

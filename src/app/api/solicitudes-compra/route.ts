@@ -10,7 +10,7 @@ interface SolicitudCompraData {
   
   // Datos de la solicitud
   descripcionTranscripcion?: string;
-  descripcionIAInterpretacion?: string;
+  // descripcionIAInterpretacion?: string; // Campo computado en Airtable, no se envía directamente
   hasProvider: 'si' | 'no';
   razonSocialProveedor?: string;
   cotizacionDoc?: string;
@@ -154,9 +154,11 @@ export async function POST(request: NextRequest) {
       solicitudRecord.fields['Descripcion Solicitud Transcripcion'] = data.descripcionTranscripcion;
     }
 
-    if (data.descripcionIAInterpretacion) {
-      solicitudRecord.fields['Descripcion Solicitud IAInterpretacion'] = data.descripcionIAInterpretacion;
-    }
+    // Nota: 'Descripcion Solicitud IAInterpretacion' parece ser un campo computado en Airtable
+    // No se debe asignar directamente para evitar errores de "cannot accept the provided value"
+    // if (data.descripcionIAInterpretacion) {
+    //   solicitudRecord.fields['Descripcion Solicitud IAInterpretacion'] = data.descripcionIAInterpretacion;
+    // }
 
     if (data.razonSocialProveedor) {
       solicitudRecord.fields['Razon Social Proveedor'] = data.razonSocialProveedor;

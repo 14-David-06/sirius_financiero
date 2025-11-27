@@ -93,9 +93,29 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
     }
   };
 
-  const renderArrayField = (field: string[] | number[] | undefined, label: string) => {
+  const renderArrayField = (field: any[] | undefined, label: string) => {
     if (!field || (Array.isArray(field) && field.length === 0)) return null;
-    const value = Array.isArray(field) ? field.join(', ') : field;
+    
+    let value: string;
+    if (Array.isArray(field)) {
+      // Manejar arrays que pueden contener objetos
+      value = field.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          // Si es un objeto, intentar extraer un valor significativo
+          if ('value' in item) {
+            return String(item.value);
+          } else if ('state' in item) {
+            return String(item.state);
+          } else {
+            return '[Object]'; // Fallback para objetos sin propiedades conocidas
+          }
+        }
+        return String(item);
+      }).join(', ');
+    } else {
+      value = String(field);
+    }
+    
     return (
       <div className="mb-2">
         <span className="font-medium text-gray-700">{label}:</span>

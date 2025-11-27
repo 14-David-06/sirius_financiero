@@ -20,7 +20,7 @@ interface SolicitudCompraData {
   }>;
   razonSocialProveedor?: string;
   descripcionTranscripcion?: string;
-  descripcionIAInterpretacion?: string;
+  // descripcionIAInterpretacion?: string; // Campo computado en Airtable
   cotizacionDoc?: string; // Para el archivo de cotización
 }
 
@@ -415,13 +415,13 @@ export default function SolicitudesCompra() {
       
       descripcionCompleta += `Items solicitados:\n${descripcionItems}`;
       
-      solicitudData.descripcionIAInterpretacion = descripcionCompleta;
+      // solicitudData.descripcionIAInterpretacion = descripcionCompleta; // Campo computado en Airtable
       */
 
-      // Por ahora, solo usar la transcripción como descripción IA si existe
-      if (audioTranscription.trim()) {
-        solicitudData.descripcionIAInterpretacion = audioTranscription;
-      }
+      // Por ahora, solo usar la transcripción como descripción (sin IA)
+      // if (audioTranscription.trim()) {
+      //   solicitudData.descripcionIAInterpretacion = audioTranscription; // Campo computado en Airtable
+      // }
 
       // Debug logs solo en desarrollo
       if (process.env.NODE_ENV === 'development') {
