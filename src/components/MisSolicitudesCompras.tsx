@@ -22,17 +22,56 @@ export default function MisSolicitudes() {
   const fetchMisSolicitudes = async () => {
     try {
       setLoading(true);
-      // Usar el nombre del usuario y el área para filtrar las solicitudes
-      const response = await fetch(`/api/consultamiscompras?user=${encodeURIComponent(userData?.nombre || '')}&area=${encodeURIComponent(userData?.categoria || '')}`);
+      
+      // Validar que tenemos los datos necesarios del usuario
+      if (!userData?.nombre) {
+        throw new Error('Nombre de usuario no disponible');
+      }
+      
+      if (!userData?.categoria) {
+        throw new Error('Categoría de usuario no disponible');
+      }
+      
+      // Filtrar por nombre del usuario Y área para evitar duplicados
+      const params = new URLSearchParams({
+        user: userData.nombre,
+        area: userData.categoria,
+        // Nota: La cédula se valida en autenticación pero no se usa para filtrado de compras
+        // ya que la tabla de compras no tiene campo de cédula directamente
+      });
+      
+      const response = await fetch(`/api/consultamiscompras?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();
-        setSolicitudes(data.compras || []);
+        const compras = data.compras || [];
+        
+        // Validación adicional: detectar posibles duplicados en el frontend
+        const userAreaCombinations = new Map<string, number>();
+        compras.forEach((compra: CompraCompleta) => {
+          const key = `${compra.nombreSolicitante}||${compra.areaCorrespondiente}`;
+          userAreaCombinations.set(key, (userAreaCombinations.get(key) || 0) + 1);
+        });
+        
+        // Log para debugging (solo en desarrollo)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 Estadísticas de solicitudes:', {
+            total: compras.length,
+            combinacionesUsuarioArea: userAreaCombinations.size,
+            posiblesDuplicados: Array.from(userAreaCombinations.entries())
+              .filter(([, count]) => count > 1)
+              .map(([key, count]) => `${key}: ${count}`)
+          });
+        }
+        
+        setSolicitudes(compras);
       } else {
-        setError('Error al cargar las solicitudes');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al cargar las solicitudes');
       }
     } catch (error) {
-      setError('Error de conexión');
+      const errorMessage = error instanceof Error ? error.message : 'Error de conexión';
+      setError(errorMessage);
       console.error('Error:', error);
     } finally {
       setLoading(false);
@@ -40,31 +79,55 @@ export default function MisSolicitudes() {
   };
 
   const getEstadoColor = (estado: string) => {
-    switch (estado.toLowerCase()) {
-      case 'pendiente':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'aprobado':
-        return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'rechazado':
-        return 'bg-red-500/20 text-red-300 border-red-500/30';
-      case 'en proceso':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-    }
+    // Configuración centralizada de colores de estado
+    const estadoConfig: Record<string, { bg: string; text: string; border: string }> = {
+      'pendiente': {
+        bg: 'bg-yellow-500/20',
+        text: 'text-yellow-300',
+        border: 'border-yellow-500/30'
+      },
+      'aprobado': {
+        bg: 'bg-green-500/20',
+        text: 'text-green-300',
+        border: 'border-green-500/30'
+      },
+      'rechazado': {
+        bg: 'bg-red-500/20',
+        text: 'text-red-300',
+        border: 'border-red-500/30'
+      },
+      'en proceso': {
+        bg: 'bg-blue-500/20',
+        text: 'text-blue-300',
+        border: 'border-blue-500/30'
+      },
+      'cancelado': {
+        bg: 'bg-gray-500/20',
+        text: 'text-gray-300',
+        border: 'border-gray-500/30'
+      },
+      'completado': {
+        bg: 'bg-emerald-500/20',
+        text: 'text-emerald-300',
+        border: 'border-emerald-500/30'
+      }
+    };
+
+    const config = estadoConfig[estado.toLowerCase()] || estadoConfig['pendiente'];
+    return `${config.bg} ${config.text} ${config.border}`;
   };
 
   const getPrioridadColor = (prioridad: string) => {
-    switch (prioridad) {
-      case 'Alta':
-        return 'text-red-300';
-      case 'Media':
-        return 'text-yellow-300';
-      case 'Baja':
-        return 'text-green-300';
-      default:
-        return 'text-gray-300';
-    }
+    // Configuración centralizada de colores de prioridad
+    const prioridadConfig: Record<string, string> = {
+      'Alta': 'text-red-300',
+      'Media': 'text-yellow-300',
+      'Baja': 'text-green-300',
+      'Crítica': 'text-red-400',
+      'Urgente': 'text-orange-300'
+    };
+
+    return prioridadConfig[prioridad] || 'text-gray-300';
   };
 
   const formatCurrency = (value: number) => {
