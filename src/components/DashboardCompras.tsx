@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DetalleCompraCompleto from './DetalleCompraCompleto';
+import ChatCompra from './ChatCompra';
 import { CompraCompleta, EstadisticasData, UserData, ApiResponse } from '@/types/compras';
 
 interface DashboardComprasProps {
@@ -19,6 +20,7 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
   const [updatingStates, setUpdatingStates] = useState<Set<string>>(new Set());
   const [selectedCompra, setSelectedCompra] = useState<CompraCompleta | null>(null);
   const [showDetalleCompleto, setShowDetalleCompleto] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -424,16 +426,29 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
                       )}
                     </div>
                     
-                    {/* Botón ver detalle */}
-                    <button
-                      onClick={() => {
-                        setSelectedCompra(compra);
-                        setShowDetalleCompleto(true);
-                      }}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-xs sm:text-sm w-full sm:w-auto"
-                    >
-                      📋 Ver Detalle Completo
-                    </button>
+                    {/* Botones de acción */}
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => {
+                          console.log('Botón Chat Compra clickeado para compra:', compra.id);
+                          setSelectedCompra(compra);
+                          setShowChat(true);
+                          console.log('Estado showChat establecido a true');
+                        }}
+                        className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none"
+                      >
+                        💬 Chat Compra
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedCompra(compra);
+                          setShowDetalleCompleto(true);
+                        }}
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none"
+                      >
+                        📋 Ver Detalle Completo
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -448,6 +463,18 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
           compra={selectedCompra}
           onClose={() => {
             setShowDetalleCompleto(false);
+            setSelectedCompra(null);
+          }}
+        />
+      )}
+
+      {/* Modal de Chat */}
+      {showChat && selectedCompra && (
+        <ChatCompra
+          compraId={selectedCompra.id}
+          userData={userData}
+          onClose={() => {
+            setShowChat(false);
             setSelectedCompra(null);
           }}
         />
