@@ -477,6 +477,7 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
             setShowChat(false);
             setSelectedCompra(null);
           }}
+          origen="monitoreo-solicitudes"
         />
       )}
     </div>

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-import { FileText, Calendar, AlertCircle, Eye } from 'lucide-react';
+import { FileText, Calendar, AlertCircle, Eye, MessageCircle } from 'lucide-react';
 import { CompraCompleta } from '@/types/compras';
+import ChatCompra from './ChatCompra';
 
 export default function MisSolicitudes() {
   const { isAuthenticated, userData, isLoading } = useAuthSession();
@@ -11,6 +12,8 @@ export default function MisSolicitudes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedSolicitud, setSelectedSolicitud] = useState<CompraCompleta | null>(null);
+  const [chatSolicitud, setChatSolicitud] = useState<CompraCompleta | null>(null);
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && userData) {
@@ -18,6 +21,12 @@ export default function MisSolicitudes() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userData]);
+
+  // Resetear chat cuando cambia la solicitud seleccionada
+  useEffect(() => {
+    setShowChat(false);
+    setChatSolicitud(null);
+  }, [selectedSolicitud]);
 
   const fetchMisSolicitudes = async () => {
     try {
@@ -277,10 +286,22 @@ export default function MisSolicitudes() {
                   {/* Botón de ver detalles */}
                   <button
                     onClick={() => setSelectedSolicitud(solicitud)}
-                    className="w-full bg-gradient-to-r from-blue-600/70 to-purple-600/70 hover:from-blue-700/80 hover:to-purple-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
+                    className="w-full bg-gradient-to-r from-blue-600/70 to-purple-600/70 hover:from-blue-700/80 hover:to-purple-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center mb-2"
                   >
                     <Eye className="w-4 h-4 mr-2" />
                     Ver Detalles
+                  </button>
+
+                  {/* Botón de chat compras */}
+                  <button
+                    onClick={() => {
+                      setChatSolicitud(solicitud);
+                      setShowChat(true);
+                    }}
+                    className="w-full bg-gradient-to-r from-green-600/70 to-emerald-600/70 hover:from-green-700/80 hover:to-emerald-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Chat Compras
                   </button>
                 </div>
               ))}
@@ -362,6 +383,19 @@ export default function MisSolicitudes() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Chat */}
+      {showChat && chatSolicitud && (
+        <ChatCompra
+          compraId={chatSolicitud.id}
+          userData={userData!}
+          onClose={() => {
+            setShowChat(false);
+            setChatSolicitud(null);
+          }}
+          origen="mis-solicitudes"
+        />
       )}
     </div>
   );

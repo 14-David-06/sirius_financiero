@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production node server.js",
     "lint": "next lint",
     "security:check": "node scripts/clean-logs.js verify",
     "security:clean": "node scripts/clean-logs.js clean",
@@ -31,7 +31,9 @@
     "puppeteer": "^24.15.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "recharts": "^3.2.1"
+    "recharts": "^3.2.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

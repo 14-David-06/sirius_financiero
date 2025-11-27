@@ -67,9 +67,10 @@ interface ChatCompraProps {
   compraId: string;
   userData: UserData;
   onClose: () => void;
+  origen?: 'mis-solicitudes' | 'monitoreo-solicitudes';
 }
 
-export default function ChatCompra({ compraId, userData, onClose }: ChatCompraProps) {
+export default function ChatCompra({ compraId, userData, onClose, origen = 'monitoreo-solicitudes' }: ChatCompraProps) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +81,11 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mensajesMarcadosComoVistosRef = useRef<Set<string>>(new Set());
   const mensajesMarcadosInicialmenteRef = useRef<boolean>(false);
+
+  // Debug: verificar el origen recibido
+  console.log('ChatCompra - Origen recibido:', JSON.stringify(origen));
+  console.log('ChatCompra - Origen es mis-solicitudes?', origen === 'mis-solicitudes');
+  console.log('ChatCompra - Remitente que se usará:', origen === 'mis-solicitudes' ? 'Solicitante' : 'Administrador de Compras');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -96,11 +102,11 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
   }, [compraId]);
 
   useEffect(() => {
-    if (mensajes.length > 0 && !mensajesMarcadosInicialmenteRef.current && userData.categoria !== 'Administrador' && userData.categoria !== 'Gerencia' && userData.categoria !== 'Desarrollador') {
+    if (mensajes.length > 0 && !mensajesMarcadosInicialmenteRef.current) {
       marcarMensajesComoVistos();
       mensajesMarcadosInicialmenteRef.current = true;
     }
-  }, [mensajes, userData.categoria]);
+  }, [mensajes]);
 
   useEffect(() => {
     scrollToBottom();
@@ -191,9 +197,11 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
     let mensajesNoVistos: MensajeChat[] = [];
     
     try {
-      // Solo marcar mensajes del admin como vistos cuando el solicitante los lee
+      // Determinar qué mensajes marcar como vistos según el origen
+      const remitenteAMarcar = origen === 'mis-solicitudes' ? 'Administrador de Compras' : 'Solicitante';
+      
       mensajesNoVistos = mensajes.filter(
-        msg => msg.remitente === 'Administrador de Compras' && 
+        msg => msg.remitente === remitenteAMarcar && 
                !msg.fechaHoraVisto && 
                !mensajesMarcadosComoVistosRef.current.has(msg.id)
       );
@@ -239,6 +247,9 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
 
     try {
       setIsSending(true);
+      const remitenteValue = origen === 'mis-solicitudes' ? 'Solicitante' : 'Administrador de Compras';
+      console.log('Enviando mensaje con remitente:', remitenteValue, 'desde origen:', origen);
+
       const response = await fetch('/api/chat-compras', {
         method: 'POST',
         headers: {
@@ -248,7 +259,7 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
           compraId,
           mensaje: nuevoMensaje.trim(),
           nombreRemitente: userData.nombre,
-          remitente: 'Administrador de Compras',
+          remitente: remitenteValue,
           realizaRegistro: userData.nombre
         }),
       });
@@ -259,11 +270,14 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
         // Si la tabla no existe, guardar localmente
         if (response.status === 404 && errorData.error?.includes('no encontrada')) {
           console.log('Tabla no existe, guardando mensaje localmente');
+          const remitenteValue = origen === 'mis-solicitudes' ? 'Solicitante' : 'Administrador de Compras';
+          console.log('Guardando mensaje local con remitente:', remitenteValue);
+
           const mensajeLocal: MensajeChat = {
             id: `local_${Date.now()}`,
             idConversacion: 1,
             fechaHoraMensaje: new Date().toISOString(),
-            remitente: 'Administrador de Compras',
+            remitente: remitenteValue,
             nombreRemitente: userData.nombre,
             mensaje: nuevoMensaje.trim(),
             realizaRegistro: userData.nombre,
@@ -352,10 +366,27 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
     });
   };
 
-  const getMessageStyle = (remitente: string) => {
-    const isCurrentUser = remitente === 'Administrador de Compras';
+  const getMessagePosition = (remitente: string, origen: string) => {
+    // Si el chat se abre desde mis-solicitudes-compras, invertir la lógica
+    if (origen === 'mis-solicitudes') {
+      return remitente === 'Administrador de Compras' ? 'self-start' : 'self-end';
+    }
+    // Lógica normal para monitoreo-solicitudes
+    return remitente === 'Administrador de Compras' ? 'self-end' : 'self-start';
+  };
 
-    return isCurrentUser
+  const getMessageStyle = (remitente: string, origen: string) => {
+    const isAdmin = remitente === 'Administrador de Compras';
+    
+    // Si el chat se abre desde mis-solicitudes-compras
+    if (origen === 'mis-solicitudes') {
+      return isAdmin
+        ? 'bg-white/10 text-white border border-white/20 self-start' // Admin a la izquierda, color claro
+        : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white self-end'; // Solicitante a la derecha, color azul
+    }
+    
+    // Lógica normal para monitoreo-solicitudes
+    return isAdmin
       ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white self-end'
       : 'bg-white/10 text-white border border-white/20 self-start';
   };
@@ -413,9 +444,9 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
             mensajes.map((mensaje) => (
               <div
                 key={mensaje.id}
-                className={`flex flex-col max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${mensaje.remitente === 'Administrador de Compras' ? 'self-end' : 'self-start'}`}
+                className={`flex flex-col max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${getMessagePosition(mensaje.remitente, origen)}`}
               >
-                <div className={`rounded-2xl px-4 py-3 ${getMessageStyle(mensaje.remitente)}`}>
+                <div className={`rounded-2xl px-4 py-3 ${getMessageStyle(mensaje.remitente, origen)}`}>
                   <div className="text-xs opacity-75 mb-1 flex items-center gap-1">
                     {mensaje.nombreRemitente} • {formatDate(mensaje.fechaHoraMensaje)}
                   </div>
@@ -426,7 +457,8 @@ export default function ChatCompra({ compraId, userData, onClose }: ChatCompraPr
                         Registro: {mensaje.realizaRegistro}
                       </div>
                     )}
-                    {mensaje.remitente === 'Administrador de Compras' && (
+                    {((origen === 'mis-solicitudes' && mensaje.remitente === 'Solicitante') ||
+                      (origen === 'monitoreo-solicitudes' && mensaje.remitente === 'Administrador de Compras')) && (
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-gray-400">
                           {mensaje.fechaHoraVisto ? 'visto' : 'enviado'}
