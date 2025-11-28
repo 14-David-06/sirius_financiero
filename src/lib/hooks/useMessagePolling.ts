@@ -1,11 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { UserData } from '@/types/compras';
+import { UserData, CompraCompleta } from '@/types/compras';
+
+interface ChatMessage {
+  id: string;
+  idConversacion: number;
+  fechaHoraMensaje: string;
+  remitente: 'Solicitante' | 'Administrador de Compras';
+  nombreRemitente: string;
+  mensaje: string;
+  realizaRegistro?: string;
+  solicitudCompra: string[];
+  fechaHoraVisto?: string;
+}
 
 interface MessagePollingOptions {
   userData: UserData | null;
-  solicitudes: any[];
+  solicitudes: CompraCompleta[];
   onNewMessage: (compraId: string, messageCount: number) => void;
   enabled?: boolean;
   interval?: number; // en milisegundos
@@ -39,7 +51,7 @@ export function useMessagePolling({
             const mensajes = data.mensajes || [];
 
             // Contar mensajes del administrador que no han sido vistos
-            const unreadCount = mensajes.filter((msg: any) =>
+            const unreadCount = mensajes.filter((msg: ChatMessage) =>
               msg.remitente === 'Administrador de Compras' && !msg.fechaHoraVisto
             ).length;
 

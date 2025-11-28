@@ -40,7 +40,7 @@ export default function SolicitudesCompra() {
   const [otroNombre, setOtroNombre] = useState('');
   const [otroArea, setOtroArea] = useState('');
   const [otroCargo, setOtroCargo] = useState('');
-  const [hasProvider, setHasProvider] = useState('');
+  const [hasProvider, setHasProvider] = useState(''); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [priority, setPriority] = useState('Media'); // Valor por defecto: Media
   const [items, setItems] = useState<ItemData[]>([]);
   const [itemCounter, setItemCounter] = useState(0);
