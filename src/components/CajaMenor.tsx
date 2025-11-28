@@ -1,6 +1,7 @@
 'use client';
 
 import ValidacionUsuario from './ValidacionUsuario';
+import CajaMenorAgent from './CajaMenorAgent';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { UserData } from '@/types/compras';
@@ -92,6 +93,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const [showConsolidarModal, setShowConsolidarModal] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isConsolidating, setIsConsolidating] = useState(false);
+  const [showAgentModal, setShowAgentModal] = useState(false);
   
   // Estados para grabación de audio y transcripción
   const [isRecording, setIsRecording] = useState(false);
@@ -1199,6 +1201,14 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span className="text-green-300 font-semibold text-xs md:text-sm">Sistema Activo</span>
                 </div>
+                <button
+                  onClick={() => setShowAgentModal(true)}
+                  className="flex items-center gap-2 bg-blue-500/20 hover:bg-blue-500/30 px-3 md:px-4 py-2 rounded-full border border-blue-500/30 transition-colors flex-shrink-0"
+                  title="Consultar con Asistente IA"
+                >
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span className="text-blue-300 font-semibold text-xs md:text-sm">🤖 Asistente IA</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2505,6 +2515,11 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal del Agente IA */}
+      {showAgentModal && (
+        <CajaMenorAgent onClose={() => setShowAgentModal(false)} />
       )}
     </div>
   );
