@@ -10,7 +10,7 @@ interface NotificationData {
   tag?: string;
 }
 
-export function useNotifications(userData: UserData | null) {
+export function useNotifications(userData: UserData | null) { // eslint-disable-line @typescript-eslint/no-unused-vars
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
