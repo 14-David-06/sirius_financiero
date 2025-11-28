@@ -2,9 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-import { FileText, Calendar, AlertCircle, Eye, MessageCircle } from 'lucide-react';
+import { useNotifications } from '@/lib/hooks/useNotifications';
+import { useMessagePolling } from '@/lib/hooks/useMessagePolling';
+import { FileText, Calendar, AlertCircle, Eye, MessageCircle, Bell } from 'lucide-react';
 import { CompraCompleta } from '@/types/compras';
 import ChatCompra from './ChatCompra';
+import Toast from './ui/Toast';
 
 export default function MisSolicitudes() {
   const { isAuthenticated, userData, isLoading } = useAuthSession();
@@ -14,6 +17,18 @@ export default function MisSolicitudes() {
   const [selectedSolicitud, setSelectedSolicitud] = useState<CompraCompleta | null>(null);
   const [chatSolicitud, setChatSolicitud] = useState<CompraCompleta | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
+
+  // Hooks de notificaciones
+  const {
+    permission,
+    requestPermission,
+    showNotification,
+    showToastNotification,
+    showToast,
+    toastMessage,
+    hideToast
+  } = useNotifications(userData);
 
   useEffect(() => {
     if (isAuthenticated && userData) {
@@ -22,11 +37,41 @@ export default function MisSolicitudes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userData]);
 
-  // Resetear chat cuando cambia la solicitud seleccionada
+  // Obtener mensajes no leídos cuando se carguen las solicitudes
   useEffect(() => {
-    setShowChat(false);
-    setChatSolicitud(null);
-  }, [selectedSolicitud]);
+    if (solicitudes.length > 0) {
+      fetchUnreadMessages();
+    }
+  }, [solicitudes]);
+
+  // Hook de polling de mensajes para notificaciones
+  const { isPolling } = useMessagePolling({
+    userData,
+    solicitudes,
+    onNewMessage: (compraId, messageCount) => {
+      // Solo mostrar notificaciones si el chat no está abierto
+      if (!showChat || chatSolicitud?.id !== compraId) {
+        const solicitud = solicitudes.find(s => s.id === compraId);
+
+        // Notificación push del navegador
+        showNotification({
+          title: 'Nuevo mensaje en Sirius Financiero',
+          body: `Tienes ${messageCount} mensaje(s) nuevo(s) en la solicitud de ${solicitud?.nombreSolicitante || 'compra'}`,
+          tag: `chat-${compraId}`
+        });
+
+        // Notificación in-app (toast)
+        showToastNotification(`Nuevo mensaje en la solicitud de ${solicitud?.nombreSolicitante || 'compra'}`);
+
+        // Actualizar contador de mensajes no leídos
+        setUnreadMessages(prev => ({
+          ...prev,
+          [compraId]: (prev[compraId] || 0) + messageCount
+        }));
+      }
+    },
+    enabled: isAuthenticated && !!userData && permission === 'granted' // Solo polling cuando las notificaciones están permitidas
+  });
 
   const fetchMisSolicitudes = async () => {
     try {
@@ -84,6 +129,41 @@ export default function MisSolicitudes() {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUnreadMessages = async () => {
+    if (!solicitudes.length) return;
+
+    try {
+      const unreadCounts: Record<string, number> = {};
+
+      // Obtener mensajes no leídos para cada solicitud
+      const promises = solicitudes.map(async (solicitud) => {
+        try {
+          const response = await fetch(`/api/chat-compras?compraId=${solicitud.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            const mensajes = data.mensajes || [];
+            
+            // Contar mensajes del administrador que no han sido vistos
+            const unreadCount = mensajes.filter((msg: any) => 
+              msg.remitente === 'Administrador de Compras' && !msg.fechaHoraVisto
+            ).length;
+            
+            if (unreadCount > 0) {
+              unreadCounts[solicitud.id] = unreadCount;
+            }
+          }
+        } catch (error) {
+          console.error(`Error obteniendo mensajes para solicitud ${solicitud.id}:`, error);
+        }
+      });
+
+      await Promise.all(promises);
+      setUnreadMessages(unreadCounts);
+    } catch (error) {
+      console.error('Error obteniendo mensajes no leídos:', error);
     }
   };
 
@@ -297,11 +377,22 @@ export default function MisSolicitudes() {
                     onClick={() => {
                       setChatSolicitud(solicitud);
                       setShowChat(true);
+                      // Resetear contador de mensajes no leídos para esta solicitud
+                      setUnreadMessages(prev => {
+                        const newState = { ...prev };
+                        delete newState[solicitud.id];
+                        return newState;
+                      });
                     }}
-                    className="w-full bg-gradient-to-r from-green-600/70 to-emerald-600/70 hover:from-green-700/80 hover:to-emerald-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
+                    className="w-full bg-gradient-to-r from-green-600/70 to-emerald-600/70 hover:from-green-700/80 hover:to-emerald-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center relative"
                   >
                     <MessageCircle className="w-4 h-4 mr-2" />
                     Chat Compras
+                    {unreadMessages[solicitud.id] && unreadMessages[solicitud.id] > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                        {unreadMessages[solicitud.id] > 99 ? '99+' : unreadMessages[solicitud.id]}
+                      </span>
+                    )}
                   </button>
                 </div>
               ))}
@@ -395,7 +486,56 @@ export default function MisSolicitudes() {
             setChatSolicitud(null);
           }}
           origen="mis-solicitudes"
+          onMessagesRead={() => {
+            // Actualizar contador de mensajes no leídos para esta solicitud
+            setUnreadMessages(prev => {
+              const newState = { ...prev };
+              delete newState[chatSolicitud.id];
+              return newState;
+            });
+          }}
         />
+      )}
+
+      {/* Toast de notificaciones */}
+      <Toast
+        message={toastMessage}
+        isVisible={showToast}
+        onClose={hideToast}
+        type="info"
+      />
+
+      {/* Indicador de notificaciones y botón de permisos */}
+      {isAuthenticated && userData && (
+        <div className="fixed bottom-4 left-4 z-40">
+          <div className="flex items-center gap-2">
+            {permission === 'granted' && (
+              <div className="flex items-center gap-2 bg-green-500/20 backdrop-blur-md border border-green-500/30 rounded-lg px-3 py-2">
+                <Bell className="w-4 h-4 text-green-400" />
+                <span className="text-green-300 text-sm">
+                  {isPolling ? 'Notificaciones activas' : 'Notificaciones pausadas'}
+                </span>
+              </div>
+            )}
+
+            {permission === 'default' && (
+              <button
+                onClick={requestPermission}
+                className="flex items-center gap-2 bg-blue-500/20 hover:bg-blue-500/30 backdrop-blur-md border border-blue-500/30 rounded-lg px-3 py-2 transition-colors"
+              >
+                <Bell className="w-4 h-4 text-blue-400" />
+                <span className="text-blue-300 text-sm">Activar notificaciones</span>
+              </button>
+            )}
+
+            {permission === 'denied' && (
+              <div className="flex items-center gap-2 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-lg px-3 py-2">
+                <Bell className="w-4 h-4 text-red-400" />
+                <span className="text-red-300 text-sm">Notificaciones bloqueadas</span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

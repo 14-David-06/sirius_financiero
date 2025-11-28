@@ -68,9 +68,10 @@ interface ChatCompraProps {
   userData: UserData;
   onClose: () => void;
   origen?: 'mis-solicitudes' | 'monitoreo-solicitudes';
+  onMessagesRead?: () => void;
 }
 
-export default function ChatCompra({ compraId, userData, onClose, origen = 'monitoreo-solicitudes' }: ChatCompraProps) {
+export default function ChatCompra({ compraId, userData, onClose, origen = 'monitoreo-solicitudes', onMessagesRead }: ChatCompraProps) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -234,6 +235,11 @@ export default function ChatCompra({ compraId, userData, onClose, origen = 'moni
           ? { ...msg, fechaHoraVisto: new Date().toISOString() }
           : msg
       ));
+
+      // Notificar que se marcaron mensajes como leídos
+      if (onMessagesRead && mensajesNoVistos.length > 0) {
+        onMessagesRead();
+      }
 
     } catch (error) {
       console.error('Error al marcar mensajes como vistos:', error);
