@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react';
 import DetalleCompraCompleto from './DetalleCompraCompleto';
 import ChatCompra from './ChatCompra';
+import Toast from './ui/Toast';
+import { useNotifications } from '@/lib/hooks/useNotifications';
+import { useMessagePolling } from '@/lib/hooks/useMessagePolling';
+import { Bell } from 'lucide-react';
 import { CompraCompleta, EstadisticasData, UserData, ApiResponse } from '@/types/compras';
 
 interface DashboardComprasProps {
@@ -21,10 +25,59 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
   const [selectedCompra, setSelectedCompra] = useState<CompraCompleta | null>(null);
   const [showDetalleCompleto, setShowDetalleCompleto] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [chatCompra, setChatCompra] = useState<CompraCompleta | null>(null);
+  const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
+
+  // Hooks de notificaciones
+  const {
+    permission,
+    requestPermission,
+    showNotification,
+    showToastNotification,
+    showToast,
+    toastMessage,
+    hideToast
+  } = useNotifications(userData);
 
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  // Obtener mensajes no leídos cuando se carguen las compras
+  useEffect(() => {
+    if (comprasData.length > 0) {
+      fetchUnreadMessages();
+    }
+  }, [comprasData]);
+
+  // Hook de polling de mensajes para notificaciones
+  const { isPolling } = useMessagePolling({
+    userData,
+    solicitudes: comprasData,
+    onNewMessage: (compraId, messageCount) => {
+      // Solo mostrar notificaciones si el chat no está abierto
+      if (!showChat || chatCompra?.id !== compraId) {
+        const compra = comprasData.find(c => c.id === compraId);
+
+        // Notificación push del navegador
+        showNotification({
+          title: 'Nuevo mensaje en Sirius Financiero',
+          body: `Tienes ${messageCount} mensaje(s) nuevo(s) en la solicitud de ${compra?.nombreSolicitante || 'compra'}`,
+          tag: `chat-${compraId}`
+        });
+
+        // Notificación in-app (toast)
+        showToastNotification(`Nuevo mensaje en la solicitud de ${compra?.nombreSolicitante || 'compra'}`);
+
+        // Actualizar contador de mensajes no leídos
+        setUnreadMessages(prev => ({
+          ...prev,
+          [compraId]: (prev[compraId] || 0) + messageCount
+        }));
+      }
+    },
+    enabled: !!userData && permission === 'granted' // Solo polling cuando las notificaciones están permitidas
+  });
 
   const cargarDatos = async () => {
     try {
@@ -43,6 +96,41 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
       console.error('Error:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchUnreadMessages = async () => {
+    if (!comprasData.length) return;
+
+    try {
+      const unreadCounts: Record<string, number> = {};
+
+      // Obtener mensajes no leídos para cada compra
+      const promises = comprasData.map(async (compra) => {
+        try {
+          const response = await fetch(`/api/chat-compras?compraId=${compra.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            const mensajes = data.mensajes || [];
+            
+            // Contar mensajes del solicitante que no han sido vistos
+            const unreadCount = mensajes.filter((msg: any) => 
+              msg.remitente === 'Solicitante' && !msg.fechaHoraVisto
+            ).length;
+            
+            if (unreadCount > 0) {
+              unreadCounts[compra.id] = unreadCount;
+            }
+          }
+        } catch (error) {
+          console.error(`Error obteniendo mensajes para compra ${compra.id}:`, error);
+        }
+      });
+
+      await Promise.all(promises);
+      setUnreadMessages(unreadCounts);
+    } catch (error) {
+      console.error('Error obteniendo mensajes no leídos:', error);
     }
   };
 
@@ -432,12 +520,24 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
                         onClick={() => {
                           console.log('Botón Chat Compra clickeado para compra:', compra.id);
                           setSelectedCompra(compra);
+                          setChatCompra(compra);
                           setShowChat(true);
+                          // Resetear contador de mensajes no leídos para esta compra
+                          setUnreadMessages(prev => {
+                            const newState = { ...prev };
+                            delete newState[compra.id];
+                            return newState;
+                          });
                           console.log('Estado showChat establecido a true');
                         }}
-                        className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none"
+                        className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none relative"
                       >
                         💬 Chat Compra
+                        {unreadMessages[compra.id] && unreadMessages[compra.id] > 0 && (
+                          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                            {unreadMessages[compra.id] > 99 ? '99+' : unreadMessages[compra.id]}
+                          </span>
+                        )}
                       </button>
                       <button
                         onClick={() => {
@@ -476,10 +576,55 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
           onClose={() => {
             setShowChat(false);
             setSelectedCompra(null);
+            setChatCompra(null);
           }}
           origen="monitoreo-solicitudes"
+          onMessagesRead={() => {
+            // Actualizar contador de mensajes no leídos para esta compra
+            setUnreadMessages(prev => {
+              const newState = { ...prev };
+              delete newState[selectedCompra.id];
+              return newState;
+            });
+          }}
         />
       )}
+
+      {/* Toast de notificaciones */}
+      <Toast
+        message={toastMessage}
+        isVisible={showToast}
+        onClose={hideToast}
+        type="info"
+      />
+
+      {/* Indicador de notificaciones y botón de permisos */}
+      <div className="fixed bottom-4 right-4 z-40">
+        <div className="flex items-center gap-2">
+          {permission === 'granted' && (
+            <div className="flex items-center gap-2 bg-green-500/20 backdrop-blur-md border border-green-500/30 rounded-lg px-3 py-2">
+              <Bell className="w-4 h-4 text-green-400" />
+            </div>
+          )}
+
+          {permission === 'default' && (
+            <button
+              onClick={requestPermission}
+              className="flex items-center gap-2 bg-blue-500/20 hover:bg-blue-500/30 backdrop-blur-md border border-blue-500/30 rounded-lg px-3 py-2 transition-colors"
+            >
+              <Bell className="w-4 h-4 text-blue-400" />
+              <span className="text-blue-300 text-sm">Activar notificaciones</span>
+            </button>
+          )}
+
+          {permission === 'denied' && (
+            <div className="flex items-center gap-2 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-lg px-3 py-2">
+              <Bell className="w-4 h-4 text-red-400" />
+              <span className="text-red-300 text-sm">Notificaciones bloqueadas</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

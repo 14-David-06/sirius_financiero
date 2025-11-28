@@ -18,6 +18,24 @@ export default function Navbar() {
     setMounted(true);
   }, []);
 
+  // Cerrar menú móvil al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isMenuOpen && !target.closest('.mobile-menu-container') && !target.closest('.menu-button')) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   // Evitar problemas de hidratación
   if (!mounted) {
     return (
@@ -283,7 +301,7 @@ export default function Navbar() {
           <div className="md:hidden flex items-center">
             <button
               onClick={toggleMenu}
-              className="text-white hover:text-white/80 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 rounded-md p-2"
+              className="menu-button text-white hover:text-white/80 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 rounded-md p-2"
             >
               {isMenuOpen ? (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -302,8 +320,8 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {isMenuOpen && (
         <div className="md:hidden fixed inset-x-0 top-20 z-40 animate-in slide-in-from-top-2 duration-300">
-          <div className="mx-4 mt-2 bg-gradient-to-br from-blue-900/95 to-purple-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-            <div className="px-4 pt-4 pb-2 space-y-3 max-h-[calc(100vh-6rem)] overflow-y-auto">
+          <div className="mobile-menu-container mx-4 mt-2 bg-gradient-to-br from-blue-900/95 to-purple-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20">
+            <div className="px-4 pt-4 pb-2 space-y-3 max-h-[calc(100vh-6rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
               {isAuthenticated ? (
                 <>
                   {/* User Info Mobile */}
@@ -326,6 +344,14 @@ export default function Navbar() {
                     >
                       <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
                       <span className="group-hover:translate-x-1 transition-transform duration-200">Solicitudes de Compra</span>
+                    </Link>
+                    <Link
+                      href="/mis-solicitudes-compras"
+                      className="group flex items-center text-white/90 hover:text-white hover:bg-white/15 px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 mx-2 backdrop-blur-sm border border-transparent hover:border-white/20"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <span className="w-1 h-1 bg-white/60 rounded-full mr-3 group-hover:bg-white group-hover:scale-150 transition-all duration-200"></span>
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">Mis Solicitudes de Compras</span>
                     </Link>
                     {/* Mostrar opciones adicionales solo para no colaboradores */}
                     {userData?.categoria !== 'Colaborador' && (

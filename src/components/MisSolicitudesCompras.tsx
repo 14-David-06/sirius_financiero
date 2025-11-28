@@ -512,9 +512,6 @@ export default function MisSolicitudes() {
             {permission === 'granted' && (
               <div className="flex items-center gap-2 bg-green-500/20 backdrop-blur-md border border-green-500/30 rounded-lg px-3 py-2">
                 <Bell className="w-4 h-4 text-green-400" />
-                <span className="text-green-300 text-sm">
-                  {isPolling ? 'Notificaciones activas' : 'Notificaciones pausadas'}
-                </span>
               </div>
             )}
 
