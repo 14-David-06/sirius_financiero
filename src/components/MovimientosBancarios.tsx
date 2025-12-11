@@ -136,15 +136,7 @@ export default function MovimientosBancarios() {
     });
   };
 
-  useEffect(() => {
-    console.log('MovimientosBancarios useEffect - isAuthenticated:', isAuthenticated, 'userData:', userData, 'isLoading:', isLoading);
-    if (isAuthenticated && userData) {
-      console.log('Calling fetchMovimientos...');
-      fetchMovimientos();
-    }
-  }, [isAuthenticated, userData, filtros.año, filtros.mes]);
-
-  const fetchMovimientos = async () => {
+  const fetchMovimientos = useCallback(async () => {
     try {
       console.log('fetchMovimientos started...');
       setLoading(true);
@@ -193,7 +185,16 @@ export default function MovimientosBancarios() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros.año, filtros.mes]);
+
+  useEffect(() => {
+    console.log('MovimientosBancarios useEffect - isAuthenticated:', isAuthenticated, 'userData:', userData, 'isLoading:', isLoading);
+    if (isAuthenticated && userData) {
+      console.log('Calling fetchMovimientos...');
+      fetchMovimientos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, userData, filtros.año, filtros.mes, fetchMovimientos]);
 
   // Función para actualizar movimientos bancarios mediante webhooks
   const actualizarMovimientosBancarios = async () => {

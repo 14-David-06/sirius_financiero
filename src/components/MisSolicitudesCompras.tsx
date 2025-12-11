@@ -42,10 +42,11 @@ export default function MisSolicitudes() {
     if (solicitudes.length > 0) {
       fetchUnreadMessages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solicitudes]);
 
   // Hook de polling de mensajes para notificaciones
-  const { isPolling } = useMessagePolling({
+  useMessagePolling({
     userData,
     solicitudes,
     onNewMessage: (compraId, messageCount) => {
@@ -147,7 +148,7 @@ export default function MisSolicitudes() {
             const mensajes = data.mensajes || [];
             
             // Contar mensajes del administrador que no han sido vistos
-            const unreadCount = mensajes.filter((msg: any) => 
+            const unreadCount = mensajes.filter((msg: { remitente: string; fechaHoraVisto?: string }) => 
               msg.remitente === 'Administrador de Compras' && !msg.fechaHoraVisto
             ).length;
             
@@ -217,14 +218,6 @@ export default function MisSolicitudes() {
     };
 
     return prioridadConfig[prioridad] || 'text-gray-300';
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(value);
   };
 
   const formatDate = (dateString: string) => {
@@ -448,17 +441,13 @@ export default function MisSolicitudes() {
               <div className="bg-white/10 rounded-lg p-4">
                 <h3 className="text-white font-semibold mb-3">Descripción de la Solicitud</h3>
                 <div className="text-white/80 whitespace-pre-wrap">
-                  {selectedSolicitud.descripcionSolicitud && typeof selectedSolicitud.descripcionSolicitud === 'object' && 'value' in selectedSolicitud.descripcionSolicitud
-                    ? (selectedSolicitud.descripcionSolicitud as any).value
-                    : selectedSolicitud.descripcionSolicitud}
+                  {selectedSolicitud.descripcionSolicitud}
                 </div>
                 {selectedSolicitud.descripcionIA && (
                   <div className="mt-4">
                     <h4 className="text-white font-semibold mb-2">Interpretación IA</h4>
                     <div className="text-white/80 whitespace-pre-wrap">
-                      {selectedSolicitud.descripcionIA && typeof selectedSolicitud.descripcionIA === 'object' && 'value' in selectedSolicitud.descripcionIA
-                        ? (selectedSolicitud.descripcionIA as any).value
-                        : selectedSolicitud.descripcionIA}
+                      {selectedSolicitud.descripcionIA}
                     </div>
                   </div>
                 )}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, AlertCircle, TrendingDown, TrendingUp } from 'lucide-react';
+import { CheckCircle, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface FacturacionIngreso {
   id: string;

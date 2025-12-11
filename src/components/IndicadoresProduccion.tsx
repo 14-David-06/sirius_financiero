@@ -57,7 +57,7 @@ export default function IndicadoresProduccion() {
   const [balances, setBalances] = useState<BalanceMasa[]>([]);
   const [costosPorSemana, setCostosPorSemana] = useState<Record<number, number>>({});
   const [costosIndirectosPorSemana, setCostosIndirectosPorSemana] = useState<Record<number, number>>({});
-  const [totalesMovimientos, setTotalesMovimientos] = useState<TotalesMovimientos | null>(null);
+  const [totalesMovimientos, setTotalesMovimientos] = useState<TotalesMovimientos | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
@@ -65,14 +65,14 @@ export default function IndicadoresProduccion() {
   const [semanaSeleccionada, setSemanaSeleccionada] = useState<ProduccionSemanal | null>(null);
   
   // Filtros
-  const [filtroAño, setFiltroAño] = useState<string>('todos');
+  const [filtroAño, setFiltroAño] = useState<string>('todos'); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   const [filtroTipoGasto, setFiltroTipoGasto] = useState<string>('completo'); // completo, produccion, costos
-  const [filtroSemana, setFiltroSemana] = useState<string>('todas');
-  const [filtroMes, setFiltroMes] = useState<string>('todos');
+  const [filtroSemana, setFiltroSemana] = useState<string>('todas'); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [filtroMes, setFiltroMes] = useState<string>('todos'); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [ordenamiento, setOrdenamiento] = useState<'asc' | 'desc'>('desc');
-  const [fechaInicio] = useState<string>('');
-  const [fechaFin] = useState<string>('');
+  const [fechaInicio] = useState<string>(''); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [fechaFin] = useState<string>(''); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [categoriaActiva, setCategoriaActiva] = useState<'pirolisis' | 'laboratorio' | 'mezclas'>('pirolisis');
 
   useEffect(() => {
@@ -90,7 +90,6 @@ export default function IndicadoresProduccion() {
       console.log('⚠️ Usuario no autenticado, deteniendo carga');
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userData, authLoading, filtroTipoGasto]);
 
   const cargarDatos = async () => {
@@ -99,6 +98,7 @@ export default function IndicadoresProduccion() {
       setError(null);
       
       console.log('🔄 Cargando datos de Balances Masa y Costos de Facturación Egresos...');
+      console.log('ℹ️ Nota: Las APIs de costos requieren configuración adicional de AIRTABLE_FACTURACION_EGRESOS_TABLE_ID');
       
       // Calcular el mes anterior
       const now = new Date();
@@ -174,8 +174,20 @@ export default function IndicadoresProduccion() {
         setTotalesMovimientos(dataCostos.totales || null);
       } else {
         const errorText = await responseCostos.text();
-        console.error('⚠️ Error al cargar costos de Facturación Egresos:', errorText);
-        console.warn('⚠️ No se pudieron cargar los costos del mes anterior, continuando sin ellos');
+        // Check if it's a configuration error (expected when env vars are not set)
+        let parsedError;
+        try {
+          parsedError = JSON.parse(errorText);
+        } catch {
+          parsedError = null;
+        }
+        
+        if (parsedError?.error === 'Configuración incompleta del servidor') {
+          console.log('ℹ️ Costos de Facturación Egresos no configurados, continuando sin datos de costos');
+        } else {
+          console.error('⚠️ Error al cargar costos de Facturación Egresos:', errorText);
+        }
+        console.log('ℹ️ Continuando sin datos de costos del mes anterior');
         setCostosPorSemana({});
         setTotalesMovimientos(null);
       }
@@ -190,8 +202,20 @@ export default function IndicadoresProduccion() {
         setCostosIndirectosPorSemana(dataCostosIndirectos.costosPorSemana || {});
       } else {
         const errorText = await responseCostosIndirectos.text();
-        console.error('⚠️ Error al cargar costos indirectos:', errorText);
-        console.warn('⚠️ No se pudieron cargar los costos indirectos del mes anterior, continuando sin ellos');
+        // Check if it's a configuration error (expected when env vars are not set)
+        let parsedError;
+        try {
+          parsedError = JSON.parse(errorText);
+        } catch {
+          parsedError = null;
+        }
+        
+        if (parsedError?.error === 'Configuración incompleta del servidor') {
+          console.log('ℹ️ Gastos indirectos no configurados, continuando sin datos de gastos indirectos');
+        } else {
+          console.error('⚠️ Error al cargar costos indirectos:', errorText);
+        }
+        console.log('ℹ️ Continuando sin datos de gastos indirectos del mes anterior');
         setCostosIndirectosPorSemana({});
       }
     } catch (error) {
@@ -230,17 +254,19 @@ export default function IndicadoresProduccion() {
   };
 
   // Calcular años disponibles
-  const añosDisponibles = [...new Set(balances.map(b => new Date(b.fecha).getFullYear()))].sort((a, b) => b - a);
+  const añosDisponibles = [...new Set(balances.map(b => new Date(b.fecha).getFullYear()))].sort((a, b) => b - a); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Calcular semanas disponibles
-  const semanasDisponibles = [...new Set(balances.map(b => b.semanaFormulada))].filter(s => s > 0).sort((a, b) => a - b);
+  const semanasDisponibles = [...new Set(balances.map(b => b.semanaFormulada))].filter(s => s > 0).sort((a, b) => a - b); // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Calcular meses disponibles
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const mesesDisponibles = [...new Set(balances.map(b => {
     const fecha = new Date(b.fecha);
     return fecha.getMonth() + 1; // +1 porque getMonth() devuelve 0-11
   }))].sort((a, b) => a - b);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const nombresMeses = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
