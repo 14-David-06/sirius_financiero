@@ -1735,13 +1735,14 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     </button>
                   )}
                   
-                  {/* Botón Consolidar Caja Menor - Provisional al fin de mes o original si >= 70% */}
+                  {/* Botón Consolidar Caja Menor - Siempre visible */}
                   {(() => {
                     const porcentajeConsumo = totalIngresos > 0 ? (totalEgresos / totalIngresos) * 100 : 0;
-                    const mostrarBoton = totalIngresos > 0 && (porcentajeConsumo >= 70 || esFinDeMes());
                     const esBotonOriginal = porcentajeConsumo >= 70;
+                    const esFinMes = esFinDeMes();
                     
-                    if (!mostrarBoton) return null;
+                    // Botón siempre visible si hay ingresos
+                    if (totalIngresos <= 0) return null;
                     
                     return (
                       <button
@@ -1749,9 +1750,17 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         className={`flex items-center justify-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base ${
                           esBotonOriginal 
                             ? 'bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 hover:shadow-orange-500/25 animate-pulse' 
-                            : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/25'
+                            : esFinMes
+                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/25'
+                              : 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 hover:shadow-gray-500/25'
                         } text-white`}
-                        title={esBotonOriginal ? "Consolidar caja menor - Consumo mayor al 70%" : "Consolidar caja menor - Fin de Mes"}
+                        title={
+                          esBotonOriginal 
+                            ? "Consolidar caja menor - Consumo mayor al 70%" 
+                            : esFinMes 
+                              ? "Consolidar caja menor - Fin de Mes"
+                              : "Consolidar caja menor - Disponible siempre"
+                        }
                       >
                         {esBotonOriginal ? (
                           <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />

@@ -78,12 +78,10 @@ export async function POST(request: NextRequest) {
       [CAJA_MENOR_FIELDS.DOCUMENTO_CONSOLIDACION]: [{
         url: pdfUrl,
         filename: fileName
-      }] as any,
-      [CAJA_MENOR_FIELDS.URL_S3]: pdfUrl // Guardar URL original de S3 para poder eliminar el archivo posteriormente
+      }] as any
     });
 
     console.log('✅ Registro de Caja Menor actualizado exitosamente');
-    console.log('🔗 URL S3 guardada para futura eliminación:', pdfUrl);
 
     return NextResponse.json({
       success: true,
