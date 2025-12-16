@@ -95,6 +95,16 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const [isConsolidating, setIsConsolidating] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
   
+  // Estados para edición y eliminación
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemType, setEditingItemType] = useState<'item' | 'cajaMenor' | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // IDs de usuarios autorizados para editar/eliminar (desde variables de entorno)
+  const AUTHORIZED_USERS = process.env.NEXT_PUBLIC_AUTHORIZED_USERS_EDIT_DELETE?.split(',') || [];
+  const canEditDelete = userData?.recordId && AUTHORIZED_USERS.includes(userData.recordId);
+  
   // Estados para grabación de audio y transcripción
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
@@ -817,6 +827,42 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     try {
       setLoading(true);
       
+      // Si estamos editando una caja menor
+      if (editingItemId && editingItemType === 'cajaMenor') {
+        const updateData = {
+          id: editingItemId,
+          table: 'cajaMenor',
+          beneficiario: formCajaMenor.beneficiario,
+          nitCC: formCajaMenor.nitCC,
+          concepto: formCajaMenor.concepto,
+          valor: formCajaMenor.valor,
+          realizaRegistro: formCajaMenor.realizaRegistro
+        };
+        
+        const response = await fetch('/api/caja-menor', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Error al actualizar la caja menor');
+        }
+        
+        alert('✅ Caja menor actualizada exitosamente');
+        setShowCajaMenorModal(false);
+        setEditingItemId(null);
+        setEditingItemType(null);
+        setFormCajaMenor({ beneficiario: '', nitCC: '', concepto: '', valor: 0, realizaRegistro: userData?.nombre || 'Usuario' });
+        await cargarDatos();
+        setLoading(false);
+        return;
+      }
+      
       const nuevaCajaMenor = {
         fechaAnticipo: new Date().toISOString().split('T')[0],
         concepto: formCajaMenor.concepto,
@@ -860,11 +906,93 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     }
   };
 
+  const handleEditItem = (itemId: string, type: 'item' | 'cajaMenor') => {
+    if (!canEditDelete) {
+      alert('❌ No tienes permisos para editar registros.');
+      return;
+    }
+    
+    setEditingItemId(itemId);
+    setEditingItemType(type);
+    
+    if (type === 'item') {
+      // Buscar el item a editar
+      const item = itemsRecords.find(i => i.id === itemId);
+      if (item) {
+        setFormData({
+          fecha: item.fecha || new Date().toISOString().split('T')[0],
+          beneficiario: item.beneficiario || '',
+          nitCC: item.nitCC || '',
+          concepto: item.concepto || '',
+          centroCosto: item.centroCosto || '',
+          centroCostoOtro: '',
+          valor: item.valor?.toString() || '',
+          realizaRegistro: item.realizaRegistro || userData?.nombre || 'Usuario',
+          comprobanteFile: null
+        });
+        setShowModal(true);
+      }
+    } else {
+      // Buscar la caja menor a editar
+      const caja = cajaMenorRecords.find(c => c.id === itemId);
+      if (caja) {
+        setFormCajaMenor({
+          beneficiario: caja.beneficiario || '',
+          nitCC: caja.nitCC || '',
+          concepto: caja.concepto || '',
+          valor: caja.valor || 0,
+          realizaRegistro: caja.realizaRegistro || userData?.nombre || 'Usuario'
+        });
+        setShowCajaMenorModal(true);
+      }
+    }
+  };
+  
+  const handleDeleteItem = async (itemId: string, type: 'item' | 'cajaMenor') => {
+    if (!canEditDelete) {
+      alert('❌ No tienes permisos para eliminar registros.');
+      return;
+    }
+    
+    const itemName = type === 'item' ? 'este registro' : 'esta caja menor';
+    const confirmMessage = type === 'cajaMenor' 
+      ? `⚠️ ADVERTENCIA: Esto eliminará la caja menor y todos sus items asociados.\n\n¿Está seguro de eliminar ${itemName}?`
+      : `¿Está seguro de eliminar ${itemName}?`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/caja-menor?id=${itemId}&table=${type === 'item' ? 'items' : 'cajaMenor'}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al eliminar el registro');
+      }
+      
+      alert('✅ Registro eliminado exitosamente');
+      await cargarDatos();
+    } catch (error) {
+      console.error('Error eliminando registro:', error);
+      alert('❌ Error al eliminar el registro: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Verificar que existe al menos una caja menor activa
-    if (cajasMenoresActivas.length === 0) {
+    if (cajasMenoresActivas.length === 0 && !editingItemId) {
       alert('❌ No hay cajas menores activas para registrar items.\n\nPor favor, cree una caja menor primero.');
       setShowModal(false);
       setShowCajaMenorModal(true);
@@ -893,7 +1021,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       return;
     }
     
-    if (saldoDisponible < 0) {
+    if (saldoDisponible < 0 && !editingItemId) {
       alert('❌ La caja menor ya está en déficit. No se pueden registrar más gastos hasta consolidar la caja menor.');
       return;
     }
@@ -905,6 +1033,90 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     
     try {
       setLoading(true);
+      
+      // Si estamos editando, usar endpoint PUT
+      if (editingItemId) {
+        const centroCostoFinal = formData.centroCosto === 'Otro' ? formData.centroCostoOtro : formData.centroCosto;
+        
+        // Subir comprobante si existe
+        let comprobanteUrl = '';
+        if (formData.comprobanteFile) {
+          console.log('📤 Subiendo comprobante para edición...');
+          
+          const fechaActual = new Date();
+          const mes = fechaActual.toLocaleString('es-CO', { month: 'long' }).toLowerCase();
+          const año = fechaActual.getFullYear();
+          const carpetaCajaMenor = `${mes}_${año}`;
+          
+          const formDataUpload = new FormData();
+          formDataUpload.append('file', formData.comprobanteFile);
+          formDataUpload.append('carpetaCajaMenor', carpetaCajaMenor);
+          formDataUpload.append('beneficiario', formData.beneficiario);
+          
+          const uploadResponse = await fetch('/api/upload-comprobante-caja-menor', {
+            method: 'POST',
+            body: formDataUpload,
+          });
+          
+          const uploadResult = await uploadResponse.json();
+          
+          if (!uploadResponse.ok) {
+            throw new Error(uploadResult.error || 'Error al subir el comprobante');
+          }
+          
+          comprobanteUrl = uploadResult.fileUrl;
+          console.log('✅ Comprobante actualizado:', comprobanteUrl);
+        }
+        
+        const updateData = {
+          id: editingItemId,
+          table: 'items',
+          fecha: formData.fecha,
+          beneficiario: formData.beneficiario,
+          nitCC: formData.nitCC,
+          concepto: formData.concepto,
+          centroCosto: centroCostoFinal,
+          valor: formData.valor,
+          realizaRegistro: formData.realizaRegistro,
+          cajaMenor: cajaActiva?.id ? [cajaActiva.id] : undefined,
+          comprobante: comprobanteUrl ? [{ url: comprobanteUrl }] : undefined,
+          urlS3: comprobanteUrl || undefined // Nueva URL de S3 para eliminación de archivo anterior
+        };
+        
+        const response = await fetch('/api/caja-menor', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Error al actualizar el registro');
+        }
+        
+        alert('✅ Registro actualizado exitosamente');
+        setShowModal(false);
+        setEditingItemId(null);
+        setEditingItemType(null);
+        setFormData({
+          fecha: new Date().toISOString().split('T')[0],
+          beneficiario: '',
+          nitCC: '',
+          concepto: '',
+          centroCosto: '',
+          centroCostoOtro: '',
+          valor: '',
+          realizaRegistro: userData?.nombre || 'Usuario',
+          comprobanteFile: null
+        });
+        await cargarDatos();
+        setLoading(false);
+        return;
+      }
+      
       console.log('📝 Enviando item de caja menor:', formData);
       
       // Determinar el valor final del centro de costo
@@ -1069,6 +1281,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     estado: string;
     categoria: string;
     responsable: string;
+    centroCosto?: string;
     comprobante?: AirtableAttachment[];
     cajaMenorId?: string[]; // Para filtrar items de la caja menor
   };
@@ -1118,6 +1331,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         estado: 'aprobado',
         categoria: 'Gasto',
         responsable: item.beneficiario || 'Sistema',
+        centroCosto: item.centroCosto,
         comprobante: item.comprobante,
         cajaMenorId: item.cajaMenor
       }))
@@ -1622,9 +1836,17 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       <th className="px-3 md:px-6 py-3 md:py-4 text-left text-xs font-bold text-white uppercase tracking-wider hidden lg:table-cell">
                         Beneficiario
                       </th>
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider hidden xl:table-cell">
+                        Centro de Costo
+                      </th>
                       <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
                         Comprobante
                       </th>
+                      {canEditDelete && (
+                        <th className="px-3 md:px-6 py-3 md:py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                          Acciones
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
@@ -1673,6 +1895,29 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             <span className="text-xs md:text-sm text-white font-medium">{item.responsable}</span>
                           </div>
                         </td>
+                        <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center hidden xl:table-cell">
+                          {item.centroCosto ? (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                              item.centroCosto === 'Pirólisis' 
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' 
+                                : item.centroCosto === 'Administrativo'
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                : item.centroCosto === 'Laboratorio'
+                                ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                                : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            }`}>
+                              {item.centroCosto === 'Pirólisis' 
+                                ? '🔥' 
+                                : item.centroCosto === 'Administrativo'
+                                ? '📋'
+                                : item.centroCosto === 'Laboratorio'
+                                ? '🧪'
+                                : '🏢'} {item.centroCosto}
+                            </span>
+                          ) : (
+                            <span className="text-white/40 text-xs italic">-</span>
+                          )}
+                        </td>
                         <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center">
                           {(() => {
                             const comprobante = item.comprobante;
@@ -1713,6 +1958,27 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             );
                           })()}
                         </td>
+                        {canEditDelete && (
+                          <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleEditItem(item.id, item.tipo === 'anticipo' ? 'cajaMenor' : 'item')}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-xs font-semibold transition-colors border border-blue-500/30"
+                                title="Editar registro"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id, item.tipo === 'anticipo' ? 'cajaMenor' : 'item')}
+                                disabled={isDeleting}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-xs font-semibold transition-colors border border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Eliminar registro"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1731,11 +1997,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     <DollarSign className="w-6 h-6 text-green-400" />
                   </div>
                   <h3 className="text-xl font-bold text-white">
-                    Nueva Caja Menor
+                    {editingItemId && editingItemType === 'cajaMenor' ? 'Editar Caja Menor' : 'Nueva Caja Menor'}
                   </h3>
                 </div>
                 <button
-                  onClick={() => setShowCajaMenorModal(false)}
+                  onClick={() => {
+                    setShowCajaMenorModal(false);
+                    setEditingItemId(null);
+                    setEditingItemType(null);
+                  }}
                   className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors border border-white/20"
                 >
                   <span className="w-5 h-5 text-white/80">✕</span>
@@ -1852,11 +2122,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     disabled={loading}
                     className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white rounded-lg transition-colors font-semibold shadow-lg"
                   >
-                    {loading ? 'Creando...' : 'Crear Caja Menor'}
+                    {loading ? (editingItemId && editingItemType === 'cajaMenor' ? 'Actualizando...' : 'Creando...') : (editingItemId && editingItemType === 'cajaMenor' ? 'Actualizar Caja Menor' : 'Crear Caja Menor')}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowCajaMenorModal(false)}
+                    onClick={() => {
+                      setShowCajaMenorModal(false);
+                      setEditingItemId(null);
+                      setEditingItemType(null);
+                    }}
                     className="px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors font-semibold"
                   >
                     Cancelar
@@ -1877,13 +2151,25 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     <Plus className="w-4 h-4 md:w-6 md:h-6 text-blue-400" />
                   </div>
                   <h3 className="text-lg md:text-2xl font-bold text-white">
-                    {editingItem ? 'Editar Registro' : 'Nuevo Registro de Caja Menor'}
+                    {editingItemId ? 'Editar Registro de Caja Menor' : 'Nuevo Registro de Caja Menor'}
                   </h3>
                 </div>
                 <button
                   onClick={() => {
                     setShowModal(false);
-                    resetForm();
+                    setEditingItemId(null);
+                    setEditingItemType(null);
+                    setFormData({
+                      fecha: new Date().toISOString().split('T')[0],
+                      beneficiario: '',
+                      nitCC: '',
+                      concepto: '',
+                      centroCosto: '',
+                      centroCostoOtro: '',
+                      valor: '',
+                      realizaRegistro: userData?.nombre || 'Usuario',
+                      comprobanteFile: null
+                    });
                   }}
                   className="p-2 md:p-3 hover:bg-slate-700/50 rounded-xl transition-all duration-200 border border-white/20 hover:border-white/40"
                 >
@@ -2211,13 +2497,25 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                     {loading && (
                       <div className="animate-spin rounded-full h-3 w-3 md:h-4 md:w-4 border-b-2 border-white"></div>
                     )}
-                    {loading ? 'Guardando...' : 'Guardar Item'}
+                    {loading ? (editingItemId ? 'Actualizando...' : 'Guardando...') : (editingItemId ? 'Actualizar Item' : 'Guardar Item')}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setShowModal(false);
-                      resetForm();
+                      setEditingItemId(null);
+                      setEditingItemType(null);
+                      setFormData({
+                        fecha: new Date().toISOString().split('T')[0],
+                        beneficiario: '',
+                        nitCC: '',
+                        concepto: '',
+                        centroCosto: '',
+                        centroCostoOtro: '',
+                        valor: '',
+                        realizaRegistro: userData?.nombre || 'Usuario',
+                        comprobanteFile: null
+                      });
                     }}
                     className="px-4 md:px-6 py-2 md:py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-xl font-semibold transition-colors text-sm md:text-base"
                   >
@@ -2386,6 +2684,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                         <th className="px-4 py-3 text-center text-xs font-bold uppercase">C.C</th>
                         <th className="px-4 py-3 text-center text-xs font-bold uppercase">DOCUMENTO SOPORTE</th>
                         <th className="px-4 py-3 text-right text-xs font-bold uppercase">VALOR</th>
+                        {canEditDelete && (
+                          <th className="px-4 py-3 text-center text-xs font-bold uppercase">ACCIONES</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -2429,6 +2730,27 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
                               ${item.valor.toLocaleString('es-CO')}
                             </td>
+                            {canEditDelete && (
+                              <td className="px-4 py-3 text-sm text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => handleEditItem(item.id, 'item')}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold transition-colors"
+                                    title="Editar registro"
+                                  >
+                                    ✏️ Editar
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteItem(item.id, 'item')}
+                                    disabled={isDeleting}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Eliminar registro"
+                                  >
+                                    🗑️ Eliminar
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                     </tbody>

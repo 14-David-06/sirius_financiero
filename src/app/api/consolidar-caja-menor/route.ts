@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import Airtable from 'airtable';
+import { CAJA_MENOR_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de AWS S3
 const s3Client = new S3Client({
@@ -73,14 +74,16 @@ export async function POST(request: NextRequest) {
     console.log('📝 Actualizando registro en Airtable:', cajaMenorId);
 
     await base(CAJA_MENOR_TABLE_ID).update(cajaMenorId, {
-      'Fecha Consolidacion': fechaConsolidacion,
-      'Documento Consiliacion': [{
+      [CAJA_MENOR_FIELDS.FECHA_CONSOLIDACION]: fechaConsolidacion,
+      [CAJA_MENOR_FIELDS.DOCUMENTO_CONSOLIDACION]: [{
         url: pdfUrl,
         filename: fileName
-      }] as any
+      }] as any,
+      [CAJA_MENOR_FIELDS.URL_S3]: pdfUrl // Guardar URL original de S3 para poder eliminar el archivo posteriormente
     });
 
     console.log('✅ Registro de Caja Menor actualizado exitosamente');
+    console.log('🔗 URL S3 guardada para futura eliminación:', pdfUrl);
 
     return NextResponse.json({
       success: true,

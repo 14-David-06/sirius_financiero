@@ -1,14 +1,20 @@
 /**
  * Configuración centralizada de campos de Airtable
  * 
- * ⚠️ IMPORTANTE: Este archivo centraliza todos los nombres de campos de Airtable
- * para evitar hardcodear IDs de campos directamente en el código fuente.
+ * ⚠️ IMPORTANTE: Este archivo obtiene TODOS los nombres de campos desde variables de entorno.
+ * NO hay fallbacks hardcodeados para garantizar que siempre se usen las configuraciones externas.
  * 
- * Airtable permite usar NOMBRES de campos en lugar de Field IDs, lo cual es:
- * - Más legible y mantenible
- * - Más fácil de documentar
- * - No expone IDs internos de la base de datos
+ * Si una variable de entorno no está configurada, el sistema fallará intencionalmente
+ * para evitar usar nombres hardcodeados accidentalmente.
  */
+
+// Función helper para obtener campo requerido de variable de entorno
+function getRequiredField(envVar: string | undefined, fieldName: string): string {
+  if (!envVar) {
+    throw new Error(`❌ Variable de entorno requerida no configurada: ${fieldName}`);
+  }
+  return envVar;
+}
 
 /**
  * Campos de la tabla "Caja Menor"
@@ -16,19 +22,23 @@
  */
 export const CAJA_MENOR_FIELDS = {
   // Campos de datos
-  FECHA_ANTICIPO: 'Fecha Anticipo',
-  BENEFICIARIO: 'Beneficiario',
-  NIT_CC: 'Nit-CC',
-  CONCEPTO: 'Concepto Caja Menor',
-  VALOR: 'Valor Caja Menor',
-  REALIZA_REGISTRO: 'Realiza Registro',
+  FECHA_ANTICIPO: getRequiredField(process.env.AIRTABLE_FIELD_FECHA_ANTICIPO, 'AIRTABLE_FIELD_FECHA_ANTICIPO'),
+  BENEFICIARIO: getRequiredField(process.env.AIRTABLE_FIELD_BENEFICIARIO, 'AIRTABLE_FIELD_BENEFICIARIO'),
+  NIT_CC: getRequiredField(process.env.AIRTABLE_FIELD_NIT_CC, 'AIRTABLE_FIELD_NIT_CC'),
+  CONCEPTO: getRequiredField(process.env.AIRTABLE_FIELD_CONCEPTO_CAJA_MENOR, 'AIRTABLE_FIELD_CONCEPTO_CAJA_MENOR'),
+  VALOR: getRequiredField(process.env.AIRTABLE_FIELD_VALOR_CAJA_MENOR, 'AIRTABLE_FIELD_VALOR_CAJA_MENOR'),
+  REALIZA_REGISTRO: getRequiredField(process.env.AIRTABLE_FIELD_REALIZA_REGISTRO, 'AIRTABLE_FIELD_REALIZA_REGISTRO'),
   
   // Campo de consolidación
-  FECHA_CONSOLIDACION: 'Fecha Consolidación',
-  DOCUMENTO_CONSOLIDACION: 'Documento Consolidación',
+  FECHA_CONSOLIDACION: getRequiredField(process.env.AIRTABLE_FIELD_FECHA_CONSOLIDACION, 'AIRTABLE_FIELD_FECHA_CONSOLIDACION'),
+  DOCUMENTO_CONSOLIDACION: getRequiredField(process.env.AIRTABLE_FIELD_DOCUMENTO_CONSOLIDACION, 'AIRTABLE_FIELD_DOCUMENTO_CONSOLIDACION'),
+  ESTADO_CAJA_MENOR: getRequiredField(process.env.AIRTABLE_FIELD_ESTADO_CAJA_MENOR, 'AIRTABLE_FIELD_ESTADO_CAJA_MENOR'),
+  
+  // Campo para URL original de S3 del documento de consolidación
+  URL_S3: getRequiredField(process.env.AIRTABLE_FIELD_URL_S3, 'AIRTABLE_FIELD_URL_S3'),
   
   // Campo de relación
-  ITEMS_CAJA_MENOR: 'Items Caja Menor'
+  ITEMS_CAJA_MENOR: getRequiredField(process.env.AIRTABLE_FIELD_ITEMS_CAJA_MENOR, 'AIRTABLE_FIELD_ITEMS_CAJA_MENOR')
 } as const;
 
 /**
@@ -37,19 +47,25 @@ export const CAJA_MENOR_FIELDS = {
  */
 export const ITEMS_CAJA_MENOR_FIELDS = {
   // Auto Number
-  ITEM: 'Item',
+  ITEM: getRequiredField(process.env.AIRTABLE_FIELD_ITEM, 'AIRTABLE_FIELD_ITEM'),
   
   // Campos de datos
-  FECHA: 'Fecha',
-  BENEFICIARIO: 'Beneficiario',
-  NIT_CC: 'Nit/CC',
-  CONCEPTO: 'Concepto',
-  CENTRO_COSTO: 'Centro Costo',
-  VALOR: 'Valor',
-  REALIZA_REGISTRO: 'Realiza Registro',
+  FECHA: getRequiredField(process.env.AIRTABLE_FIELD_FECHA, 'AIRTABLE_FIELD_FECHA'),
+  BENEFICIARIO: getRequiredField(process.env.AIRTABLE_FIELD_BENEFICIARIO_ITEMS, 'AIRTABLE_FIELD_BENEFICIARIO_ITEMS'),
+  NIT_CC: getRequiredField(process.env.AIRTABLE_FIELD_NIT_CC_ITEMS, 'AIRTABLE_FIELD_NIT_CC_ITEMS'),
+  CONCEPTO: getRequiredField(process.env.AIRTABLE_FIELD_CONCEPTO_ITEMS, 'AIRTABLE_FIELD_CONCEPTO_ITEMS'),
+  CENTRO_COSTO: getRequiredField(process.env.AIRTABLE_FIELD_CENTRO_COSTO, 'AIRTABLE_FIELD_CENTRO_COSTO'),
+  VALOR: getRequiredField(process.env.AIRTABLE_FIELD_VALOR_ITEMS, 'AIRTABLE_FIELD_VALOR_ITEMS'),
+  REALIZA_REGISTRO: getRequiredField(process.env.AIRTABLE_FIELD_REALIZA_REGISTRO_ITEMS, 'AIRTABLE_FIELD_REALIZA_REGISTRO_ITEMS'),
+  
+  // Campo de adjuntos
+  COMPROBANTE: getRequiredField(process.env.AIRTABLE_FIELD_COMPROBANTE, 'AIRTABLE_FIELD_COMPROBANTE'),
+  
+  // Campo para URL original de S3
+  URL_S3: getRequiredField(process.env.AIRTABLE_FIELD_URL_S3_ITEMS, 'AIRTABLE_FIELD_URL_S3_ITEMS'),
   
   // Campo de relación (link a tabla principal)
-  CAJA_MENOR: 'Caja Menor'
+  CAJA_MENOR: getRequiredField(process.env.AIRTABLE_FIELD_CAJA_MENOR, 'AIRTABLE_FIELD_CAJA_MENOR')
 } as const;
 
 /**
