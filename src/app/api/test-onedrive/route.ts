@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 // Endpoint de prueba para verificar conectividad con Microsoft Graph
 export async function GET() {
   try {
-    const clientId = process.env.MICROSOFT_CLIENT_ID;
-    const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-    const tenantId = process.env.MICROSOFT_TENANT_ID;
-    const email = process.env.MICROSOFT_EMAIL;
+    const clientId = process.env.ADM_MICROSOFT_CLIENT_ID;
+    const clientSecret = process.env.ADM_MICROSOFT_CLIENT_SECRET;
+    const tenantId = process.env.ADM_MICROSOFT_TENANT_ID;
+    const email = process.env.ADM_MICROSOFT_EMAIL;
 
     if (!clientId || !clientSecret || !tenantId || !email) {
       return NextResponse.json({

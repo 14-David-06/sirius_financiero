@@ -11,9 +11,9 @@ interface GraphTokenResponse {
 
 // Función para obtener token de acceso
 async function getAccessToken(): Promise<string> {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = process.env.MICROSOFT_TENANT_ID;
+  const clientId = process.env.ADM_MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.ADM_MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.ADM_MICROSOFT_TENANT_ID;
 
   if (!clientId || !clientSecret || !tenantId) {
     throw new Error('Faltan credenciales de Microsoft Azure');

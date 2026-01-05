@@ -12,9 +12,9 @@ interface GraphTokenResponse {
 
 // Función para obtener token de acceso usando Client Credentials Flow
 async function getAccessToken(): Promise<string> {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = process.env.MICROSOFT_TENANT_ID;
+  const clientId = process.env.ADM_MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.ADM_MICROSOFT_CLIENT_SECRET;
+  const tenantId = process.env.ADM_MICROSOFT_TENANT_ID;
 
   if (!clientId || !clientSecret || !tenantId) {
     throw new Error('Faltan credenciales de Microsoft Azure en las variables de entorno');
@@ -53,9 +53,9 @@ async function getAccessToken(): Promise<string> {
 
 // Función para verificar/crear la estructura de carpetas
 async function ensureFolderExists(accessToken: string, folderPath: string): Promise<string> {
-  const email = process.env.MICROSOFT_EMAIL;
+  const email = process.env.ADM_MICROSOFT_EMAIL;
   if (!email) {
-    throw new Error('Email de Microsoft no configurado');
+    throw new Error('Email de ADM Microsoft no configurado');
   }
 
   const pathParts = folderPath.split('/');
@@ -150,9 +150,9 @@ async function uploadFileToOneDrive(
   fileBuffer: Buffer,
   contentType: string
 ): Promise<any> {
-  const email = process.env.MICROSOFT_EMAIL;
+  const email = process.env.ADM_MICROSOFT_EMAIL;
   if (!email) {
-    throw new Error('Email de Microsoft no configurado');
+    throw new Error('Email de ADM Microsoft no configurado');
   }
 
   // Para archivos pequeños (< 4MB), usar simple upload
@@ -183,9 +183,9 @@ async function uploadFileToOneDrive(
 
 // Función para verificar si el archivo existe en OneDrive
 async function checkFileExists(accessToken: string, folderId: string, fileName: string): Promise<boolean> {
-  const email = process.env.MICROSOFT_EMAIL;
+  const email = process.env.ADM_MICROSOFT_EMAIL;
   if (!email) {
-    throw new Error('Email de Microsoft no configurado');
+    throw new Error('Email de ADM Microsoft no configurado');
   }
 
   try {
@@ -209,26 +209,26 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Iniciando carga de archivo a OneDrive...');
 
     // Verificar credenciales
-    if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET || 
-        !process.env.MICROSOFT_TENANT_ID || !process.env.MICROSOFT_EMAIL) {
-      console.error('❌ Faltan credenciales de Microsoft Azure');
+    if (!process.env.ADM_MICROSOFT_CLIENT_ID || !process.env.ADM_MICROSOFT_CLIENT_SECRET || 
+        !process.env.ADM_MICROSOFT_TENANT_ID || !process.env.ADM_MICROSOFT_EMAIL) {
+      console.error('❌ Faltan credenciales de Microsoft Azure (ADM Account)');
       console.error('Variables faltantes:', {
-        MICROSOFT_CLIENT_ID: !!process.env.MICROSOFT_CLIENT_ID,
-        MICROSOFT_CLIENT_SECRET: !!process.env.MICROSOFT_CLIENT_SECRET,
-        MICROSOFT_TENANT_ID: !!process.env.MICROSOFT_TENANT_ID,
-        MICROSOFT_EMAIL: !!process.env.MICROSOFT_EMAIL
+        ADM_MICROSOFT_CLIENT_ID: !!process.env.ADM_MICROSOFT_CLIENT_ID,
+        ADM_MICROSOFT_CLIENT_SECRET: !!process.env.ADM_MICROSOFT_CLIENT_SECRET,
+        ADM_MICROSOFT_TENANT_ID: !!process.env.ADM_MICROSOFT_TENANT_ID,
+        ADM_MICROSOFT_EMAIL: !!process.env.ADM_MICROSOFT_EMAIL
       });
       return NextResponse.json(
         { 
           error: 'Configuración de OneDrive no disponible',
-          message: 'Las credenciales de Microsoft Azure no están configuradas en el servidor',
+          message: 'Las credenciales de Microsoft Azure (ADM) no están configuradas en el servidor',
           requiresSetup: true,
           instructions: [
             'Configurar variables de entorno en Vercel:',
-            '- MICROSOFT_CLIENT_ID',
-            '- MICROSOFT_CLIENT_SECRET',
-            '- MICROSOFT_TENANT_ID',
-            '- MICROSOFT_EMAIL'
+            '- ADM_MICROSOFT_CLIENT_ID',
+            '- ADM_MICROSOFT_CLIENT_SECRET',
+            '- ADM_MICROSOFT_TENANT_ID',
+            '- ADM_MICROSOFT_EMAIL'
           ]
         },
         { status: 503 }

@@ -3,10 +3,10 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { ClientSecretCredential } from '@azure/identity';
 
 // Configuración Azure AD
-const AZURE_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID!;
-const AZURE_TENANT_ID = process.env.MICROSOFT_TENANT_ID!;
-const AZURE_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET!;
-const FROM_EMAIL = process.env.MICROSOFT_FROM_EMAIL;
+const AZURE_CLIENT_ID = process.env.JOYS_MICROSOFT_CLIENT_ID!;
+const AZURE_TENANT_ID = process.env.JOYS_MICROSOFT_TENANT_ID!;
+const AZURE_CLIENT_SECRET = process.env.JOYS_MICROSOFT_CLIENT_SECRET!;
+const FROM_EMAIL = process.env.JOYS_MICROSOFT_EMAIL;
 const FROM_NAME = 'Caja Menor - Sirius Financiero';
 
 interface ConsolidacionData {
