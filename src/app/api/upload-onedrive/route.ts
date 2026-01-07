@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Configuración de Microsoft Graph API
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0';
-const ONEDRIVE_FOLDER_PATH = 'General/Documentos Soporte/2025/Movimientos bancarios';
+const ONEDRIVE_FOLDER_PATH = 'General/Documentos Soporte/2026/Movimientos Bancolombia';
 
 interface GraphTokenResponse {
   access_token: string;

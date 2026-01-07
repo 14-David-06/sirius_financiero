@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const TABLE_ID = process.env.AIRTABLE_MOVIMIENTOS_TABLE_ID; // Usar tabla de movimientos bancarios
+const FACTURACION_INGRESOS_TABLE_ID = process.env.AIRTABLE__INGRESOS_TABLE_ID; // ID de la tabla Facturacion Ingresos
 
 interface AirtableRecord {
   id: string;
@@ -139,6 +140,92 @@ export async function GET(request: NextRequest) {
         success: false, 
         error: 'Error interno del servidor al obtener facturación' 
       },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+      return NextResponse.json(
+        { success: false, error: 'Configuración de Airtable no encontrada' },
+        { status: 500 }
+      );
+    }
+
+    const body = await request.json();
+    console.log('📝 Creando factura de ingreso:', body);
+
+    // Construir el objeto de campos para Airtable
+    const fields: any = {
+      'GRUPO': body.grupo,
+      'CLASE': body.clase,
+      'CUENTA': body.cuenta,
+      'Fecha Emision': body.fechaEmision,
+      'Factura No.': body.facturaNo,
+      'Nombre del Comprador': body.nombreComprador,
+      'Condiciones de pago': body.condicionesPago || '',
+      'Plazo para pagar': parseFloat(body.plazoParaPagar) || 0,
+      'Fecha de Vencimiento': body.fechaVencimiento,
+      'Total Bruto': parseFloat(body.totalBruto) || 0,
+      'Descuento': parseFloat(body.descuento) || 0,
+      'Subtotal': parseFloat(body.subtotal) || 0,
+      'IVA': parseFloat(body.iva) || 0,
+      'Total por Cobrar': parseFloat(body.totalPorCobrar) || 0,
+      'RETEICA': parseFloat(body.reteica) || 0,
+      'RETEIVA': parseFloat(body.reteiva) || 0,
+      'RETEFUENTE': parseFloat(body.retefuente) || 0,
+    };
+
+    // Campos opcionales
+    if (body.observaciones) {
+      fields['Observaciones'] = body.observaciones;
+    }
+    if (body.cufe) {
+      fields['CUFE'] = body.cufe;
+    }
+    if (body.idDocumento) {
+      fields['id_documento'] = body.idDocumento;
+    }
+
+    // Crear registro en Airtable
+    const response = await fetch(
+      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${FACTURACION_INGRESOS_TABLE_ID}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fields,
+          typecast: true, // Permitir conversión automática de tipos
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Error de Airtable:', errorData);
+      throw new Error(`Error from Airtable: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Factura creada exitosamente:', data.id);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: data.id,
+        ...data.fields,
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating factura:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Error al crear la factura' },
       { status: 500 }
     );
   }
