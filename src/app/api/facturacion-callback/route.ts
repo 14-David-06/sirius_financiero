@@ -14,6 +14,15 @@ export async function POST(request: NextRequest) {
       error: error || 'none'
     });
 
+    // Log específico para factura duplicada
+    if (!success && data?.error === 'Factura ya procesada, validar registros en Airtable') {
+      console.log('⚠️ FACTURA DUPLICADA DETECTADA:', {
+        transactionId,
+        mensaje: data.error,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     if (!transactionId) {
       return NextResponse.json(
         { error: 'transactionId es requerido' },

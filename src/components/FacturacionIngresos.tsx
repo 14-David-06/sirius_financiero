@@ -113,6 +113,8 @@ export default function FacturacionIngresos() {
     setErrorMessage(null);
     setProgressMessages([]);
     setProcessedData(null);
+    
+    // NO limpiar uploadedFile para mantener la previsualización
 
     try {
       // Validar que haya archivo
