@@ -148,7 +148,12 @@ export default function ResumenGerencial() {
   const { isAuthenticated, isLoading: authLoading } = useAuthSession();
   const [data, setData] = useState<CentralizacionData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState<number>(2025); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [loadingYears, setLoadingYears] = useState(true);
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonData, setComparisonData] = useState<CentralizacionData[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [viewMode, setViewMode] = useState<'anual' | 'mensual' | 'semanal'>('anual'); // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -179,6 +184,15 @@ export default function ResumenGerencial() {
   // Estados para remisiones sin facturar
   const [remisionesSinFacturar, setRemisionesSinFacturar] = useState<RemisionSinFacturar[]>([]); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [loadingRemisionesSinFacturar, setLoadingRemisionesSinFacturar] = useState(true); // eslint-disable-line @typescript-eslint/no-unused-vars
+  
+  // Estados para proyecciones de la semana actual
+  const [proyeccionesSemanales, setProyeccionesSemanales] = useState<{
+    totalIngresos: number;
+    totalEgresos: number;
+    ingresosOperacionales: number;
+    ingresosNoOperacionales: number;
+  } | null>(null);
+  const [loadingProyecciones, setLoadingProyecciones] = useState(true);
   
   // Estados para filtros del gráfico de flujo de caja
   const [showMinimoSaldo, setShowMinimoSaldo] = useState(true);
@@ -394,6 +408,85 @@ export default function ResumenGerencial() {
     }
   }, []);
 
+  // Fetch proyecciones de la semana actual
+  const fetchProyeccionesSemana = useCallback(async () => {
+    try {
+      setLoadingProyecciones(true);
+      
+      // Obtener la semana actual del año
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const days = Math.floor((now.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+      const currentWeek = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+      
+      console.log('📊 Intentando obtener proyecciones de la tabla Proyecciones:', { año: selectedYear, semana: currentWeek });
+      
+      // Primero intentar con la tabla de Proyecciones
+      try {
+        const proyeccionesResponse = await fetch(`/api/proyecciones?año=${selectedYear}&semana=${currentWeek}`);
+        const proyeccionesResult = await proyeccionesResponse.json();
+        
+        if (proyeccionesResult.success && proyeccionesResult.totales) {
+          setProyeccionesSemanales(proyeccionesResult.totales);
+          console.log('✅ Proyecciones obtenidas desde tabla Proyecciones:', proyeccionesResult.totales);
+          return;
+        }
+      } catch (proyError) {
+        console.warn('⚠️ Error al obtener desde tabla Proyecciones, usando fallback:', proyError);
+      }
+      
+      // Fallback: usar centralización
+      console.log('📊 Usando fallback: tabla de centralización');
+      const response = await fetch(`/api/centralizacion-general?año=${selectedYear}&semana=${currentWeek}`);
+      const result = await response.json();
+      
+      console.log('📊 Datos recibidos de centralización:', result);
+      
+      if (result.success && result.data && result.data.length > 0) {
+        const semanaData = result.data[0];
+        
+        console.log('📊 Datos de la semana:', {
+          ingresosEstimados: semanaData.ingresosEstimados,
+          ingresosOperacionales: semanaData.ingresosOperacionales,
+          ingresosNoOperacionales: semanaData.ingresosNoOperacionales,
+          egresosEstimados: semanaData.egresosEstimados,
+          totalIngresos: semanaData.totalIngresos,
+        });
+        
+        // Si ingresosOperacionales e ingresosNoOperacionales están en 0, usar totalIngresos
+        const ingOper = semanaData.ingresosOperacionales || 0;
+        const ingNoOper = semanaData.ingresosNoOperacionales || 0;
+        const totalIng = semanaData.ingresosEstimados || 0;
+        
+        // Si ambos están en 0 pero hay total, asignar todo a operacionales
+        const ingresosOp = (ingOper === 0 && ingNoOper === 0 && totalIng > 0) 
+          ? totalIng 
+          : ingOper;
+        
+        setProyeccionesSemanales({
+          totalIngresos: totalIng,
+          totalEgresos: Math.abs(semanaData.egresosEstimados) || 0,
+          ingresosOperacionales: ingresosOp,
+          ingresosNoOperacionales: ingNoOper,
+        });
+        
+        console.log('✅ Proyecciones configuradas:', {
+          totalIngresos: totalIng,
+          ingresosOperacionales: ingresosOp,
+          ingresosNoOperacionales: ingNoOper,
+        });
+      } else {
+        console.warn('⚠️ No se encontraron datos para la semana actual');
+        setProyeccionesSemanales(null);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching proyecciones:', error);
+      setProyeccionesSemanales(null);
+    } finally {
+      setLoadingProyecciones(false);
+    }
+  }, [selectedYear]);
+
   // Monitor changes in BBVA balance
   useEffect(() => {
     console.log('🔄 useEffect detectó cambio en saldoBBVA:', saldoBBVA);
@@ -402,6 +495,66 @@ export default function ResumenGerencial() {
       'N/A'
     );
   }, [saldoBBVA]);
+
+  // Función para obtener años disponibles
+  const fetchAvailableYears = useCallback(async () => {
+    try {
+      setLoadingYears(true);
+      const response = await fetch('/api/centralizacion-general/years');
+      const result = await response.json();
+      
+      if (result.success && result.years.length > 0) {
+        setAvailableYears(result.years);
+        // Si el año seleccionado no está en la lista, seleccionar el más reciente
+        if (!result.years.includes(selectedYear)) {
+          setSelectedYear(result.years[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching available years:', error);
+    } finally {
+      setLoadingYears(false);
+    }
+  }, [selectedYear]);
+
+  // Cargar años disponibles al inicio
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchAvailableYears();
+  }, [isAuthenticated, fetchAvailableYears]);
+
+  // Función para cargar datos de comparación
+  const fetchComparisonData = useCallback(async () => {
+    if (!compareYear || !showComparison) {
+      setComparisonData([]);
+      return;
+    }
+    
+    try {
+      let url = `/api/centralizacion-general?año=${compareYear}`;
+      if (selectedMonth) {
+        url += `&mes=${selectedMonth}`;
+      }
+      if (selectedWeek) {
+        url += `&semana=${selectedWeek}`;
+      }
+      
+      const response = await fetch(url);
+      const result = await response.json();
+      
+      if (result.success) {
+        setComparisonData(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching comparison data:', error);
+    }
+  }, [compareYear, showComparison, selectedMonth, selectedWeek]);
+
+  // Cargar datos de comparación cuando cambie el año de comparación
+  useEffect(() => {
+    if (!isAuthenticated || !showComparison) return;
+    fetchComparisonData();
+  }, [isAuthenticated, showComparison, fetchComparisonData]);
 
   // Fetch data
   useEffect(() => {
@@ -413,7 +566,8 @@ export default function ResumenGerencial() {
     fetchSaldosBancarios();
     fetchFacturasSinPagar();
     fetchRemisionesSinFacturar();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar]);
+    fetchProyeccionesSemana();
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar, fetchProyeccionesSemana]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -987,14 +1141,27 @@ export default function ResumenGerencial() {
       tendenciaData = semanasOrdenadas.map((_, idx) => slope * idx + intercept);
     }
 
-    return semanasOrdenadas.map((item, idx) => ({
-      semana: item.semana,
-      'Saldo Final Semana/Proyectado': item.saldoFinalProyectado,
-      'Minimo Saldo': showMinimoSaldo ? minimoSaldo : null,
-      'Caja Cero': showCajaCero ? 0 : null,
-      'Tendencia': showTendencia ? tendenciaData[idx] : null,
-    }));
-  }, [data, selectedYear, rangoSemanas, showMinimoSaldo, showCajaCero, showTendencia]);
+    // Si hay comparación activa, incluir datos del año de comparación
+    const chartData = semanasOrdenadas.map((item, idx) => {
+      const baseData: Record<string, number | null> = {
+        semana: item.semana,
+        'Saldo Final Semana/Proyectado': item.saldoFinalProyectado,
+        'Minimo Saldo': showMinimoSaldo ? minimoSaldo : null,
+        'Caja Cero': showCajaCero ? 0 : null,
+        'Tendencia': showTendencia ? tendenciaData[idx] : null,
+      };
+
+      // Agregar datos de comparación si está habilitado
+      if (showComparison && compareYear && comparisonData.length > 0) {
+        const comparisonItem = comparisonData.find(d => d.semana === item.semana);
+        baseData[`${compareYear}`] = comparisonItem ? comparisonItem.saldoFinalProyectado : null;
+      }
+
+      return baseData;
+    });
+
+    return chartData;
+  }, [data, selectedYear, rangoSemanas, showMinimoSaldo, showCajaCero, showTendencia, showComparison, compareYear, comparisonData]);
 
   // Alertas inteligentes del flujo de caja
   const alertasFlujoCaja = useMemo(() => {
@@ -1009,7 +1176,7 @@ export default function ResumenGerencial() {
 
     // Alerta: Saldo por debajo del mínimo
     const saldosBajos = chartDataFlujoCajaProyectado.filter(
-      item => item['Saldo Final Semana/Proyectado'] < minimoSaldo
+      item => (item['Saldo Final Semana/Proyectado'] ?? 0) < minimoSaldo
     );
     if (saldosBajos.length > 0) {
       alertas.push({
@@ -1021,7 +1188,7 @@ export default function ResumenGerencial() {
 
     // Alerta: Flujo negativo
     const flujoNegativo = chartDataFlujoCajaProyectado.filter(
-      item => item['Saldo Final Semana/Proyectado'] < 0
+      item => (item['Saldo Final Semana/Proyectado'] ?? 0) < 0
     );
     if (flujoNegativo.length > 0) {
       alertas.push({
@@ -1172,10 +1339,37 @@ export default function ResumenGerencial() {
               {/* Título a la izquierda (2 columnas) */}
               <div className="lg:col-span-2">
                 <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-2xl px-8 py-6 border border-white/30 h-full flex flex-col justify-center">
-                  <h2 className="text-4xl font-bold text-white flex items-center justify-center gap-3">
+                  <div className="flex items-center justify-center gap-3 mb-4">
                     <TrendingUp className="w-10 h-10 text-slate-200" />
-                    Análisis del Flujo de Caja Semanal
-                  </h2>
+                    <h2 className="text-4xl font-bold text-white">
+                      Análisis del Flujo de Caja Semanal
+                    </h2>
+                  </div>
+                  
+                  {/* Selector de Año - Dropdown */}
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <Calendar className="w-5 h-5 text-white/80" />
+                    <span className="text-white/90 text-sm font-medium">Año:</span>
+                    {loadingYears ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span className="text-white/70 text-sm">Cargando...</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                        className="bg-slate-700/60 text-white border border-white/30 rounded-lg px-4 py-2 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-slate-700/80 transition-all cursor-pointer"
+                      >
+                        {availableYears.map((year) => (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  
                   <p className="text-white/90 mt-3 text-lg text-center">
                     Comparativo: Semana Pasada, Actual y Futura (Proyecciones)
                   </p>
@@ -1402,21 +1596,46 @@ export default function ResumenGerencial() {
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Ingresos Estimados</h4>
                       <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
-                        <div className="flex justify-between">
-                          <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
-                          <span className="text-green-400 font-bold text-3xl">
-                            {formatCurrency(weekComparison.current.ingresosEstimados)}
-                          </span>
-                        </div>
-                        {weekComparison.current.totalIngresos > 0 && (
-                          <div className="pt-2 border-t border-white/30">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-white/50">Ingresos Reales:</span>
-                              <span className="text-green-300 text-3xl">
-                                {formatCurrency(weekComparison.current.totalIngresos)}
+                        {loadingProyecciones ? (
+                          <div className="flex items-center justify-center py-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span className="ml-2 text-white/70 text-sm">Cargando proyecciones...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
+                              <span className="text-green-400 font-bold text-3xl">
+                                {proyeccionesSemanales ? formatCurrency(proyeccionesSemanales.totalIngresos) : formatCurrency(weekComparison.current.ingresosEstimados)}
                               </span>
                             </div>
-                          </div>
+                            {proyeccionesSemanales && proyeccionesSemanales.totalIngresos > 0 && (
+                              <div className="pt-2 border-t border-white/30 space-y-1">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-white/60">Operacionales:</span>
+                                  <span className="text-green-300 font-medium">
+                                    {formatCurrency(proyeccionesSemanales.ingresosOperacionales)}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-white/60">No Operacionales:</span>
+                                  <span className="text-green-300 font-medium">
+                                    {formatCurrency(proyeccionesSemanales.ingresosNoOperacionales)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                            {weekComparison.current.totalIngresos > 0 && (
+                              <div className="pt-2 border-t border-white/30">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-white/50">Ingresos Reales:</span>
+                                  <span className="text-green-300 text-3xl">
+                                    {formatCurrency(weekComparison.current.totalIngresos)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -1425,21 +1644,30 @@ export default function ResumenGerencial() {
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold text-white mb-2">Egresos Estimados</h4>
                       <div className="space-y-2 bg-slate-800/40 rounded-lg p-3 border border-white/30">
-                        <div className="flex justify-between">
-                          <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
-                          <span className="text-red-400 font-bold text-3xl">
-                            {formatCurrency(Math.abs(weekComparison.current.egresosEstimados))}
-                          </span>
-                        </div>
-                        {weekComparison.current.totalEgresos < 0 && (
-                          <div className="pt-2 border-t border-white/30">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-white/50">Egresos Reales:</span>
-                              <span className="text-red-300 text-3xl">
-                                {formatCurrency(Math.abs(weekComparison.current.totalEgresos))}
+                        {loadingProyecciones ? (
+                          <div className="flex items-center justify-center py-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span className="ml-2 text-white/70 text-sm">Cargando proyecciones...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-white/80 font-semibold text-sm">Total Estimado:</span>
+                              <span className="text-red-400 font-bold text-3xl">
+                                {proyeccionesSemanales ? formatCurrency(proyeccionesSemanales.totalEgresos) : formatCurrency(Math.abs(weekComparison.current.egresosEstimados))}
                               </span>
                             </div>
-                          </div>
+                            {weekComparison.current.totalEgresos < 0 && (
+                              <div className="pt-2 border-t border-white/30">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-white/50">Egresos Reales:</span>
+                                  <span className="text-red-300 text-3xl">
+                                    {formatCurrency(Math.abs(weekComparison.current.totalEgresos))}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -1451,7 +1679,13 @@ export default function ResumenGerencial() {
                         <div className="flex justify-between items-center">
                           <span className="text-white/100 text-sm">Final Proyectado:</span>
                           <span className="text-white font-bold text-3xl">
-                            {formatCurrency(weekComparison.current.saldoFinalProyectado)}
+                            {(() => {
+                              const saldoInicial = weekComparison.previous ? weekComparison.previous.saldoFinalBancos : weekComparison.current.saldoInicialBancos;
+                              const ingresos = proyeccionesSemanales?.totalIngresos || weekComparison.current.ingresosEstimados;
+                              const egresos = proyeccionesSemanales?.totalEgresos || Math.abs(weekComparison.current.egresosEstimados);
+                              const saldoFinal = saldoInicial + ingresos - egresos;
+                              return formatCurrency(saldoFinal);
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -1463,8 +1697,18 @@ export default function ResumenGerencial() {
                       <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Proyectado:</span>
-                          <span className={`font-bold text-3xl ${weekComparison.current.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatCurrency(weekComparison.current.netoSemanalProyectado)}
+                          <span className={`font-bold text-3xl ${(() => {
+                            const ingresos = proyeccionesSemanales?.totalIngresos || weekComparison.current.ingresosEstimados;
+                            const egresos = proyeccionesSemanales?.totalEgresos || Math.abs(weekComparison.current.egresosEstimados);
+                            const flujoNeto = ingresos - egresos;
+                            return flujoNeto >= 0 ? 'text-green-400' : 'text-red-400';
+                          })()}`}>
+                            {(() => {
+                              const ingresos = proyeccionesSemanales?.totalIngresos || weekComparison.current.ingresosEstimados;
+                              const egresos = proyeccionesSemanales?.totalEgresos || Math.abs(weekComparison.current.egresosEstimados);
+                              const flujoNeto = ingresos - egresos;
+                              return formatCurrency(flujoNeto);
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -1601,7 +1845,7 @@ export default function ResumenGerencial() {
                       <p className="text-xs text-white/70">Promedio</p>
                       <p className="text-3xl font-bold text-white">
                         {formatCurrency(
-                          chartDataFlujoCajaProyectado.reduce((sum, item) => sum + item['Saldo Final Semana/Proyectado'], 0) / chartDataFlujoCajaProyectado.length
+                          chartDataFlujoCajaProyectado.reduce((sum, item) => sum + (item['Saldo Final Semana/Proyectado'] ?? 0), 0) / chartDataFlujoCajaProyectado.length
                         )}
                       </p>
                     </div>
@@ -1609,7 +1853,7 @@ export default function ResumenGerencial() {
                       <p className="text-xs text-white/70">Máximo</p>
                       <p className="text-3xl font-bold text-green-300">
                         {formatCurrency(
-                          Math.max(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado']))
+                          Math.max(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado'] ?? 0))
                         )}
                       </p>
                     </div>
@@ -1617,12 +1861,75 @@ export default function ResumenGerencial() {
                       <p className="text-xs text-white/70">Mínimo</p>
                       <p className="text-3xl font-bold text-red-300">
                         {formatCurrency(
-                          Math.min(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado']))
+                          Math.min(...chartDataFlujoCajaProyectado.map(item => item['Saldo Final Semana/Proyectado'] ?? 0))
                         )}
                       </p>
                     </div>
                   </div>
                 </div>
+                
+                {/* Estadísticas de Comparación */}
+                {showComparison && compareYear && comparisonData.length > 0 && (
+                  <div className="mt-4 bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="bg-purple-500/30 p-2 rounded-lg">
+                        <TrendingUp className="w-5 h-5 text-purple-300" />
+                      </div>
+                      <h4 className="text-lg font-bold text-white">
+                        Comparación {selectedYear} vs {compareYear}
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="bg-slate-800/30 rounded-lg p-3">
+                        <p className="text-xs text-white/70 mb-1">Promedio Comparativo</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <p className="text-sm text-blue-400">
+                              {selectedYear}: {formatCurrency(
+                                chartDataFlujoCajaProyectado.reduce((sum, item) => sum + (item['Saldo Final Semana/Proyectado'] || 0), 0) / chartDataFlujoCajaProyectado.length
+                              )}
+                            </p>
+                            <p className="text-sm text-purple-400">
+                              {compareYear}: {formatCurrency(
+                                comparisonData.reduce((sum, item) => sum + (item.saldoFinalProyectado || 0), 0) / comparisonData.length
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-slate-800/30 rounded-lg p-3">
+                        <p className="text-xs text-white/70 mb-1">Diferencia Promedio</p>
+                        <p className="text-lg font-bold text-white">
+                          {(() => {
+                            const avg1 = chartDataFlujoCajaProyectado.reduce((sum, item) => sum + (item['Saldo Final Semana/Proyectado'] ?? 0), 0) / chartDataFlujoCajaProyectado.length;
+                            const avg2 = comparisonData.reduce((sum, item) => sum + (item.saldoFinalProyectado ?? 0), 0) / comparisonData.length;
+                            const diff = avg1 - avg2;
+                            return (
+                              <span className={diff >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                {diff >= 0 ? '+' : ''}{formatCurrency(diff)}
+                              </span>
+                            );
+                          })()}
+                        </p>
+                      </div>
+                      <div className="bg-slate-800/30 rounded-lg p-3">
+                        <p className="text-xs text-white/70 mb-1">Variación %</p>
+                        <p className="text-lg font-bold text-white">
+                          {(() => {
+                            const avg1 = chartDataFlujoCajaProyectado.reduce((sum, item) => sum + (item['Saldo Final Semana/Proyectado'] ?? 0), 0) / chartDataFlujoCajaProyectado.length;
+                            const avg2 = comparisonData.reduce((sum, item) => sum + (item.saldoFinalProyectado ?? 0), 0) / comparisonData.length;
+                            const variation = avg2 !== 0 ? ((avg1 - avg2) / avg2) * 100 : 0;
+                            return (
+                              <span className={variation >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                {variation >= 0 ? '+' : ''}{variation.toFixed(1)}%
+                              </span>
+                            );
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Alertas Inteligentes */}
                 {alertasFlujoCaja.length > 0 && (
@@ -1691,7 +1998,7 @@ export default function ResumenGerencial() {
                   </div>
 
                   {/* Toggles de Líneas */}
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
                     <label className="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/50 px-3 py-2 rounded-lg transition-colors">
                       <input
                         type="checkbox"
@@ -1712,6 +2019,51 @@ export default function ResumenGerencial() {
                       <span className="text-white text-sm font-medium">Caja Cero</span>
                       <div className="w-6 h-0.5 bg-yellow-500"></div>
                     </label>
+                    
+                    {/* Comparación Multi-Año - Integrado con otros toggles */}
+                    <div className="h-6 w-px bg-white/30"></div>
+                    
+                    <label 
+                      className="flex items-center gap-2 cursor-pointer bg-purple-900/30 hover:bg-purple-900/40 px-3 py-2 rounded-lg transition-colors border border-purple-500/30"
+                      title="Compara el flujo de caja del año actual con otro año para identificar tendencias y patrones"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={showComparison}
+                        onChange={(e) => {
+                          setShowComparison(e.target.checked);
+                          if (!e.target.checked) {
+                            setCompareYear(null);
+                          }
+                        }}
+                        className="w-4 h-4 rounded accent-purple-500"
+                      />
+                      <span className="text-white text-sm font-medium">Comparar con otro año</span>
+                      {compareYear && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-0.5 bg-purple-500"></div>
+                          <span className="text-purple-400 text-xs font-bold">{compareYear}</span>
+                        </div>
+                      )}
+                    </label>
+                    
+                    {showComparison && (
+                      <select
+                        value={compareYear || ''}
+                        onChange={(e) => setCompareYear(e.target.value ? parseInt(e.target.value) : null)}
+                        className="bg-slate-800/60 text-white border border-purple-500/50 rounded-lg px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 hover:bg-slate-800/80 transition-all"
+                        title="Selecciona el año con el que deseas comparar"
+                      >
+                        <option value="">Seleccionar año a comparar...</option>
+                        {availableYears
+                          .filter(year => year !== selectedYear)
+                          .map(year => (
+                            <option key={year} value={year}>
+                              Año {year}
+                            </option>
+                          ))}
+                      </select>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1753,8 +2105,20 @@ export default function ResumenGerencial() {
                     strokeWidth={3}
                     dot={{ fill: '#3b82f6', r: 4 }}
                     activeDot={{ r: 6 }}
-                    name="Saldo Final Semana/Proyectado"
+                    name={`Año ${selectedYear}`}
                   />
+                  {showComparison && compareYear && (
+                    <Line 
+                      type="monotone" 
+                      dataKey={`${compareYear}`}
+                      stroke="#a855f7" 
+                      strokeWidth={3}
+                      dot={{ fill: '#a855f7', r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name={`Año ${compareYear}`}
+                      strokeDasharray="0"
+                    />
+                  )}
                   <Line 
                     type="monotone" 
                     dataKey="Minimo Saldo" 

@@ -3,7 +3,7 @@ import { sendStreamEvent } from '@/lib/stream-manager';
 
 // Configuración de Microsoft Graph API
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0';
-const ONEDRIVE_FOLDER_PATH = 'General/Documentos Soporte/2026/Factura Ingresos/Facturas';
+const ONEDRIVE_FOLDER_PATH = 'General/Documentos Soporte/2026/Egresos/Automatizacion Egresos';
 
 interface GraphTokenResponse {
   access_token: string;
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
   const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   try {
-    console.log(`📤 Iniciando carga de factura [${transactionId}]`);
+    console.log(`📤 Iniciando carga de factura de EGRESO [${transactionId}]`);
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -172,13 +172,13 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
 
-    // Paso 2: Activar webhook de n8n
+    // Paso 2: Activar webhook de n8n para EGRESOS
     try {
-      console.log('🔔 Activando webhook de n8n...');
-      const webhookUrl = process.env.N8N_WEBHOOK_URL;
+      console.log('🔔 Activando webhook de n8n (EGRESOS)...');
+      const webhookUrl = process.env.N8N_WEBHOOK_FACTURACION_EGRESOS_URL;
       
       if (!webhookUrl) {
-        throw new Error('N8N_WEBHOOK_URL no está configurada en las variables de entorno');
+        throw new Error('N8N_WEBHOOK_FACTURACION_EGRESOS_URL no está configurada en las variables de entorno');
       }
       
       const webhookPayload = {
@@ -191,11 +191,11 @@ export async function POST(request: NextRequest) {
         webUrl: uploadResult.webUrl, // URL web del archivo
         downloadUrl: uploadResult['@microsoft.graph.downloadUrl'] || null, // URL de descarga directa
         timestamp: new Date().toISOString(),
-        type: 'factura_ingreso',
-        callbackUrl: `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/api/facturacion-callback`
+        type: 'factura_egreso',
+        callbackUrl: `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/api/facturacion-egresos-callback`
       };
 
-      console.log('📤 Payload webhook:', JSON.stringify(webhookPayload, null, 2));
+      console.log('📤 Payload webhook (EGRESOS):', JSON.stringify(webhookPayload, null, 2));
       
       const webhookResponse = await fetch(webhookUrl, {
         method: 'POST',
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
 
       if (webhookResponse.ok) {
         const webhookResult = await webhookResponse.text();
-        console.log('✅ Webhook activado exitosamente');
+        console.log('✅ Webhook activado exitosamente (EGRESOS)');
         console.log('📄 Respuesta webhook:', webhookResult || '(sin contenido)');
         
         // Enviar evento: Esperando procesamiento
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
         
       } else {
         const errorBody = await webhookResponse.text();
-        console.error('❌ ERROR WEBHOOK:');
+        console.error('❌ ERROR WEBHOOK (EGRESOS):');
         console.error('   Status:', webhookResponse.status);
         console.error('   Status Text:', webhookResponse.statusText);
         console.error('   Body:', errorBody);
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (webhookError) {
       // No lanzamos error porque el archivo ya se subió exitosamente
-      console.error('❌ EXCEPCIÓN AL LLAMAR WEBHOOK:');
+      console.error('❌ EXCEPCIÓN AL LLAMAR WEBHOOK (EGRESOS):');
       console.error('   Error:', webhookError);
       console.error('   Mensaje:', webhookError instanceof Error ? webhookError.message : 'Error desconocido');
       
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error(`❌ Error en upload-factura-onedrive [${transactionId}]:`, error);
+    console.error(`❌ Error en upload-factura-egresos-onedrive [${transactionId}]:`, error);
     
     sendStreamEvent(transactionId, {
       type: 'error',
