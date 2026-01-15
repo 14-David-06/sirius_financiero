@@ -1679,13 +1679,7 @@ export default function ResumenGerencial() {
                         <div className="flex justify-between items-center">
                           <span className="text-white/100 text-sm">Final Proyectado:</span>
                           <span className="text-white font-bold text-3xl">
-                            {(() => {
-                              const saldoInicial = weekComparison.previous ? weekComparison.previous.saldoFinalBancos : weekComparison.current.saldoInicialBancos;
-                              const ingresos = proyeccionesSemanales?.totalIngresos || weekComparison.current.ingresosEstimados;
-                              const egresos = proyeccionesSemanales?.totalEgresos || Math.abs(weekComparison.current.egresosEstimados);
-                              const saldoFinal = saldoInicial + ingresos - egresos;
-                              return formatCurrency(saldoFinal);
-                            })()}
+                            {formatCurrency(weekComparison.current.saldoFinalProyectado)}
                           </span>
                         </div>
                       </div>
@@ -1697,18 +1691,8 @@ export default function ResumenGerencial() {
                       <div className="bg-slate-800/30 rounded-lg p-3 border border-white/30">
                         <div className="flex justify-between items-center">
                           <span className="text-white/80 font-semibold">Neto Proyectado:</span>
-                          <span className={`font-bold text-3xl ${(() => {
-                            const ingresos = proyeccionesSemanales?.totalIngresos || weekComparison.current.ingresosEstimados;
-                            const egresos = proyeccionesSemanales?.totalEgresos || Math.abs(weekComparison.current.egresosEstimados);
-                            const flujoNeto = ingresos - egresos;
-                            return flujoNeto >= 0 ? 'text-green-400' : 'text-red-400';
-                          })()}`}>
-                            {(() => {
-                              const ingresos = proyeccionesSemanales?.totalIngresos || weekComparison.current.ingresosEstimados;
-                              const egresos = proyeccionesSemanales?.totalEgresos || Math.abs(weekComparison.current.egresosEstimados);
-                              const flujoNeto = ingresos - egresos;
-                              return formatCurrency(flujoNeto);
-                            })()}
+                          <span className={`font-bold text-3xl ${weekComparison.current.netoSemanalProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatCurrency(weekComparison.current.netoSemanalProyectado)}
                           </span>
                         </div>
                       </div>
