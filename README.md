@@ -58,8 +58,9 @@ El sistema incluye usuarios predefinidos con sus respectivos datos:
 - **Juan Manuel** - Administrativo - CMO
 - **Pablo Acebedo** - RAAS - CTO
 
-## 📍 Centros de Costo por Área#
- 
+## 📍 Centros de Costo por Área
+
+
 - **Laboratorio**: Hongos, Bacterias, Análisis
 - **Pirolisis**: Mantenimiento, Novedades, Blend
 - **Administrativo**: Administración, Mercadeo, Otros Gastos ADM
