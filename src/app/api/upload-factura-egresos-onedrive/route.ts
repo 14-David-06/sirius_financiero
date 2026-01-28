@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
         downloadUrl: uploadResult['@microsoft.graph.downloadUrl'] || null, // URL de descarga directa
         timestamp: new Date().toISOString(),
         type: 'factura_egreso',
+        mode: 'One', // Modo One: procesar solo esta factura
         callbackUrl: `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/api/facturacion-egresos-callback`
       };
 

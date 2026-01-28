@@ -10,7 +10,8 @@ import {
   RefreshCw,
   Upload,
   Edit3,
-  Package
+  Package,
+  Play
 } from 'lucide-react';
 
 interface ItemEgreso {
@@ -50,12 +51,43 @@ interface FormDataEgresos {
 export default function FacturacionEgresos() {
   const { isAuthenticated, userData, isLoading } = useAuthSession();
   const [loading, setLoading] = useState(false);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [progressMessages, setProgressMessages] = useState<string[]>([]);
   const [processedData, setProcessedData] = useState<FormDataEgresos | null>(null);
   const [transactionId, setTransactionId] = useState<string | null>(null);
+
+  // Función para ejecutar workflow completo (todas las facturas)
+  const handleExecuteWorkflow = async () => {
+    setWorkflowLoading(true);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch('/api/execute-workflow-egresos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'All' }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSuccessMessage('✅ Workflow ejecutado exitosamente. Se procesarán todas las facturas pendientes.');
+      } else {
+        throw new Error(result.error || 'Error al ejecutar el workflow');
+      }
+    } catch (error) {
+      console.error('Error ejecutando workflow:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Error al ejecutar el workflow');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -622,10 +654,28 @@ export default function FacturacionEgresos() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={handleExecuteWorkflow}
+                  disabled={workflowLoading || loading}
+                  className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                >
+                  {workflowLoading ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>Ejecutando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5" />
+                      <span>Ejecutar Workflow</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="submit"
-                  disabled={loading || !uploadedFile}
+                  disabled={loading || !uploadedFile || workflowLoading}
                   className="inline-flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 text-white rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                 >
                   {loading ? (
