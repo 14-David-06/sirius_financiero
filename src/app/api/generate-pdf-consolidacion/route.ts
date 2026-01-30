@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import fs from 'fs';
 import path from 'path';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+
+// Función para obtener el navegador según el entorno
+async function getBrowser() {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  
+  if (isProduction) {
+    // En Vercel/producción: usar chromium serverless
+    const executablePath = await chromium.executablePath();
+    return puppeteer.launch({
+      args: chromium.args,
+      executablePath,
+      headless: true,
+      defaultViewport: { width: 1920, height: 1080 },
+    });
+  } else {
+    // En desarrollo local: usar Chrome instalado localmente
+    const executablePath = process.platform === 'win32'
+      ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+      : process.platform === 'darwin'
+        ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        : '/usr/bin/google-chrome';
+    
+    return puppeteer.launch({
+      headless: true,
+      executablePath,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+  }
+}
 
 // Configuración de AWS S3
 const s3Client = new S3Client({
@@ -657,15 +687,7 @@ export async function POST(request: NextRequest) {
 
     // Generar PDF usando Puppeteer
     console.log('🚀 Iniciando Puppeteer...');
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
-    });
+    const browser = await getBrowser();
 
     const page = await browser.newPage();
     console.log('📄 Configurando página...');
