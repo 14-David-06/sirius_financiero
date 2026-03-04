@@ -2,7 +2,7 @@
 
 import ValidacionUsuario from './ValidacionUsuario';
 import CajaMenorAgent from './CajaMenorAgent';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { UserData } from '@/types/compras';
 import { 
@@ -94,7 +94,21 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isConsolidating, setIsConsolidating] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
-  
+  const [showHistoricoModal, setShowHistoricoModal] = useState(false);
+  const [showEditFechaModal, setShowEditFechaModal] = useState(false);
+  const [showCajaItemsModal, setShowCajaItemsModal] = useState(false);
+  const [cajaParaVerItems, setCajaParaVerItems] = useState<CajaMenorRecord | null>(null);
+  const [cajaParaEditar, setCajaParaEditar] = useState<CajaMenorRecord | null>(null);
+  const [editingCajaData, setEditingCajaData] = useState({
+    fechaAnticipo: '',
+    beneficiario: '',
+    nitCC: '',
+    concepto: '',
+    valor: '',
+    realizaRegistro: '',
+  });
+  const [isSavingFecha, setIsSavingFecha] = useState(false);
+
   // Estados para edición y eliminación
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -114,6 +128,10 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   // Estados para beneficiarios
   const [beneficiarios, setBeneficiarios] = useState<Array<{ nombre: string; nitCC: string }>>([]);
   const [esNuevoBeneficiario, setEsNuevoBeneficiario] = useState(false);
+
+  // Ref para reabrir el modal de items después de que el formulario de edición cierre
+  const returnToItemsCajaRef = useRef<CajaMenorRecord | null>(null);
+  const prevShowModalRef = useRef(false);
 
   // Función helper para formatear fechas ISO sin problemas de zona horaria
   const formatearFecha = (fechaISO: string): string => {
@@ -372,6 +390,17 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       realizaRegistro: userData?.nombre || 'Usuario'
     }));
   }, [userData]);
+
+  // Reabrir modal de items cuando el formulario de edición de item cierra
+  useEffect(() => {
+    if (prevShowModalRef.current && !showModal && returnToItemsCajaRef.current) {
+      const caja = returnToItemsCajaRef.current;
+      returnToItemsCajaRef.current = null;
+      setCajaParaVerItems(caja);
+      setShowCajaItemsModal(true);
+    }
+    prevShowModalRef.current = showModal;
+  }, [showModal]);
 
   const cargarDatos = async () => {
     try {
@@ -988,9 +1017,58 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
     }
   };
 
+  const handleAbrirEditarFecha = (caja: CajaMenorRecord) => {
+    setCajaParaEditar(caja);
+    setEditingCajaData({
+      fechaAnticipo: caja.fechaAnticipo?.split('T')[0] || '',
+      beneficiario: caja.beneficiario || '',
+      nitCC: caja.nitCC || '',
+      concepto: caja.concepto || '',
+      valor: String(caja.valor || ''),
+      realizaRegistro: caja.realizaRegistro || '',
+    });
+    setShowHistoricoModal(false);
+    setShowEditFechaModal(true);
+  };
+
+  const handleSubmitEditarFecha = async () => {
+    if (!cajaParaEditar || !editingCajaData.fechaAnticipo || !editingCajaData.beneficiario || !editingCajaData.concepto || !editingCajaData.valor) return;
+
+    setIsSavingFecha(true);
+    try {
+      const response = await fetch('/api/caja-menor', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: cajaParaEditar.id,
+          table: 'cajaMenor',
+          fechaAnticipo: editingCajaData.fechaAnticipo,
+          beneficiario: editingCajaData.beneficiario,
+          nitCC: editingCajaData.nitCC,
+          concepto: editingCajaData.concepto,
+          valor: editingCajaData.valor,
+          realizaRegistro: editingCajaData.realizaRegistro,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al actualizar la caja menor');
+      }
+
+      await cargarDatos();
+      setShowEditFechaModal(false);
+      setCajaParaEditar(null);
+    } catch (error) {
+      alert('❌ Error al actualizar: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setIsSavingFecha(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Verificar que existe al menos una caja menor activa
     if (cajasMenoresActivas.length === 0 && !editingItemId) {
       alert('❌ No hay cajas menores activas para registrar items.\n\nPor favor, cree una caja menor primero.');
@@ -1774,6 +1852,18 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
               )}
               
+              {/* Botón Historial - Solo visible para usuarios autorizados */}
+              {canEditDelete && cajaMenorRecords.length > 0 && (
+                <button
+                  onClick={() => setShowHistoricoModal(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 md:py-3 bg-slate-600 hover:bg-slate-500 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base border border-white/20"
+                  title="Ver y editar cajas menores anteriores"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Historial</span>
+                </button>
+              )}
+
               {/* Botón Nueva Caja Menor - Solo visible si NO hay cajas activas */}
               {cajasMenoresActivas.length === 0 && (
                 <div className="flex flex-col sm:flex-row gap-2 md:gap-3 w-full lg:w-auto">
@@ -2851,6 +2941,304 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       {/* Modal del Agente IA */}
       {showAgentModal && (
         <CajaMenorAgent onClose={() => setShowAgentModal(false)} />
+      )}
+
+      {/* Modal: Historial de Cajas Menores */}
+      {showHistoricoModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-slate-800/95 rounded-2xl max-w-3xl w-full max-h-[80vh] flex flex-col border border-white/30 shadow-2xl mt-16">
+            {/* Header */}
+            <div className="sticky top-0 bg-slate-800/98 px-6 py-4 border-b border-white/30 flex items-center justify-between rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <Clock className="w-6 h-6 text-blue-400" />
+                <h3 className="text-xl font-bold text-white">Historial de Cajas Menores</h3>
+                <span className="text-sm text-white/60">({cajaMenorRecords.length} registros)</span>
+              </div>
+              <button
+                onClick={() => setShowHistoricoModal(false)}
+                className="text-white/60 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            {/* Tabla */}
+            <div className="overflow-y-auto p-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/20 text-left">
+                    <th className="pb-3 pr-4 text-xs font-bold text-white/60 uppercase tracking-wider">Fecha Anticipo</th>
+                    <th className="pb-3 pr-4 text-xs font-bold text-white/60 uppercase tracking-wider">Beneficiario</th>
+                    <th className="pb-3 pr-4 text-xs font-bold text-white/60 uppercase tracking-wider hidden md:table-cell">Concepto</th>
+                    <th className="pb-3 pr-4 text-xs font-bold text-white/60 uppercase tracking-wider text-right">Valor</th>
+                    <th className="pb-3 pr-4 text-xs font-bold text-white/60 uppercase tracking-wider hidden sm:table-cell">Estado</th>
+                    <th className="pb-3 text-xs font-bold text-white/60 uppercase tracking-wider text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {[...cajaMenorRecords]
+                    .sort((a, b) => new Date(b.fechaAnticipo).getTime() - new Date(a.fechaAnticipo).getTime())
+                    .map(caja => (
+                      <tr key={caja.id} className="hover:bg-white/5 transition-colors">
+                        <td className="py-3 pr-4 text-white/90">{formatearFecha(caja.fechaAnticipo)}</td>
+                        <td className="py-3 pr-4 text-white/80">{caja.beneficiario}</td>
+                        <td className="py-3 pr-4 text-white/70 hidden md:table-cell max-w-[200px] truncate">{caja.concepto}</td>
+                        <td className="py-3 pr-4 text-white/90 text-right font-medium">${(caja.valor || 0).toLocaleString('es-CO')}</td>
+                        <td className="py-3 pr-4 hidden sm:table-cell">
+                          {caja.estadoCajaMenor === 'Caja Menor Consiliada' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs font-semibold">
+                              <CheckCircle className="w-3 h-3" /> Consolidada
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold">
+                              <Clock className="w-3 h-3" /> Abierta
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleAbrirEditarFecha(caja)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                              title="Editar datos de la caja menor"
+                            >
+                              ✏️ Caja
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCajaParaVerItems(caja);
+                                setShowHistoricoModal(false);
+                                setShowCajaItemsModal(true);
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                              title="Ver y editar items de la caja menor"
+                            >
+                              📋 Items ({itemsRecords.filter(i => i.cajaMenor?.includes(caja.id)).length})
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Items de una Caja Menor */}
+      {showCajaItemsModal && cajaParaVerItems && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9998]">
+          <div className="bg-slate-800/95 rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col border border-white/30 shadow-2xl mt-16">
+            {/* Header */}
+            <div className="sticky top-0 bg-slate-800/98 px-6 py-4 border-b border-white/30 flex items-center justify-between rounded-t-2xl">
+              <div className="flex items-center gap-3 min-w-0">
+                <Receipt className="w-6 h-6 text-emerald-400 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-xl font-bold text-white truncate">Items — {cajaParaVerItems.beneficiario}</h3>
+                  <p className="text-sm text-white/50">{formatearFecha(cajaParaVerItems.fechaAnticipo)} · ${(cajaParaVerItems.valor || 0).toLocaleString('es-CO')}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setShowCajaItemsModal(false);
+                    setShowHistoricoModal(true);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white/80 rounded-lg text-sm transition-colors"
+                >
+                  ← Historial
+                </button>
+                <button
+                  onClick={() => setShowCajaItemsModal(false)}
+                  className="text-white/60 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 text-xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            {/* Tabla de items */}
+            <div className="overflow-y-auto p-4">
+              {(() => {
+                const items = itemsRecords.filter(i => i.cajaMenor?.includes(cajaParaVerItems.id));
+                if (items.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Receipt className="w-12 h-12 text-white/20 mb-4" />
+                      <p className="text-white/50">Esta caja menor no tiene items registrados</p>
+                    </div>
+                  );
+                }
+                return (
+                  <table className="w-full text-sm min-w-[600px]">
+                    <thead>
+                      <tr className="border-b border-white/20 text-left">
+                        <th className="pb-3 pr-3 text-xs font-bold text-white/60 uppercase tracking-wider">#</th>
+                        <th className="pb-3 pr-3 text-xs font-bold text-white/60 uppercase tracking-wider">Fecha</th>
+                        <th className="pb-3 pr-3 text-xs font-bold text-white/60 uppercase tracking-wider">Beneficiario</th>
+                        <th className="pb-3 pr-3 text-xs font-bold text-white/60 uppercase tracking-wider">Concepto</th>
+                        <th className="pb-3 pr-3 text-xs font-bold text-white/60 uppercase tracking-wider hidden md:table-cell">C. Costo</th>
+                        <th className="pb-3 pr-3 text-xs font-bold text-white/60 uppercase tracking-wider text-right">Valor</th>
+                        <th className="pb-3 text-xs font-bold text-white/60 uppercase tracking-wider text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {items.map((item, idx) => (
+                        <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-3 pr-3 text-white/50">{item.item ?? idx + 1}</td>
+                          <td className="py-3 pr-3 text-white/80 whitespace-nowrap">{formatearFecha(item.fecha)}</td>
+                          <td className="py-3 pr-3 text-white/80">{item.beneficiario}</td>
+                          <td className="py-3 pr-3 text-white/70 max-w-[180px] truncate">{item.concepto}</td>
+                          <td className="py-3 pr-3 text-white/60 hidden md:table-cell">{item.centroCosto || '—'}</td>
+                          <td className="py-3 pr-3 text-white/90 text-right font-medium whitespace-nowrap">${(item.valor || 0).toLocaleString('es-CO')}</td>
+                          <td className="py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  returnToItemsCajaRef.current = cajaParaVerItems;
+                                  setShowCajaItemsModal(false);
+                                  handleEditItem(item.id, 'item');
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                                title="Editar item"
+                              >
+                                ✏️ Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id, 'item')}
+                                disabled={isDeleting}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Eliminar item"
+                              >
+                                🗑️ Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-white/20">
+                        <td colSpan={5} className="pt-3 text-sm font-bold text-white/60 text-right pr-3">Total</td>
+                        <td className="pt-3 text-sm font-bold text-white text-right pr-3">
+                          ${items.reduce((s, i) => s + (i.valor || 0), 0).toLocaleString('es-CO')}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Caja Menor */}
+      {showEditFechaModal && cajaParaEditar && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
+          <div className="bg-slate-800/95 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col border border-white/30 shadow-2xl">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">Editar Caja Menor</h3>
+              <button
+                onClick={() => { setShowEditFechaModal(false); setShowHistoricoModal(true); }}
+                className="text-white/60 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            {/* Cuerpo */}
+            <div className="overflow-y-auto p-6 space-y-4">
+              {/* Fecha Anticipo */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Fecha Anticipo *</label>
+                <input
+                  type="date"
+                  value={editingCajaData.fechaAnticipo}
+                  onChange={(e) => setEditingCajaData(prev => ({ ...prev, fechaAnticipo: e.target.value }))}
+                  className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  style={{ colorScheme: 'dark' }}
+                  required
+                />
+              </div>
+              {/* Beneficiario */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Beneficiario *</label>
+                <input
+                  type="text"
+                  value={editingCajaData.beneficiario}
+                  onChange={(e) => setEditingCajaData(prev => ({ ...prev, beneficiario: e.target.value }))}
+                  className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Nombre del beneficiario"
+                  required
+                />
+              </div>
+              {/* NIT / CC */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">NIT / CC</label>
+                <input
+                  type="text"
+                  value={editingCajaData.nitCC}
+                  onChange={(e) => setEditingCajaData(prev => ({ ...prev, nitCC: e.target.value }))}
+                  className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Número de identificación"
+                />
+              </div>
+              {/* Concepto */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Concepto *</label>
+                <textarea
+                  value={editingCajaData.concepto}
+                  onChange={(e) => setEditingCajaData(prev => ({ ...prev, concepto: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  placeholder="Descripción del anticipo"
+                  required
+                />
+              </div>
+              {/* Valor */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Valor *</label>
+                <input
+                  type="number"
+                  value={editingCajaData.valor}
+                  onChange={(e) => setEditingCajaData(prev => ({ ...prev, valor: e.target.value }))}
+                  className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="0"
+                  min="0"
+                  required
+                />
+              </div>
+              {/* Realiza Registro */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Realiza Registro</label>
+                <input
+                  type="text"
+                  value={editingCajaData.realizaRegistro}
+                  onChange={(e) => setEditingCajaData(prev => ({ ...prev, realizaRegistro: e.target.value }))}
+                  className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Nombre de quien registra"
+                />
+              </div>
+              {/* Botones */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSubmitEditarFecha}
+                  disabled={isSavingFecha || !editingCajaData.fechaAnticipo || !editingCajaData.beneficiario || !editingCajaData.concepto || !editingCajaData.valor}
+                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors"
+                >
+                  {isSavingFecha ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+                <button
+                  onClick={() => { setShowEditFechaModal(false); setShowHistoricoModal(true); }}
+                  className="flex-1 px-4 py-3 bg-slate-600 hover:bg-slate-500 text-white rounded-xl font-semibold transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
