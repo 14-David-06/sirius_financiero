@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { CompraCompleta, CompraItem, AirtableField } from '@/types/compras';
@@ -8,9 +8,10 @@ import { CompraCompleta, CompraItem, AirtableField } from '@/types/compras';
 interface DetalleCompraCompletoProps {
   compra: CompraCompleta;
   onClose: () => void;
+  onCotizacionUpdated?: () => void;
 }
 
-const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, onClose }) => {
+const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, onClose, onCotizacionUpdated }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'financiero' | 'proveedor' | 'items'>('general');
   const [updatingItems, setUpdatingItems] = useState<Record<string, boolean>>({});
   const [itemStates, setItemStates] = useState<Record<string, string>>(() => {
@@ -20,6 +21,89 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
     });
     return initialStates;
   });
+  
+  // Estados para cargar cotización
+  const [isUploadingCotizacion, setIsUploadingCotizacion] = useState(false);
+  const [cotizacionUrl, setCotizacionUrl] = useState<string | undefined>(compra.cotizacionDoc);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Función para subir cotización
+  const handleCotizacionUpload = async (file: File) => {
+    setIsUploadingCotizacion(true);
+    try {
+      // Obtener información del proveedor y solicitante
+      const proveedorNombre = compra.razonSocialProveedor || compra.nombreProveedor?.[0] || 'SinProveedor';
+      const solicitanteNombre = compra.nombreSolicitante || 'SinNombre';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('proveedorNombre', proveedorNombre);
+      formData.append('solicitanteNombre', solicitanteNombre);
+
+      // 1. Subir archivo a S3
+      const uploadResponse = await fetch('/api/upload-file', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadResult = await uploadResponse.json();
+
+      if (!uploadResponse.ok || !uploadResult.success) {
+        throw new Error(uploadResult.error || 'Error al subir el archivo');
+      }
+
+      // 2. Actualizar la cotización en Airtable
+      const updateResponse = await fetch('/api/compras/update-cotizacion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          compraId: compra.id,
+          cotizacionUrl: uploadResult.fileUrl
+        }),
+      });
+
+      const updateResult = await updateResponse.json();
+
+      if (!updateResponse.ok || !updateResult.success) {
+        throw new Error(updateResult.error || 'Error al actualizar la cotización');
+      }
+
+      // Actualizar estado local
+      setCotizacionUrl(uploadResult.fileUrl);
+      
+      // Notificar al padre para recargar datos
+      if (onCotizacionUpdated) {
+        onCotizacionUpdated();
+      }
+
+      alert('Cotización cargada exitosamente');
+    } catch (error) {
+      console.error('Error subiendo cotización:', error);
+      alert('Error al cargar la cotización: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setIsUploadingCotizacion(false);
+    }
+  };
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validar tipo de archivo
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Solo se permiten archivos PDF, JPG, PNG o WebP');
+        return;
+      }
+      // Validar tamaño (10MB máximo)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('El archivo no puede superar 10MB');
+        return;
+      }
+      handleCotizacionUpload(file);
+    }
+    // Limpiar input para permitir seleccionar el mismo archivo de nuevo
+    event.target.value = '';
+  };
 
   const formatCurrency = (amount: number | undefined) => {
     return new Intl.NumberFormat('es-CO', {
@@ -176,10 +260,10 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
                 </a>
               </div>
             )}
-            {compra.cotizacionDoc && (
+            {cotizacionUrl && (
               <div>
                 <a 
-                  href={compra.cotizacionDoc} 
+                  href={cotizacionUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 underline"
@@ -188,6 +272,36 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
                 </a>
               </div>
             )}
+            
+            {/* Botón Cargar Cotización */}
+            <div className="mt-3">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileInputChange}
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingCotizacion}
+                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploadingCotizacion ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Subiendo...
+                  </>
+                ) : (
+                  <>
+                    📤 {cotizacionUrl ? 'Actualizar Cotización' : 'Cargar Cotización'}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

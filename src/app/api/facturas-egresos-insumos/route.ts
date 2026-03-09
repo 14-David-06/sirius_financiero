@@ -49,6 +49,7 @@ interface ItemFactura {
   'Unidad de Negocio'?: string;
   'Centro de Costo'?: string;
   COMENTARIOS?: string;
+  TipoRTFE?: string;
 }
 
 interface FacturaEgreso {
@@ -77,6 +78,12 @@ interface FacturaEgreso {
   CUENTA?: string;
   'SUB-CUENTA'?: string;
   'BANCO Y PROYECCION': string;
+  tipo_retencion?: string;
+  'Tipo de Operación'?: string;
+  CUFE?: string;
+  'Producto Terminado'?: string;
+  'Clasificación del Costo'?: string;
+  'Para Efectos Contables'?: string;
   items: ItemFactura[];
 }
 
@@ -154,6 +161,12 @@ export async function GET() {
             CUENTA: parseString(fields['CUENTA']),
             'SUB-CUENTA': parseString(fields['SUB-CUENTA']),
             'BANCO Y PROYECCION': parseString(fields['BANCO Y PROYECCION']),
+            tipo_retencion: parseString(fields['tipo_retencion']),
+            'Tipo de Operación': parseString(fields['Tipo de Operación']),
+            CUFE: parseString(fields['CUFE']),
+            'Producto Terminado': parseString(fields['Producto Terminado']),
+            'Clasificación del Costo': parseString(fields['Clasificación del Costo']),
+            'Para Efectos Contables': parseString(fields['Para Efectos Contables']),
             items: [],
           };
 
@@ -204,6 +217,7 @@ export async function GET() {
                 'Unidad de Negocio': parseString(fields['Unidad de Negocio']),
                 'Centro de Costo': parseString(fields['Centro de Costo']),
                 COMENTARIOS: parseString(fields['COMENTARIOS']),
+                TipoRTFE: parseString(fields['TipoRTFE']),
               };
 
               itemsMap.set(record.id, item);

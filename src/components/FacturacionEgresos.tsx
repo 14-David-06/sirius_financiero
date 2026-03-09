@@ -81,6 +81,7 @@ interface ItemFacturaAirtable {
   'Unidad de Negocio'?: string;
   'Centro de Costo'?: string;
   COMENTARIOS?: string;
+  TipoRTFE?: string;
 }
 
 // Interface para validación de insumos con IA
@@ -123,6 +124,12 @@ interface FacturaAirtable {
   CUENTA?: string;
   'SUB-CUENTA'?: string;
   'BANCO Y PROYECCION': string;
+  tipo_retencion?: string;
+  'Tipo de Operación'?: string;
+  CUFE?: string;
+  'Producto Terminado'?: string;
+  'Clasificación del Costo'?: string;
+  'Para Efectos Contables'?: string;
   items: ItemFacturaAirtable[];
 }
 
@@ -1240,6 +1247,24 @@ export default function FacturacionEgresos() {
                         />
                       </div>
                       <div>
+                        <label className="block text-slate-300 text-sm mb-1">Reteiva</label>
+                        <input
+                          type="number"
+                          value={facturaSeleccionada.reteiva || 0}
+                          onChange={(e) => handleUpdateFacturaField('reteiva', parseFloat(e.target.value))}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Reteica</label>
+                        <input
+                          type="number"
+                          value={facturaSeleccionada.reteica || 0}
+                          onChange={(e) => handleUpdateFacturaField('reteica', parseFloat(e.target.value))}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
                         <label className="block text-slate-300 text-sm mb-1">Total a Pagar</label>
                         <input
                           type="number"
@@ -1249,12 +1274,251 @@ export default function FacturacionEgresos() {
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-300 text-sm mb-1">Centro de Costos</label>
+                        <label className="block text-slate-300 text-sm mb-1">Dirección del Emisor</label>
                         <input
                           type="text"
+                          value={facturaSeleccionada['Dirección del Emisor'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Dirección del Emisor', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Forma de Pago</label>
+                        <input
+                          type="text"
+                          value={facturaSeleccionada['Forma de Pago'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Forma de Pago', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Condiciones de Pago</label>
+                        <input
+                          type="text"
+                          value={facturaSeleccionada['Condiciones de Pago'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Condiciones de Pago', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Moneda</label>
+                        <input
+                          type="text"
+                          value={facturaSeleccionada.Moneda || 'COP'}
+                          onChange={(e) => handleUpdateFacturaField('Moneda', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Centro de Costos</label>
+                        <select
                           value={facturaSeleccionada['C. Costos'] || ''}
                           onChange={(e) => handleUpdateFacturaField('C. Costos', e.target.value)}
                           className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Biologicos">Biologicos</option>
+                          <option value="Administración">Administración</option>
+                          <option value="RaaS">RaaS</option>
+                          <option value="Pirolisis">Pirolisis</option>
+                          <option value="Gasto Admi">Gasto Admi</option>
+                          <option value="Caja Menor">Caja Menor</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">GRUPO</label>
+                        <select
+                          value={facturaSeleccionada.GRUPO || ''}
+                          onChange={(e) => handleUpdateFacturaField('GRUPO', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Gasto">Gasto</option>
+                          <option value="Costo">Costo</option>
+                          <option value="Activo">Activo</option>
+                          <option value="Pasivo">Pasivo</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">CLASE</label>
+                        <select
+                          value={facturaSeleccionada.CLASE || ''}
+                          onChange={(e) => handleUpdateFacturaField('CLASE', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Administración">Administración</option>
+                          <option value="Ventas">Ventas</option>
+                          <option value="No Operacional">No Operacional</option>
+                          <option value="Operacional">Operacional</option>
+                          <option value="Corriente">Corriente</option>
+                          <option value="No- Corriente">No- Corriente</option>
+                          <option value="Anticipo">Anticipo</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">CUENTA</label>
+                        <select
+                          value={facturaSeleccionada.CUENTA || ''}
+                          onChange={(e) => handleUpdateFacturaField('CUENTA', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Gasto de Personal">Gasto de Personal</option>
+                          <option value="Honorarios">Honorarios</option>
+                          <option value="Arrendamientos">Arrendamientos</option>
+                          <option value="Servicios">Servicios</option>
+                          <option value="Gastos Legales">Gastos Legales</option>
+                          <option value="Mantenimiento">Mantenimiento</option>
+                          <option value="Gastos de Viaje">Gastos de Viaje</option>
+                          <option value="Diversos">Diversos</option>
+                          <option value="Materia Prima">Materia Prima</option>
+                          <option value="Costo de Personal">Costo de Personal</option>
+                          <option value="Gastos Bancarios (Financieros)">Gastos Bancarios (Financieros)</option>
+                          <option value="Otros (No Deducibles)">Otros (No Deducibles)</option>
+                          <option value="Asesoría">Asesoría</option>
+                          <option value="Impuestos">Impuestos</option>
+                          <option value="Cuentas x Cobrar">Cuentas x Cobrar</option>
+                          <option value="PP&E">PP&E</option>
+                          <option value="OTROS">OTROS</option>
+                          <option value="DEPRECIACIÓN">DEPRECIACIÓN</option>
+                          <option value="Costo de ventas">Costo de ventas</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">SUB-CUENTA</label>
+                        <select
+                          value={facturaSeleccionada['SUB-CUENTA'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('SUB-CUENTA', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Nómina">Nómina</option>
+                          <option value="Asesoría Jurídica">Asesoría Jurídica</option>
+                          <option value="Asesoría Contable">Asesoría Contable</option>
+                          <option value="Asesoría Técnica">Asesoría Técnica</option>
+                          <option value="Investigación y Desarrollo">Investigación y Desarrollo</option>
+                          <option value="Oficina">Oficina</option>
+                          <option value="Equipos de Computo">Equipos de Computo</option>
+                          <option value="Servicios Públicos">Servicios Públicos</option>
+                          <option value="Envíos y Correos">Envíos y Correos</option>
+                          <option value="Transportes- Fletes">Transportes- Fletes</option>
+                          <option value="Procesamiento Electrónico de Datos">Procesamiento Electrónico de Datos</option>
+                          <option value="Asistencia Técnica">Asistencia Técnica</option>
+                          <option value="Notaría ">Notaría</option>
+                          <option value="Registro Mercantil">Registro Mercantil</option>
+                          <option value="Construcciones y Edificaciones">Construcciones y Edificaciones</option>
+                          <option value="Máquinaria y Equipo">Máquinaria y Equipo</option>
+                          <option value="Alojamiento">Alojamiento</option>
+                          <option value="Pasajes Áereos">Pasajes Áereos</option>
+                          <option value="Pasajes Terrestres ">Pasajes Terrestres</option>
+                          <option value="Casino y Restaurante">Casino y Restaurante</option>
+                          <option value="Aseo y Cafetería">Aseo y Cafetería</option>
+                          <option value="Papelería">Papelería</option>
+                          <option value="Combustible">Combustible</option>
+                          <option value="Insumos">Insumos</option>
+                          <option value="Marketing">Marketing</option>
+                          <option value="Publicidad (Pauta)">Publicidad (Pauta)</option>
+                          <option value="Transporte (Envió Clientes)">Transporte (Envió Clientes)</option>
+                          <option value="Gastos Bancarios ">Gastos Bancarios</option>
+                          <option value="No Deducibles">No Deducibles</option>
+                          <option value="Materia Prima e Insumos">Materia Prima e Insumos</option>
+                          <option value="Mano de Obra">Mano de Obra</option>
+                          <option value="Análisis y Muestras">Análisis y Muestras</option>
+                          <option value="Dotaciones">Dotaciones</option>
+                          <option value="Otros">Otros</option>
+                          <option value="Examenes Medicos ">Examenes Medicos</option>
+                          <option value="Tramites y Licencias">Tramites y Licencias</option>
+                          <option value="Impuestos (Retención en la Fuente)">Impuestos (Retención en la Fuente)</option>
+                          <option value="Impuestos (IVA Cuatrimestral)">Impuestos (IVA Cuatrimestral)</option>
+                          <option value="A Socios">A Socios</option>
+                          <option value="A Trabajadores">A Trabajadores</option>
+                          <option value="Bonificacion">Bonificacion</option>
+                          <option value="Caja Menor">Caja Menor</option>
+                          <option value="Impuestos (Rteica)">Impuestos (Rteica)</option>
+                          <option value="Materiales y ferreteria ">Materiales y ferreteria</option>
+                          <option value="Vehiculo">Vehiculo</option>
+                          <option value="Impuestos asumidos">Impuestos asumidos</option>
+                          <option value="Seguridad Social">Seguridad Social</option>
+                          <option value="Prestaciones Sociales">Prestaciones Sociales</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Tipo de Retención</label>
+                        <select
+                          value={facturaSeleccionada.tipo_retencion || ''}
+                          onChange={(e) => handleUpdateFacturaField('tipo_retencion', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Compras generales (declarantes)">Compras generales (declarantes)</option>
+                          <option value="Transporte">Transporte</option>
+                          <option value="Compras">Compras</option>
+                          <option value="Honorarios">Honorarios</option>
+                          <option value="Servicio declarante">Servicio declarante</option>
+                          <option value="Servicio no declarante">Servicio no declarante</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Producto Terminado</label>
+                        <select
+                          value={facturaSeleccionada['Producto Terminado'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Producto Terminado', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Biochar Puro">Biochar Puro</option>
+                          <option value="Biochar Blend">Biochar Blend</option>
+                          <option value="Biológicos">Biológicos</option>
+                          <option value="Administración">Administración</option>
+                          <option value="Tricochar ">Tricochar</option>
+                          <option value="Tecnologia">Tecnologia</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Clasificación del Costo</label>
+                        <select
+                          value={facturaSeleccionada['Clasificación del Costo'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Clasificación del Costo', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Fijo">Fijo</option>
+                          <option value="Variable">Variable</option>
+                          <option value="Semi-Variable">Semi-Variable</option>
+                          <option value="One-Off">One-Off</option>
+                          <option value="Asumido y Facturado">Asumido y Facturado</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Para Efectos Contables</label>
+                        <select
+                          value={facturaSeleccionada['Para Efectos Contables'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Para Efectos Contables', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Estado de Resultados Integral (PyG) ">Estado de Resultados Integral (PyG)</option>
+                          <option value="Estado de Situación Financiera Individual">Estado de Situación Financiera Individual</option>
+                          <option value="Estado de Flujos de Efectivo Individual">Estado de Flujos de Efectivo Individual</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 text-sm mb-1">Tipo de Operación</label>
+                        <input
+                          type="text"
+                          value={facturaSeleccionada['Tipo de Operación'] || ''}
+                          onChange={(e) => handleUpdateFacturaField('Tipo de Operación', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-slate-300 text-sm mb-1">CUFE</label>
+                        <input
+                          type="text"
+                          value={facturaSeleccionada.CUFE || ''}
+                          onChange={(e) => handleUpdateFacturaField('CUFE', e.target.value)}
+                          className="w-full bg-slate-800/50 border border-white/20 rounded-lg px-3 py-2 text-white text-xs font-mono"
                         />
                       </div>
                     </div>
@@ -1288,6 +1552,7 @@ export default function FacturacionEgresos() {
                               <th className="text-right py-3 px-3 w-32">Vr. Total</th>
                               <th className="text-left py-3 px-3 w-40">Unidad Negocio</th>
                               <th className="text-left py-3 px-3 w-40">Centro Costo</th>
+                              <th className="text-left py-3 px-3 w-48">Comentarios</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1361,13 +1626,30 @@ export default function FacturacionEgresos() {
                                     className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-white text-sm"
                                   >
                                     <option value="">Seleccionar...</option>
+                                    <option value="Trichoderma ">Trichoderma</option>
+                                    <option value="Sirius Bacter">Sirius Bacter</option>
+                                    <option value="Bacillus Thuringensis ">Bacillus Thuringensis</option>
+                                    <option value="Metarhizium Anisopliae">Metarhizium Anisopliae</option>
+                                    <option value="Purpureocillum Lilacinum">Purpureocillum Lilacinum</option>
+                                    <option value="Beauveria Bassiana">Beauveria Bassiana</option>
                                     <option value="General Biológicos">General Biológicos</option>
                                     <option value="Biochar Puro">Biochar Puro</option>
                                     <option value="Biochar Inoculado">Biochar Inoculado</option>
                                     <option value="Biochar Blend">Biochar Blend</option>
                                     <option value="Biochar General">Biochar General</option>
+                                    <option value="RaaS (SIG)">RaaS (SIG)</option>
+                                    <option value="RaaS (Sirius Tech)">RaaS (Sirius Tech)</option>
                                     <option value="Administración ">Administración</option>
                                   </select>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <input
+                                    type="text"
+                                    value={item.COMENTARIOS || ''}
+                                    onChange={(e) => handleUpdateItemField(index, 'COMENTARIOS', e.target.value)}
+                                    className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-white text-sm"
+                                    placeholder="Comentarios..."
+                                  />
                                 </td>
                               </tr>
                             ))}

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DetalleCompraCompleto from './DetalleCompraCompleto';
 import ChatCompra from './ChatCompra';
+import FormularioCotizacion from './FormularioCotizacion';
 import Toast from './ui/Toast';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useMessagePolling } from '@/lib/hooks/useMessagePolling';
@@ -27,6 +28,11 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
   const [showChat, setShowChat] = useState(false);
   const [chatCompra, setChatCompra] = useState<CompraCompleta | null>(null);
   const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
+  
+  // Estados para cargar cotización y generar orden de compra
+  const [showFormCotizacion, setShowFormCotizacion] = useState(false);
+  const [cotizacionCompra, setCotizacionCompra] = useState<CompraCompleta | null>(null);
+  const [generatingOrden, setGeneratingOrden] = useState<string | null>(null);
 
   // Hooks de notificaciones
   const {
@@ -189,6 +195,48 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  // Abrir formulario de cotización
+  const handleOpenCotizacionForm = (compra: CompraCompleta) => {
+    setCotizacionCompra(compra);
+    setShowFormCotizacion(true);
+  };
+
+  // Función para generar orden de compra
+  const handleGenerarOrdenCompra = async (compra: CompraCompleta) => {
+    if (!compra.cotizacionDoc) {
+      alert('Debe cargar una cotización antes de generar la orden de compra');
+      return;
+    }
+    
+    setGeneratingOrden(compra.id);
+    try {
+      const response = await fetch('/api/generate-orden-compra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          solicitudData: compra,
+          compraId: compra.id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al generar la orden de compra');
+      }
+
+      // Abrir el PDF en nueva pestaña
+      window.open(result.pdfUrl, '_blank');
+      showToastNotification('✅ Orden de compra generada exitosamente');
+      await cargarDatos();
+    } catch (error) {
+      console.error('Error generando orden de compra:', error);
+      alert('Error al generar la orden de compra: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    } finally {
+      setGeneratingOrden(null);
+    }
   };
 
   const updateEstado = async (compraId: string, nuevoEstado: string) => {
@@ -516,6 +564,38 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
                     
                     {/* Botones de acción */}
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      {/* Botón Cargar Cotización */}
+                      <button
+                        onClick={() => handleOpenCotizacionForm(compra)}
+                        className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-amber-600 hover:to-orange-600 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none flex items-center justify-center gap-1"
+                      >
+                        📤 {compra.cotizacionDoc ? 'Actualizar Cotización' : 'Cargar Cotización'}
+                      </button>
+                      {/* Botón Generar Orden de Compra */}
+                      <button
+                        onClick={() => handleGenerarOrdenCompra(compra)}
+                        disabled={!compra.cotizacionDoc || generatingOrden === compra.id}
+                        title={!compra.cotizacionDoc ? 'Debe cargar una cotización primero' : 'Generar PDF de Orden de Compra'}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none flex items-center justify-center gap-1 ${
+                          compra.cotizacionDoc 
+                            ? 'bg-gradient-to-r from-emerald-600 to-green-700 text-white hover:from-emerald-700 hover:to-green-800' 
+                            : 'bg-gray-500/30 text-white/40 cursor-not-allowed border border-white/10'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {generatingOrden === compra.id ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generando...
+                          </>
+                        ) : (
+                          <>
+                            📄 Generar Orden de Compra
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={() => {
                           console.log('Botón Chat Compra clickeado para compra:', compra.id);
@@ -565,6 +645,9 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
             setShowDetalleCompleto(false);
             setSelectedCompra(null);
           }}
+          onCotizacionUpdated={() => {
+            cargarDatos();
+          }}
         />
       )}
 
@@ -586,6 +669,21 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
               delete newState[selectedCompra.id];
               return newState;
             });
+          }}
+        />
+      )}
+
+      {/* Modal de Formulario de Cotización */}
+      {showFormCotizacion && cotizacionCompra && (
+        <FormularioCotizacion
+          compra={cotizacionCompra}
+          onClose={() => {
+            setShowFormCotizacion(false);
+            setCotizacionCompra(null);
+          }}
+          onSaved={() => {
+            cargarDatos();
+            showToastNotification('✅ Cotización guardada exitosamente');
           }}
         />
       )}
