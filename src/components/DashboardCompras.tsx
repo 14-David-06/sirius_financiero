@@ -229,7 +229,7 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
 
       // Abrir el PDF en nueva pestaña
       window.open(result.pdfUrl, '_blank');
-      showToastNotification('✅ Orden de compra generada exitosamente');
+      showToastNotification(`✅ Orden de compra ${result.ordenCompraId || ''} generada con ${result.itemsCreados || 0} items`);
       await cargarDatos();
     } catch (error) {
       console.error('Error generando orden de compra:', error);

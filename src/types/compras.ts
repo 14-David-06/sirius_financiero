@@ -69,6 +69,8 @@ export interface CompraCompleta {
   totalNeto?: number;
   estadoSolicitud: string;
   prioridadSolicitud?: string; // Nueva propiedad para la prioridad
+  proveedorRecordId?: string[];
+  cotizacionRecordIds?: string[];
   retencion?: number;
   baseMinimaEnPesos?: number;
   baseMinimaEnUVT?: number;

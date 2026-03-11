@@ -206,6 +206,10 @@ export async function GET(request: NextRequest) {
         valorUVT: processAirtableField(compra.fields['valor UVT']),
         compraServicio: processAirtableArray(compra.fields['Compra/Servicio']),
         
+        // IDs de registros vinculados
+        proveedorRecordId: compra.fields['Proveedor'] as string[],
+        cotizacionRecordIds: compra.fields['Cotizaciones'] as string[],
+        
         // Información del proveedor
         nombreProveedor: processAirtableArray(compra.fields['Nombre (from Proveedor)']),
         nitProveedor: processAirtableArray(compra.fields['C.c o Nit (from Proveedor)']),

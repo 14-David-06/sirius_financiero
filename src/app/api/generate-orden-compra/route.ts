@@ -1,8 +1,208 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CompraCompleta, CompraItem } from '@/types/compras';
+import { CompraCompleta } from '@/types/compras';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
+
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const ORDENES_TABLE_ID = process.env.AIRTABLE_ORDENES_COMPRA_TABLE_ID;
+const ITEMS_OC_TABLE_ID = process.env.AIRTABLE_ITEMS_OC_TABLE_ID;
+const COMPRAS_TABLE_ID = process.env.AIRTABLE_COMPRAS_TABLE_ID;
+const COTIZACIONES_TABLE_ID = process.env.AIRTABLE_COTIZACIONES_TABLE_ID;
+const ITEMS_COTIZADOS_TABLE_ID = process.env.AIRTABLE_ITEMS_COTIZADOS_TABLE_ID;
+const PROVEEDORES_TABLE_ID = process.env.AIRTABLE_PROVEEDORES_TABLE_ID;
+
+// Tipos internos para datos de cotización
+interface ItemCotizadoData {
+  id: string;
+  descripcion: string;
+  cantidad: number;
+  unidadMedida: string;
+  valorUnitario: number;
+  itemCompraRelacionado?: string[];
+}
+
+interface CotizacionCompleta {
+  id: string;
+  idCotizacion: string;
+  fecha: string;
+  documentoUrl: string;
+  estado: string;
+  comentarios: string;
+  proveedorIds: string[];
+  proveedorNombre: string;
+  proveedorNit: string;
+  proveedorCiudad: string;
+  proveedorDepartamento: string;
+  items: ItemCotizadoData[];
+}
+
+async function airtableFetch(tableId: string, recordId: string) {
+  const response = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}/${recordId}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Airtable error: ${errorData.error?.message || response.statusText}`);
+  }
+  return response.json();
+}
+
+async function airtableList(tableId: string, filterFormula: string) {
+  const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}`);
+  url.searchParams.set('filterByFormula', filterFormula);
+  const response = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Airtable error: ${errorData.error?.message || response.statusText}`);
+  }
+  return response.json();
+}
+
+async function airtableCreate(tableId: string, fields: Record<string, unknown>) {
+  const response = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fields }),
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Airtable error: ${errorData.error?.message || response.statusText}`);
+  }
+  return response.json();
+}
+
+async function airtableCreateBatch(tableId: string, records: Array<{ fields: Record<string, unknown> }>) {
+  const response = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ records }),
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Airtable error: ${errorData.error?.message || response.statusText}`);
+  }
+  return response.json();
+}
+
+async function airtableUpdate(tableId: string, recordId: string, fields: Record<string, unknown>) {
+  const response = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}/${recordId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fields }),
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Airtable error: ${errorData.error?.message || response.statusText}`);
+  }
+  return response.json();
+}
+
+// Obtener la cotización vinculada a una compra, con sus items y datos del proveedor
+async function fetchCotizacionCompleta(compraId: string): Promise<CotizacionCompleta | null> {
+  if (!COTIZACIONES_TABLE_ID || !ITEMS_COTIZADOS_TABLE_ID) return null;
+
+  // 1. Buscar cotización vinculada a esta compra
+  const cotResult = await airtableList(
+    COTIZACIONES_TABLE_ID,
+    `FIND("${compraId}", ARRAYJOIN({Compras y Adquisiciones Relacionada}))`
+  );
+
+  if (!cotResult.records?.length) return null;
+
+  // Tomar la cotización más reciente si hay varias
+  const cotRecord = cotResult.records[cotResult.records.length - 1];
+  const f = cotRecord.fields;
+
+  // 2. Obtener items cotizados vinculados
+  const itemIds: string[] = f['Items Cotizados'] || [];
+  const items: ItemCotizadoData[] = [];
+
+  for (const itemId of itemIds) {
+    const itemRecord = await airtableFetch(ITEMS_COTIZADOS_TABLE_ID, itemId);
+    const fi = itemRecord.fields;
+    items.push({
+      id: itemRecord.id,
+      descripcion: fi['Descripción del Item'] || fi['Descripcion del Item'] || '',
+      cantidad: fi['Cantidad Cotizada'] || 0,
+      unidadMedida: fi['Unidad de Medida'] || '',
+      valorUnitario: fi['Valor Unitario Cotizado'] || 0,
+      itemCompraRelacionado: fi['Item Compra Relacionado'] || undefined,
+    });
+  }
+
+  // 3. Obtener datos del proveedor si hay link
+  const proveedorIds: string[] = f['Proveedor'] || [];
+  let proveedorNombre = '', proveedorNit = '', proveedorCiudad = '', proveedorDepartamento = '';
+
+  if (proveedorIds.length > 0 && PROVEEDORES_TABLE_ID) {
+    try {
+      const provRecord = await airtableFetch(PROVEEDORES_TABLE_ID, proveedorIds[0]);
+      const fp = provRecord.fields;
+      proveedorNombre = fp['Nombre'] || '';
+      proveedorNit = fp['C.c o Nit'] || '';
+      proveedorCiudad = fp['Ciudad'] || '';
+      const deptField = fp['Departamento (from Departamento )'];
+      proveedorDepartamento = Array.isArray(deptField) ? deptField[0] || '' : deptField || '';
+    } catch {
+      // Si falla obtener proveedor, continuamos sin datos
+    }
+  }
+
+  // Documento: puede ser attachment (array) o URL
+  let documentoUrl = '';
+  const docField = f['Documento Cotización'];
+  if (Array.isArray(docField) && docField.length > 0) {
+    documentoUrl = docField[0].url || '';
+  } else if (typeof docField === 'string') {
+    documentoUrl = docField;
+  }
+
+  return {
+    id: cotRecord.id,
+    idCotizacion: f['ID Cotización'] || '',
+    fecha: f['Fecha de Cotización'] || '',
+    documentoUrl,
+    estado: f['Estado de Cotización'] || '',
+    comentarios: f['Comentarios'] || '',
+    proveedorIds,
+    proveedorNombre,
+    proveedorNit,
+    proveedorCiudad,
+    proveedorDepartamento,
+    items,
+  };
+}
 
 async function getBrowser() {
   const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
@@ -47,24 +247,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+      return NextResponse.json(
+        { error: 'Configuración de Airtable faltante' },
+        { status: 500 }
+      );
+    }
+
     const data = await request.json();
     
-    if (!data.solicitudData) {
+    if (!data.solicitudData || !data.compraId) {
       return NextResponse.json(
-        { error: 'Datos de solicitud requeridos' },
+        { error: 'Datos de solicitud y compraId son requeridos' },
         { status: 400 }
       );
     }
 
-    if (!data.solicitudData.cotizacionDoc) {
+    const solicitud: CompraCompleta = data.solicitudData;
+    const compraId: string = data.compraId;
+
+    // 1. Obtener cotización completa desde Airtable
+    const cotizacion = await fetchCotizacionCompleta(compraId);
+
+    if (!cotizacion || cotizacion.items.length === 0) {
       return NextResponse.json(
-        { error: 'Se requiere una cotización cargada para generar la orden de compra' },
+        { error: 'No se encontró una cotización con items para esta solicitud. Debe cargar una cotización primero.' },
         { status: 400 }
       );
     }
 
-    const htmlContent = generateOrdenCompraHTML(data.solicitudData);
+    // 2. Generar HTML del PDF usando datos de cotización
+    const htmlContent = generateOrdenCompraHTML(solicitud, cotizacion);
 
+    // 3. Generar PDF
     const browser = await getBrowser();
     const page = await browser.newPage();
     
@@ -86,8 +301,9 @@ export async function POST(request: NextRequest) {
     
     await browser.close();
 
+    // 4. Subir PDF a S3
     const fechaActual = new Date().toISOString().split('T')[0];
-    const nombreLimpio = (data.solicitudData.nombreSolicitante || '')
+    const nombreLimpio = (solicitud.nombreSolicitante || '')
       .replace(/\s+/g, '')
       .replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, '');
     const fileName = `ordencompra[${nombreLimpio}][${fechaActual}].pdf`;
@@ -101,7 +317,7 @@ export async function POST(request: NextRequest) {
       ContentDisposition: 'inline',
       Metadata: {
         'tipo-documento': 'orden-compra',
-        'solicitante': data.solicitudData.nombreSolicitante || '',
+        'solicitante': solicitud.nombreSolicitante || '',
         'fecha-generacion': new Date().toISOString(),
       }
     };
@@ -111,29 +327,94 @@ export async function POST(request: NextRequest) {
 
     const fileUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${encodeURIComponent(fullPath)}`;
 
-    // Actualizar campo en Airtable si se proporcionó compraId
-    if (data.compraId) {
-      const apiKey = process.env.AIRTABLE_API_KEY;
-      const baseId = process.env.AIRTABLE_BASE_ID;
-      const comprasTableId = process.env.AIRTABLE_COMPRAS_TABLE_ID;
+    // 5. Crear registros en Airtable
+    const ocId = `OC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    let ordenCompraRecordId: string | undefined;
+    let itemsCreados = 0;
 
-      if (apiKey && baseId && comprasTableId) {
-        await fetch(
-          `https://api.airtable.com/v0/${baseId}/${comprasTableId}/${data.compraId}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fields: {
-                'Documento Solicitud': fileUrl
-              }
-            })
-          }
-        );
+    if (ORDENES_TABLE_ID && ITEMS_OC_TABLE_ID) {
+      const iva = solicitud.iva || 0;
+      const retencion = solicitud.retencion || 0;
+
+      // Crear registro de Orden de Compra
+      const ocFields: Record<string, unknown> = {
+        [process.env.AIRTABLE_OC_ID_FIELD || 'ID Orden de Compra']: ocId,
+        [process.env.AIRTABLE_OC_FECHA_EMISION_FIELD || 'Fecha de Emisión']: fechaActual,
+        [process.env.AIRTABLE_OC_NOMBRE_SOLICITANTE_FIELD || 'Nombre Solicitante']: solicitud.nombreSolicitante,
+        [process.env.AIRTABLE_OC_CARGO_SOLICITANTE_FIELD || 'Cargo Solicitante']: solicitud.cargoSolicitante,
+        [process.env.AIRTABLE_OC_AREA_FIELD || 'Area Correspondiente']: solicitud.areaCorrespondiente,
+        [process.env.AIRTABLE_OC_ESTADO_FIELD || 'Estado Orden de Compra']: 'Emitida',
+        [process.env.AIRTABLE_OC_DOCUMENTO_FIELD || 'Documento OC']: fileUrl,
+        [process.env.AIRTABLE_OC_IVA_FIELD || 'IVA']: iva,
+        [process.env.AIRTABLE_OC_RETENCION_FIELD || 'Retencion']: retencion,
+        // Subtotal es rollup (computado) — no se escribe
+        // Total Neto es formula (computado) — no se escribe
+        [process.env.AIRTABLE_OC_COMPRA_RELACIONADA_FIELD || 'Compra Relacionada']: [compraId],
+        [process.env.AIRTABLE_OC_COTIZACION_RELACIONADA_FIELD || 'Cotización Relacionada']: [cotizacion.id],
+      };
+
+      if (cotizacion.proveedorIds.length > 0) {
+        ocFields[process.env.AIRTABLE_OC_PROVEEDOR_FIELD || 'Proveedor'] = cotizacion.proveedorIds;
       }
+
+      if (solicitud.prioridadSolicitud) {
+        ocFields[process.env.AIRTABLE_OC_PRIORIDAD_FIELD || 'Prioridad'] = solicitud.prioridadSolicitud;
+      }
+
+      if (solicitud.nombresAdmin) {
+        ocFields[process.env.AIRTABLE_OC_AUTORIZADO_POR_FIELD || 'Autorizado Por'] = solicitud.nombresAdmin;
+      }
+
+      if (solicitud.descripcionIA || solicitud.descripcionSolicitud) {
+        ocFields[process.env.AIRTABLE_OC_DESCRIPCION_FIELD || 'Descripción'] = solicitud.descripcionIA || solicitud.descripcionSolicitud;
+      }
+
+      if (cotizacion.documentoUrl) {
+        ocFields[process.env.AIRTABLE_OC_COT_DOC_URL_FIELD || 'Cotización Documento URL'] = cotizacion.documentoUrl;
+      }
+
+      const ocRecord = await airtableCreate(ORDENES_TABLE_ID, ocFields);
+      ordenCompraRecordId = ocRecord.id;
+
+      // Crear Items OC desde items cotizados (en lotes de max 10)
+      const allItemRecordIds: string[] = [];
+      const batches: ItemCotizadoData[][] = [];
+      for (let i = 0; i < cotizacion.items.length; i += 10) {
+        batches.push(cotizacion.items.slice(i, i + 10));
+      }
+
+      for (const batch of batches) {
+        const records = batch.map((item, idx) => {
+          const itemFields: Record<string, unknown> = {
+            [process.env.AIRTABLE_IOC_ID_FIELD || 'ID Item OC']: `${ocId}-ITEM-${String(allItemRecordIds.length + idx + 1).padStart(2, '0')}`,
+            [process.env.AIRTABLE_IOC_OC_RELACIONADA_FIELD || 'Orden de Compra Relacionada']: [ordenCompraRecordId],
+            [process.env.AIRTABLE_IOC_DESCRIPCION_FIELD || 'Descripcion del Item']: item.descripcion,
+            [process.env.AIRTABLE_IOC_CANTIDAD_FIELD || 'Cantidad']: item.cantidad,
+            [process.env.AIRTABLE_IOC_VALOR_UNITARIO_FIELD || 'Valor Unitario']: item.valorUnitario,
+            // Valor Total Item es fórmula (computado) — no se escribe
+          };
+
+          // Link de trazabilidad al item cotizado
+          itemFields[process.env.AIRTABLE_IOC_ITEM_COTIZADO_FIELD || 'Item Cotizado Relacionado'] = [item.id];
+
+          // Link de trazabilidad al item de compra original
+          if (item.itemCompraRelacionado?.length) {
+            itemFields[process.env.AIRTABLE_IOC_ITEM_COMPRA_FIELD || 'Item Compra Relacionado'] = item.itemCompraRelacionado;
+          }
+
+          return { fields: itemFields };
+        });
+
+        const batchResult = await airtableCreateBatch(ITEMS_OC_TABLE_ID, records);
+        allItemRecordIds.push(...(batchResult.records || []).map((r: { id: string }) => r.id));
+      }
+
+      itemsCreados = allItemRecordIds.length;
+    }
+
+    // 6. Actualizar Documento Solicitud en la Compra original
+    if (COMPRAS_TABLE_ID) {
+      await airtableUpdate(COMPRAS_TABLE_ID, compraId, { 'Documento Solicitud': fileUrl });
     }
 
     return NextResponse.json({
@@ -141,38 +422,44 @@ export async function POST(request: NextRequest) {
       pdfUrl: fileUrl,
       fileName,
       fullPath,
+      ordenCompraId: ocId,
+      ordenCompraRecordId,
+      itemsCreados,
+      cotizacionUsada: cotizacion.idCotizacion,
     });
 
   } catch (error) {
     console.error('Error generando orden de compra:', error);
     return NextResponse.json(
-      { error: 'Error generando PDF de orden de compra' },
+      { error: error instanceof Error ? error.message : 'Error generando PDF de orden de compra' },
       { status: 500 }
     );
   }
 }
 
-function generateOrdenCompraHTML(solicitudData: CompraCompleta): string {
+// ============ GENERACIÓN DE HTML PDF ============
+
+function generateOrdenCompraHTML(solicitud: CompraCompleta, cotizacion: CotizacionCompleta): string {
   const fechaActual = new Date().toLocaleDateString('es-CO', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
 
-  const valorTotal = solicitudData.items.reduce((total: number, item: CompraItem) => 
-    total + (item.valorItem * item.cantidad), 0
+  const subtotal = cotizacion.items.reduce((total, item) =>
+    total + (item.valorUnitario * item.cantidad), 0
   );
 
-  const iva = solicitudData.iva || 0;
-  const retencion = solicitudData.retencion || 0;
-  const totalNeto = solicitudData.totalNeto || (valorTotal + iva - retencion);
+  const iva = solicitud.iva || 0;
+  const retencion = solicitud.retencion || 0;
+  const totalNeto = solicitud.totalNeto || (subtotal + iva - retencion);
 
   return `
     <!DOCTYPE html>
     <html lang="es">
     <head>
       <meta charset="UTF-8">
-      <title>Orden de Compra - ${solicitudData.nombreSolicitante}</title>
+      <title>Orden de Compra - ${solicitud.nombreSolicitante}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -358,8 +645,9 @@ function generateOrdenCompraHTML(solicitudData: CompraCompleta): string {
         <div class="header-right">
           <div class="doc-type">ORDEN DE COMPRA</div>
           <div class="doc-date">${fechaActual}</div>
+          ${cotizacion.idCotizacion ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">Ref: ${cotizacion.idCotizacion}</div>` : ''}
           <div style="margin-top:4px;">
-            <span class="status-badge">${solicitudData.estadoSolicitud || 'Aprobado'}</span>
+            <span class="status-badge">${solicitud.estadoSolicitud || 'Aprobado'}</span>
           </div>
         </div>
       </div>
@@ -370,95 +658,95 @@ function generateOrdenCompraHTML(solicitudData: CompraCompleta): string {
           <div class="info-row">
             <div class="info-item">
               <div class="info-label">Nombre</div>
-              <div class="info-value">${solicitudData.nombreSolicitante}</div>
+              <div class="info-value">${solicitud.nombreSolicitante}</div>
             </div>
             <div class="info-item">
               <div class="info-label">Área</div>
-              <div class="info-value">${solicitudData.areaCorrespondiente}</div>
+              <div class="info-value">${solicitud.areaCorrespondiente}</div>
             </div>
             <div class="info-item">
               <div class="info-label">Cargo</div>
-              <div class="info-value">${solicitudData.cargoSolicitante}</div>
+              <div class="info-value">${solicitud.cargoSolicitante}</div>
             </div>
           </div>
           <div class="info-row">
             <div class="info-item">
               <div class="info-label">Prioridad</div>
-              <div class="info-value priority-${(solicitudData.prioridadSolicitud || '').toLowerCase()}">${solicitudData.prioridadSolicitud || 'Normal'}</div>
+              <div class="info-value priority-${(solicitud.prioridadSolicitud || '').toLowerCase()}">${solicitud.prioridadSolicitud || 'Normal'}</div>
             </div>
             <div class="info-item">
               <div class="info-label">Fecha de Solicitud</div>
-              <div class="info-value">${solicitudData.fechaSolicitud ? new Date(solicitudData.fechaSolicitud).toLocaleDateString('es-CO') : 'N/A'}</div>
+              <div class="info-value">${solicitud.fechaSolicitud ? new Date(solicitud.fechaSolicitud).toLocaleDateString('es-CO') : 'N/A'}</div>
             </div>
-            ${solicitudData.nombresAdmin ? `
+            ${solicitud.nombresAdmin ? `
             <div class="info-item">
               <div class="info-label">Aprobado por</div>
-              <div class="info-value">${solicitudData.nombresAdmin}</div>
+              <div class="info-value">${solicitud.nombresAdmin}</div>
             </div>
             ` : '<div class="info-item"></div>'}
           </div>
         </div>
       </div>
 
-      ${(solicitudData.nombreProveedor?.[0] || solicitudData.razonSocialProveedor) ? `
+      ${cotizacion.proveedorNombre ? `
       <div class="section">
         <div class="section-header">INFORMACIÓN DEL PROVEEDOR</div>
         <div class="section-body">
           <div class="info-row">
             <div class="info-item">
               <div class="info-label">Razón Social</div>
-              <div class="info-value">${solicitudData.razonSocialProveedor || solicitudData.nombreProveedor?.[0] || 'N/A'}</div>
+              <div class="info-value">${cotizacion.proveedorNombre}</div>
             </div>
             <div class="info-item">
               <div class="info-label">NIT / C.C.</div>
-              <div class="info-value">${solicitudData.nitProveedor?.[0] || 'N/A'}</div>
+              <div class="info-value">${cotizacion.proveedorNit || 'N/A'}</div>
             </div>
           </div>
           <div class="info-row">
             <div class="info-item">
               <div class="info-label">Ciudad</div>
-              <div class="info-value">${solicitudData.ciudadProveedor?.[0] || 'N/A'}</div>
+              <div class="info-value">${cotizacion.proveedorCiudad || 'N/A'}</div>
             </div>
             <div class="info-item">
               <div class="info-label">Departamento</div>
-              <div class="info-value">${solicitudData.departamentoProveedor?.[0] || 'N/A'}</div>
+              <div class="info-value">${cotizacion.proveedorDepartamento || 'N/A'}</div>
             </div>
           </div>
         </div>
       </div>
       ` : ''}
 
-      ${solicitudData.descripcionIA || solicitudData.descripcionSolicitud ? `
+      ${solicitud.descripcionIA || solicitud.descripcionSolicitud ? `
       <div class="section">
         <div class="section-header">DESCRIPCIÓN</div>
         <div class="section-body">
-          <div style="white-space:pre-wrap;font-size:12px;color:#374151;">${solicitudData.descripcionIA || solicitudData.descripcionSolicitud}</div>
+          <div style="white-space:pre-wrap;font-size:12px;color:#374151;">${solicitud.descripcionIA || solicitud.descripcionSolicitud}</div>
         </div>
       </div>
       ` : ''}
 
       <div class="section">
-        <div class="section-header">DETALLE DE ÍTEMS</div>
+        <div class="section-header">DETALLE DE ÍTEMS (COTIZACIÓN)</div>
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Descripción</th>
-              <th>Centro de Costos</th>
+              <th>Unidad</th>
               <th>Cant.</th>
               <th>Valor Unit.</th>
               <th>Total</th>
             </tr>
           </thead>
           <tbody>
-            ${solicitudData.items.map((item: CompraItem, index: number) => `
+            ${cotizacion.items.map((item, index) => `
               <tr>
                 <td>${index + 1}</td>
-                <td>${item.objeto}</td>
-                <td>${item.centroCostos || 'N/A'}</td>
+                <td>${item.descripcion}</td>
+                <td>${item.unidadMedida || 'N/A'}</td>
                 <td style="text-align:center">${item.cantidad}</td>
-                <td style="text-align:right">$${(item.valorItem || 0).toLocaleString('es-CO')}</td>
-                <td style="text-align:right">$${((item.valorItem || 0) * (item.cantidad || 0)).toLocaleString('es-CO')}</td>
+                <td style="text-align:right">$${(item.valorUnitario || 0).toLocaleString('es-CO')}</td>
+                <td style="text-align:right">$${((item.valorUnitario || 0) * (item.cantidad || 0)).toLocaleString('es-CO')}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -468,7 +756,7 @@ function generateOrdenCompraHTML(solicitudData: CompraCompleta): string {
           <div class="totals-box">
             <div class="totals-row">
               <span>Subtotal:</span>
-              <span>$${valorTotal.toLocaleString('es-CO')}</span>
+              <span>$${subtotal.toLocaleString('es-CO')}</span>
             </div>
             ${iva > 0 ? `
             <div class="totals-row">
@@ -490,19 +778,19 @@ function generateOrdenCompraHTML(solicitudData: CompraCompleta): string {
         </div>
       </div>
 
-      ${solicitudData.cotizacionDoc ? `
+      ${cotizacion.documentoUrl ? `
       <div class="cotizacion-ref">
          📎 <strong>Cotización de referencia:</strong> 
-         <a href="${solicitudData.cotizacionDoc}">Ver cotización adjunta</a>
+         <a href="${cotizacion.documentoUrl}">Ver cotización adjunta</a>
       </div>
       ` : ''}
 
       <div class="signatures">
         <div class="signature-box">
-          <div class="signature-line">SOLICITANTE<br/>${solicitudData.nombreSolicitante}</div>
+          <div class="signature-line">SOLICITANTE<br/>${solicitud.nombreSolicitante}</div>
         </div>
         <div class="signature-box">
-          <div class="signature-line">AUTORIZADO POR<br/>${solicitudData.nombresAdmin || '_______________'}</div>
+          <div class="signature-line">AUTORIZADO POR<br/>${solicitud.nombresAdmin || '_______________'}</div>
         </div>
       </div>
 
