@@ -2070,7 +2070,7 @@ export default function ResumenGerencial() {
                     domain={['auto', 'auto']}
                   />
                   <Tooltip 
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value) => formatCurrency(typeof value === 'number' ? value : 0)}
                     contentStyle={{ 
                       backgroundColor: 'rgba(30, 41, 59, 0.95)', 
                       border: '1px solid rgba(255,255,255,0.3)',
@@ -2247,7 +2247,7 @@ export default function ResumenGerencial() {
                         tick={{ fill: '#fff', fontSize: 12 }}
                       />
                       <Tooltip 
-                        formatter={(value: number) => [`$${value.toLocaleString('es-CO')}`, 'Valor']}
+                        formatter={(value) => [`$${typeof value === 'number' ? value.toLocaleString('es-CO') : '0'}`, 'Valor']}
                         contentStyle={{ 
                           backgroundColor: 'rgba(30, 41, 59, 0.95)', 
                           border: '1px solid rgba(255,255,255,0.3)',
@@ -2598,7 +2598,7 @@ export default function ResumenGerencial() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="periodo" />
                 <YAxis tickFormatter={(value: number) => `$${(value / 1000000).toFixed(0)}M`} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip formatter={(value) => formatCurrency(typeof value === 'number' ? value : 0)} />
                 <Legend />
                 <Line type="monotone" dataKey="Saldo Real" stroke="#8b5cf6" strokeWidth={2} />
                 <Line type="monotone" dataKey="Saldo Proyectado" stroke="#ec4899" strokeWidth={2} strokeDasharray="5 5" />
