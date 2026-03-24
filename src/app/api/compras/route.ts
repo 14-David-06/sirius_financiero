@@ -36,13 +36,33 @@ function processAirtableArray(field: any): any[] {
 }
 
 // Función auxiliar para procesar campos individuales que pueden contener objetos
+// Maneja casos como JSON strings con {state, value, isStale} de respuestas de IA
 function processAirtableField(field: any): any {
-  if (typeof field === 'object' && field !== null) {
-    // Si es un objeto con propiedades específicas de Airtable
+  if (field === null || field === undefined) return field;
+  
+  // Si es un string, verificar si es un JSON con state/value
+  if (typeof field === 'string') {
+    // Detectar si parece un JSON con state/value
+    if (field.startsWith('{') && field.includes('"state"') && field.includes('"value"')) {
+      try {
+        const parsed = JSON.parse(field);
+        if (parsed && typeof parsed === 'object' && 'value' in parsed) {
+          return parsed.value;
+        }
+      } catch {
+        // Si falla el parse, devolver el string original
+      }
+    }
+    return field;
+  }
+  
+  if (typeof field === 'object') {
+    // Si es un objeto con propiedades específicas de IA (state, value, isStale)
     if ('value' in field) {
       return field.value;
     } else if ('state' in field) {
-      return field.state;
+      // Evitar devolver solo el state, buscar value primero
+      return field.value || field.state;
     } else {
       // Para otros objetos, intentar convertir a string
       return String(field);

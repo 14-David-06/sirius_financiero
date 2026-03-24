@@ -9,6 +9,52 @@ import { CompraCompleta } from '@/types/compras';
 import ChatCompra from './ChatCompra';
 import Toast from './ui/Toast';
 
+/**
+ * Safely extracts and renders values - prevents "Objects are not valid as a React child" errors
+ * Handles special cases like AI response objects {state, value, isStale}
+ */
+const safeRender = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  
+  // Handle strings that might be JSON with state/value
+  if (typeof value === 'string') {
+    // Check if it's a JSON string with AI response format
+    if (value.startsWith('{') && value.includes('"state"') && value.includes('"value"')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && 'value' in parsed) {
+          return String(parsed.value || '');
+        }
+      } catch {
+        // If parsing fails, return original string
+      }
+    }
+    return value;
+  }
+  
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(v => safeRender(v)).join(', ');
+  
+  // Handle objects - especially AI response format {state, value, isStale}
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    
+    // Check for AI response format
+    if ('value' in obj) {
+      return String(obj.value || '');
+    }
+    if ('state' in obj && !('value' in obj)) {
+      return String(obj.state || '');
+    }
+    
+    // Log unexpected object for debugging
+    console.warn('Unexpected object value in render:', value);
+    return '';
+  }
+  
+  return String(value);
+};
+
 export default function MisSolicitudes() {
   const { isAuthenticated, userData, isLoading } = useAuthSession();
   const [solicitudes, setSolicitudes] = useState<CompraCompleta[]>([]);
@@ -282,14 +328,14 @@ export default function MisSolicitudes() {
               Mis Solicitudes de Compras
             </h1>
             <p className="text-white/80">
-              {userData?.nombre} • {userData?.categoria}
+              {safeRender(userData?.nombre)} • {safeRender(userData?.categoria)}
             </p>
           </div>
 
           {error && (
             <div className="bg-red-500/20 backdrop-blur-md rounded-2xl p-4 mb-6 border border-red-500/30 text-center">
               <AlertCircle className="w-8 h-8 text-red-300 mx-auto mb-2" />
-              <p className="text-red-300">{error}</p>
+              <p className="text-red-300">{safeRender(error)}</p>
             </div>
           )}
 
@@ -325,15 +371,15 @@ export default function MisSolicitudes() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-1">
-                        Solicitud de {solicitud.nombreSolicitante}
+                        Solicitud de {safeRender(solicitud.nombreSolicitante)}
                       </h3>
                       <div className="flex items-center text-white/70 text-sm">
                         <Calendar className="w-4 h-4 mr-1" />
                         {formatDate(solicitud.fechaSolicitud)}
                       </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-lg text-sm font-medium border ${getEstadoColor(solicitud.estadoSolicitud)}`}>
-                      {solicitud.estadoSolicitud}
+                    <span className={`px-3 py-1 rounded-lg text-sm font-medium border ${getEstadoColor(safeRender(solicitud.estadoSolicitud))}`}>
+                      {safeRender(solicitud.estadoSolicitud)}
                     </span>
                   </div>
 
@@ -341,8 +387,8 @@ export default function MisSolicitudes() {
                   <div className="space-y-3 mb-4">
                     <div className="flex items-center justify-between">
                       <span className="text-white/70 text-sm">Prioridad:</span>
-                      <span className={`font-medium ${getPrioridadColor(solicitud.prioridadSolicitud || 'Media')}`}>
-                        {solicitud.prioridadSolicitud || 'Media'}
+                      <span className={`font-medium ${getPrioridadColor(safeRender(solicitud.prioridadSolicitud) || 'Media')}`}>
+                        {safeRender(solicitud.prioridadSolicitud) || 'Media'}
                       </span>
                     </div>
 
@@ -350,7 +396,7 @@ export default function MisSolicitudes() {
                       <div className="flex items-start justify-between">
                         <span className="text-white/70 text-sm">Proveedor:</span>
                         <span className="text-white text-sm text-right max-w-[150px] truncate">
-                          {solicitud.razonSocialProveedor}
+                          {safeRender(solicitud.razonSocialProveedor)}
                         </span>
                       </div>
                     )}
@@ -400,7 +446,7 @@ export default function MisSolicitudes() {
           <div className="bg-white/15 backdrop-blur-md rounded-3xl p-6 border border-white/20 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-6">
               <h2 className="text-2xl font-bold text-white">
-                Solicitud de {selectedSolicitud.nombreSolicitante}
+                Solicitud de {safeRender(selectedSolicitud.nombreSolicitante)}
               </h2>
               <button
                 onClick={() => setSelectedSolicitud(null)}
@@ -415,8 +461,8 @@ export default function MisSolicitudes() {
             <div className="space-y-4">
               {/* Estado y fecha */}
               <div className="flex justify-between items-center">
-                <span className={`px-4 py-2 rounded-lg text-sm font-medium border ${getEstadoColor(selectedSolicitud.estadoSolicitud)}`}>
-                  {selectedSolicitud.estadoSolicitud}
+                <span className={`px-4 py-2 rounded-lg text-sm font-medium border ${getEstadoColor(safeRender(selectedSolicitud.estadoSolicitud))}`}>
+                  {safeRender(selectedSolicitud.estadoSolicitud)}
                 </span>
                 <span className="text-white/70">
                   {formatDate(selectedSolicitud.fechaSolicitud)}
@@ -427,11 +473,11 @@ export default function MisSolicitudes() {
               <div className="bg-white/10 rounded-lg p-4">
                 <h3 className="text-white font-semibold mb-2">Información del Solicitante</h3>
                 <div className="space-y-1 text-sm">
-                  <p className="text-white/80">Área: {selectedSolicitud.areaCorrespondiente}</p>
-                  <p className="text-white/80">Cargo: {selectedSolicitud.cargoSolicitante}</p>
+                  <p className="text-white/80">Área: {safeRender(selectedSolicitud.areaCorrespondiente)}</p>
+                  <p className="text-white/80">Cargo: {safeRender(selectedSolicitud.cargoSolicitante)}</p>
                   <p className="text-white/80">Prioridad: 
-                    <span className={`ml-1 font-medium ${getPrioridadColor(selectedSolicitud.prioridadSolicitud || 'Media')}`}>
-                      {selectedSolicitud.prioridadSolicitud || 'Media'}
+                    <span className={`ml-1 font-medium ${getPrioridadColor(safeRender(selectedSolicitud.prioridadSolicitud) || 'Media')}`}>
+                      {safeRender(selectedSolicitud.prioridadSolicitud) || 'Media'}
                     </span>
                   </p>
                 </div>
@@ -441,13 +487,13 @@ export default function MisSolicitudes() {
               <div className="bg-white/10 rounded-lg p-4">
                 <h3 className="text-white font-semibold mb-3">Descripción de la Solicitud</h3>
                 <div className="text-white/80 whitespace-pre-wrap">
-                  {selectedSolicitud.descripcionSolicitud}
+                  {safeRender(selectedSolicitud.descripcionSolicitud)}
                 </div>
                 {selectedSolicitud.descripcionIA && (
                   <div className="mt-4">
                     <h4 className="text-white font-semibold mb-2">Interpretación IA</h4>
                     <div className="text-white/80 whitespace-pre-wrap">
-                      {selectedSolicitud.descripcionIA}
+                      {safeRender(selectedSolicitud.descripcionIA)}
                     </div>
                   </div>
                 )}
@@ -457,7 +503,7 @@ export default function MisSolicitudes() {
               {selectedSolicitud.razonSocialProveedor && (
                 <div className="bg-white/10 rounded-lg p-4">
                   <h3 className="text-white font-semibold mb-2">Proveedor</h3>
-                  <p className="text-white/80">{selectedSolicitud.razonSocialProveedor}</p>
+                  <p className="text-white/80">{safeRender(selectedSolicitud.razonSocialProveedor)}</p>
                 </div>
               )}
             </div>
@@ -488,7 +534,7 @@ export default function MisSolicitudes() {
 
       {/* Toast de notificaciones */}
       <Toast
-        message={toastMessage}
+        message={safeRender(toastMessage)}
         isVisible={showToast}
         onClose={hideToast}
         type="info"

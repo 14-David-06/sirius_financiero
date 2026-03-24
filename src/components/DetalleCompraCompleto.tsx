@@ -5,6 +5,46 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { CompraCompleta, CompraItem, AirtableField } from '@/types/compras';
 
+/**
+ * Safely extracts and renders values - prevents "Objects are not valid as a React child" errors
+ * Handles special cases like AI response objects {state, value, isStale}
+ */
+const safeRender = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  
+  // Handle strings that might be JSON with state/value
+  if (typeof value === 'string') {
+    if (value.startsWith('{') && value.includes('"state"') && value.includes('"value"')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && 'value' in parsed) {
+          return String(parsed.value || '');
+        }
+      } catch {
+        // If parsing fails, return original string
+      }
+    }
+    return value;
+  }
+  
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(v => safeRender(v)).join(', ');
+  
+  // Handle objects - especially AI response format {state, value, isStale}
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if ('value' in obj) {
+      return String(obj.value || '');
+    }
+    if ('state' in obj) {
+      return String(obj.state || '');
+    }
+    return '';
+  }
+  
+  return String(value);
+};
+
 interface DetalleCompraCompletoProps {
   compra: CompraCompleta;
   onClose: () => void;
@@ -309,7 +349,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
       <div>
         <h4 className="font-semibold text-gray-800 mb-2">Descripción de la Solicitud</h4>
         <div className="bg-gray-50 p-3 rounded-lg">
-          <p className="text-gray-700 text-sm whitespace-pre-wrap">{compra.descripcionSolicitud}</p>
+          <p className="text-gray-700 text-sm whitespace-pre-wrap">{safeRender(compra.descripcionSolicitud)}</p>
         </div>
       </div>
       
@@ -317,7 +357,7 @@ const DetalleCompraCompleto: React.FC<DetalleCompraCompletoProps> = ({ compra, o
         <div>
           <h4 className="font-semibold text-gray-800 mb-2">Interpretación IA</h4>
           <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-gray-700 text-sm whitespace-pre-wrap">{compra.descripcionIA}</p>
+            <p className="text-gray-700 text-sm whitespace-pre-wrap">{safeRender(compra.descripcionIA)}</p>
           </div>
         </div>
       )}

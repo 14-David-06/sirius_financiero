@@ -44,6 +44,39 @@ const EQUIPO_FINANCIERO_TABLE_ID = process.env.AIRTABLE_TEAM_TABLE_ID;
 // - Mantener integridad de referencias en campos enlazados
 // - Considerar validaciones automáticas de consistencia de datos
 
+/**
+ * Extrae el valor de un campo de IA que puede estar en formato JSON {state, value, isStale}
+ * o como string simple
+ */
+function extractAIValue(field: unknown): string {
+  if (field === null || field === undefined) return '';
+  
+  // Si es un string, verificar si es un JSON con state/value
+  if (typeof field === 'string') {
+    if (field.startsWith('{') && field.includes('"state"') && field.includes('"value"')) {
+      try {
+        const parsed = JSON.parse(field);
+        if (parsed && typeof parsed === 'object' && 'value' in parsed) {
+          return String(parsed.value || '');
+        }
+      } catch {
+        // Si falla el parse, devolver el string original
+      }
+    }
+    return field;
+  }
+  
+  // Si es un objeto con value
+  if (typeof field === 'object' && field !== null) {
+    const obj = field as Record<string, unknown>;
+    if ('value' in obj) {
+      return String(obj.value || '');
+    }
+  }
+  
+  return String(field);
+}
+
 export async function GET(request: NextRequest) {
   try {
     // 🔒 Rate Limiting
@@ -326,7 +359,7 @@ export async function GET(request: NextRequest) {
         nombreSolicitante: compra.fields['Nombre Solicitante'] as string,
         cargoSolicitante: compra.fields['Cargo Solicitante'] as string,
         descripcionSolicitud: compra.fields['Descripcion Solicitud Transcripcion'] as string,
-        descripcionIA: compra.fields['Descripcion Solicitud IAInterpretacion'] as string,
+        descripcionIA: extractAIValue(compra.fields['Descripcion Solicitud IAInterpretacion']),
         hasProvider: compra.fields['HasProvider'] as string,
         razonSocialProveedor: compra.fields['Razon Social Proveedor'] as string,
         cotizacionDoc: compra.fields['Cotizacion Doc'] as string,
