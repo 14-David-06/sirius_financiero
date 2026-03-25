@@ -9,7 +9,7 @@ export default function InventarioCentralPage() {
       <div 
         className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
         style={{
-          backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
+          backgroundImage: 'url(/18032025-DSC_2933.jpg)'
         }}
       >
         <InventarioCentral />

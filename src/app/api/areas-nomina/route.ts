@@ -1,54 +1,55 @@
 import { NextResponse } from 'next/server';
+import Airtable from 'airtable';
 
-// Configuración Airtable para Sirius Nomina Core
-const NOMINA_API_KEY = process.env.NOMINA_AIRTABLE_API_KEY || '';
-const NOMINA_BASE_ID = process.env.NOMINA_AIRTABLE_BASE_ID || '';
-const NOMINA_TABLE_NAME = process.env.NOMINA_AIRTABLE_TABLE_NAME || '';
+// Configuración Airtable para Sirius Insumos Core — tabla Areas
+const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
+const AREAS_TABLE = process.env.AIRTABLE_AREAS_TABLE_ID || '';
+
+const base = new Airtable({ apiKey: process.env.AIRTABLE_INS_API_KEY }).base(INSUMOS_BASE_ID);
 
 export async function GET() {
   try {
-    if (!NOMINA_API_KEY || !NOMINA_BASE_ID || !NOMINA_TABLE_NAME) {
+    if (!INSUMOS_BASE_ID || !AREAS_TABLE || !process.env.AIRTABLE_INS_API_KEY) {
       return NextResponse.json(
-        { success: false, error: 'Configuración de Nomina Core no encontrada' },
+        { success: false, error: 'Configuración de Areas no encontrada' },
         { status: 500 }
       );
     }
 
-    // Obtener todos los registros con solo el campo "Area"
-    const url = `https://api.airtable.com/v0/${NOMINA_BASE_ID}/${encodeURIComponent(NOMINA_TABLE_NAME)}?fields%5B%5D=Area&maxRecords=200`;
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${NOMINA_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error('Error fetching areas from Nomina Core:', response.status);
-      return NextResponse.json(
-        { success: false, error: 'Error al consultar la base de Nómina' },
-        { status: 500 }
-      );
+    interface AreaRecord {
+      id: string;
+      nombre: string;
+      idCore: string;
+      responsable: string;
     }
 
-    const data = await response.json();
+    const areasData: AreaRecord[] = [];
 
-    // Extraer áreas únicas y filtrar vacías
-    const areasSet = new Set<string>();
-    for (const record of data.records || []) {
-      const area = record.fields?.Area;
-      if (area && typeof area === 'string' && area.trim()) {
-        areasSet.add(area.trim());
-      }
-    }
+    await base(AREAS_TABLE)
+      .select({ fields: ['Name', 'ID Core', 'Responsable'] })
+      .eachPage((records, fetchNextPage) => {
+        records.forEach((record) => {
+          const nombre = record.fields['Name'] as string || '';
+          if (nombre.trim()) {
+            areasData.push({
+              id: record.id,
+              nombre: nombre.trim(),
+              idCore: record.fields['ID Core'] as string || '',
+              responsable: record.fields['Responsable'] as string || '',
+            });
+          }
+        });
+        fetchNextPage();
+      });
 
-    const areas = Array.from(areasSet).sort();
+    // Compatibilidad: devolver lista simple de nombres + datos completos
+    const areas = areasData.map(a => a.nombre).sort();
 
     return NextResponse.json({
       success: true,
       areas,
-      total: areas.length,
+      areasDetalle: areasData,
+      total: areasData.length,
     });
   } catch (error) {
     console.error('Error en API areas-nomina:', error);

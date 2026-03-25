@@ -6,6 +6,7 @@ const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
 const INSUMO_TABLE = process.env.AIRTABLE_INS_TABLE_ID || '';
 const MOVIMIENTOS_TABLE = process.env.AIRTABLE_MOV_INSUMO_TABLE_ID || '';
 const CATEGORIAS_TABLE = process.env.AIRTABLE_CAT_INSUMO_TABLE_ID || '';
+const UNIDADES_TABLE = process.env.AIRTABLE_UNIDADES_TABLE_ID || '';
 
 // Inicializar Airtable con API key específica para Insumos
 const base = new Airtable({ apiKey: process.env.AIRTABLE_INS_API_KEY }).base(INSUMOS_BASE_ID);
@@ -46,15 +47,55 @@ interface ResultadoEnvio {
   mensaje: string;
 }
 
+// Cache de unidades de medida
+interface UnidadMedida {
+  id: string;
+  nombre: string;
+  simbolo: string;
+  tipo: string;
+  factorABase: number;
+  unidadBaseDeTipo: string;
+}
+
+async function cargarUnidades(): Promise<UnidadMedida[]> {
+  const unidades: UnidadMedida[] = [];
+  await base(UNIDADES_TABLE)
+    .select({ fields: ['Nombre', 'Simbolo', 'Tipo', 'Factor a Base', 'Unidad Base de Tipo'] })
+    .eachPage((records, fetchNextPage) => {
+      records.forEach((record) => {
+        unidades.push({
+          id: record.id,
+          nombre: record.fields['Nombre'] as string || '',
+          simbolo: record.fields['Simbolo'] as string || '',
+          tipo: record.fields['Tipo'] as string || '',
+          factorABase: record.fields['Factor a Base'] as number || 1,
+          unidadBaseDeTipo: record.fields['Unidad Base de Tipo'] as string || '',
+        });
+      });
+      fetchNextPage();
+    });
+  return unidades;
+}
+
+function buscarUnidad(unidades: UnidadMedida[], unidadTexto: string): UnidadMedida | undefined {
+  const texto = unidadTexto.toLowerCase().trim();
+  return unidades.find(u =>
+    u.nombre.toLowerCase() === texto ||
+    u.simbolo.toLowerCase() === texto ||
+    texto.includes(u.nombre.toLowerCase()) ||
+    texto.includes(u.simbolo.toLowerCase())
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { items, validaciones, facturaId, numeroFactura, areaDestino } = body as {
+    const { items, validaciones, facturaId, numeroFactura, areaDestinoId } = body as {
       items: ItemParaInventario[];
       validaciones: ValidacionIA[];
       facturaId: string;
       numeroFactura: string;
-      areaDestino?: string;
+      areaDestinoId?: string;
     };
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -65,6 +106,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`📦 Enviando ${items.length} items al inventario desde factura ${numeroFactura}...`);
+
+    // Cargar unidades de medida para conversiones
+    const unidades = await cargarUnidades();
 
     const resultados: ResultadoEnvio[] = [];
 
@@ -99,36 +143,68 @@ export async function POST(request: NextRequest) {
       try {
         let insumoId: string;
 
+        // Resolver unidad de medida
+        const unidadEncontrada = buscarUnidad(unidades, item.Unidad);
+        const factorConversion = unidadEncontrada?.factorABase || 1;
+        const cantidadBase = item.Cantidad * factorConversion;
+        const costoUnitario = item['Vr. Unitario'] || 0;
+        const costoTotal = item.Cantidad * costoUnitario;
+        const costoUnitarioBase = cantidadBase > 0 ? costoTotal / cantidadBase : 0;
+
         if (validacion.accion === 'vincular' && validacion.insumoExistenteId) {
-          // Vincular a insumo existente
           insumoId = validacion.insumoExistenteId;
           console.log(`🔗 Vinculando item "${item.Item}" a insumo existente: ${validacion.insumoExistenteNombre}`);
         } else {
-          // Crear nuevo insumo
           console.log(`➕ Creando nuevo insumo: "${item.Item}"`);
           
+          // Determinar unidad base para el insumo (g, ml o und)
+          const unidadBase = unidadEncontrada
+            ? unidades.find(u => u.simbolo === unidadEncontrada.unidadBaseDeTipo)
+            : unidades.find(u => u.simbolo === 'und');
+
           const nuevoInsumo = await base(INSUMO_TABLE).create({
             'Nombre': item.Item,
             'Unidad Medida': item.Unidad || 'Unidad',
             'Estado Insumo': 'Activo',
-            ...(categoriaDefecto && { 'Categoria Insumo': [categoriaDefecto] }),
+            ...(unidadBase && { 'Unidad Base': [unidadBase.id] }),
+            ...(categoriaDefecto && { 'Categoria': [categoriaDefecto] }),
           });
           
           insumoId = nuevoInsumo.id;
           console.log(`✅ Insumo creado con ID: ${insumoId}`);
         }
 
-        // Crear movimiento de ingreso
-        const movimiento = await base(MOVIMIENTOS_TABLE).create({
+        // Crear movimiento de ingreso con datos de conversión y costos
+        const movimientoFields: Record<string, string | number | string[] | boolean> = {
           'Name': `Ingreso - ${numeroFactura} - ${item.Item}`,
-          'Cantidad': item.Cantidad,
           'Tipo Movimiento': 'Ingreso',
+          'Subtipo': 'Compra',
+          'Estado Entrada Insumo': 'Pendiente',
           'Insumo': [insumoId],
-          'ID Origen Movimiento': facturaId,
-          ...(areaDestino && { 'ID Area Destino': areaDestino }),
-        });
+          'Cantidad Original': item.Cantidad,
+          'Factor Conversion': factorConversion,
+          'Cantidad Base': cantidadBase,
+          'Costo Unitario': costoUnitario,
+          'Costo Total': costoTotal,
+          'Costo Unitario Base': costoUnitarioBase,
+          'Documento Origen': numeroFactura,
+        };
 
-        console.log(`✅ Movimiento creado: ${movimiento.id}`);
+        // Link a unidad original si se encontró
+        if (unidadEncontrada) {
+          movimientoFields['Unidad Original'] = [unidadEncontrada.id];
+        }
+
+        // Link al área destino (Bodega por defecto)
+        if (areaDestinoId) {
+          movimientoFields['Area Destino Link'] = [areaDestinoId];
+        }
+
+        // Mantener campo legacy
+        movimientoFields['Cantidad '] = cantidadBase;
+
+        const movimiento = await base(MOVIMIENTOS_TABLE).create(movimientoFields);
+        console.log(`✅ Movimiento creado: ${movimiento.id} (${item.Cantidad} ${item.Unidad} → ${cantidadBase} base, $${costoTotal})`);
 
         resultados.push({
           itemId: item.id,
@@ -138,8 +214,8 @@ export async function POST(request: NextRequest) {
           insumoId,
           movimientoId: movimiento.id,
           mensaje: validacion.accion === 'vincular'
-            ? `Vinculado a "${validacion.insumoExistenteNombre}" y movimiento creado`
-            : `Nuevo insumo creado y movimiento registrado`,
+            ? `Vinculado a "${validacion.insumoExistenteNombre}" — ${item.Cantidad} ${item.Unidad} (${cantidadBase} base) — $${costoTotal.toLocaleString()}`
+            : `Nuevo insumo creado — ${item.Cantidad} ${item.Unidad} (${cantidadBase} base) — $${costoTotal.toLocaleString()}`,
         });
 
       } catch (error) {

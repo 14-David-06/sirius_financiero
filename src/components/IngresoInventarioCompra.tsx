@@ -87,26 +87,29 @@ export default function IngresoInventarioCompra({
   const [showFormCotizacion, setShowFormCotizacion] = useState(false);
   const [cotizacionCargada, setCotizacionCargada] = useState(!!compra.cotizacionDoc);
 
-  // Área destino (desde Nomina Core)
-  const [areasDisponibles, setAreasDisponibles] = useState<string[]>([]);
-  const [areaDestino, setAreaDestino] = useState<string>('');
+  // Área destino (desde tabla Areas de Insumos Core)
+  const [areasDisponibles, setAreasDisponibles] = useState<{ id: string; nombre: string }[]>([]);
+  const [areaDestinoId, setAreaDestinoId] = useState<string>('');
   const [cargandoAreas, setCargandoAreas] = useState(true);
 
-  // Cargar áreas desde Nomina Core al montar
+  // Cargar áreas al montar
   useEffect(() => {
     const fetchAreas = async () => {
       try {
         const response = await fetch('/api/areas-nomina');
         const data = await response.json();
-        if (data.success && data.areas) {
-          setAreasDisponibles(data.areas);
+        if (data.success && data.areasDetalle) {
+          setAreasDisponibles(data.areasDetalle.map((a: { id: string; nombre: string }) => ({ id: a.id, nombre: a.nombre })));
           // Pre-seleccionar el área de la compra si existe
           if (compra.areaCorrespondiente) {
-            const match = data.areas.find(
-              (a: string) => a.toLowerCase() === compra.areaCorrespondiente?.toLowerCase()
+            const match = data.areasDetalle.find(
+              (a: { id: string; nombre: string }) => a.nombre.toLowerCase() === compra.areaCorrespondiente?.toLowerCase()
             );
-            if (match) setAreaDestino(match);
+            if (match) setAreaDestinoId(match.id);
           }
+        } else if (data.success && data.areas) {
+          // Fallback: solo nombres
+          setAreasDisponibles(data.areas.map((a: string) => ({ id: a, nombre: a })));
         }
       } catch (error) {
         console.error('Error cargando áreas:', error);
@@ -429,7 +432,7 @@ export default function IngresoInventarioCompra({
           validaciones: validacionesIA,
           facturaId: compra.id,
           numeroFactura: `COMPRA-${compra.id.slice(-6)}`,
-          areaDestino,
+          areaDestinoId,
         }),
       });
 
@@ -568,16 +571,16 @@ export default function IngresoInventarioCompra({
               ) : (
                 <>
                   <select
-                    value={areaDestino}
-                    onChange={(e) => setAreaDestino(e.target.value)}
+                    value={areaDestinoId}
+                    onChange={(e) => setAreaDestinoId(e.target.value)}
                     className="w-full sm:w-72 appearance-none bg-slate-800/60 border border-white/20 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400 transition-colors cursor-pointer pr-10"
                   >
                     <option value="" className="text-gray-900 bg-white">
                       -- Selecciona un área --
                     </option>
                     {areasDisponibles.map((area) => (
-                      <option key={area} value={area} className="text-gray-900 bg-white">
-                        {area}
+                      <option key={area.id} value={area.id} className="text-gray-900 bg-white">
+                        {area.nombre}
                       </option>
                     ))}
                   </select>
@@ -585,7 +588,7 @@ export default function IngresoInventarioCompra({
                 </>
               )}
             </div>
-            {!areaDestino && !cargandoAreas && (
+            {!areaDestinoId && !cargandoAreas && (
               <p className="text-amber-400/80 text-xs mt-2">
                 ⚠️ Debes seleccionar un área para poder enviar al inventario
               </p>
@@ -1054,14 +1057,14 @@ export default function IngresoInventarioCompra({
               onClick={handleEnviarInventario}
               disabled={
                 enviando ||
-                !areaDestino ||
+                !areaDestinoId ||
                 (tipoIngreso === 'sin-cotizacion' && itemsDictadosSeleccionados.size === 0) ||
                 (tipoIngreso === 'con-cotizacion' && itemsSeleccionados.size === 0) ||
                 (validacionesIA.length > 0 && !confirmarEnvio) ||
                 (tipoIngreso === 'con-cotizacion' && !cotizacionCargada)
               }
               title={
-                !areaDestino
+                !areaDestinoId
                   ? 'Debes seleccionar un área destino'
                   : tipoIngreso === 'con-cotizacion' && !cotizacionCargada
                     ? 'Debes cargar una cotización primero'
