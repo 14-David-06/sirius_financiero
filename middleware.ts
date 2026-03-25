@@ -10,6 +10,7 @@ const protectedRoutes = [
   '/monitoreo-solicitudes',
   '/seguimiento-pedidos',
   '/caja-menor',
+  '/inventario-central',
   '/movimientos-bancarios',
   '/indicadores-produccion',
   '/simulador-proyecciones',
@@ -35,6 +36,7 @@ const collaboratorOnlyRoutes = [
 const elevatedRoutes = [
   '/monitoreo-solicitudes',
   '/caja-menor',
+  '/inventario-central',
   '/movimientos-bancarios',
   '/indicadores-produccion',
   '/simulador-proyecciones',

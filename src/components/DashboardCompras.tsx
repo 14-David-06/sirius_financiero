@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import DetalleCompraCompleto from './DetalleCompraCompleto';
 import ChatCompra from './ChatCompra';
-import FormularioCotizacion from './FormularioCotizacion';
+import IngresoInventarioCompra from './IngresoInventarioCompra';
 import Toast from './ui/Toast';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import { useMessagePolling } from '@/lib/hooks/useMessagePolling';
@@ -29,9 +29,9 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
   const [chatCompra, setChatCompra] = useState<CompraCompleta | null>(null);
   const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
   
-  // Estados para cargar cotización y generar orden de compra
-  const [showFormCotizacion, setShowFormCotizacion] = useState(false);
-  const [cotizacionCompra, setCotizacionCompra] = useState<CompraCompleta | null>(null);
+  // Estado para ingreso de insumos al inventario (incluye cotización)
+  const [showIngresoInventario, setShowIngresoInventario] = useState(false);
+  const [inventarioCompra, setInventarioCompra] = useState<CompraCompleta | null>(null);
   const [generatingOrden, setGeneratingOrden] = useState<string | null>(null);
 
   // Hooks de notificaciones
@@ -195,12 +195,6 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
       month: 'short',
       day: 'numeric'
     });
-  };
-
-  // Abrir formulario de cotización
-  const handleOpenCotizacionForm = (compra: CompraCompleta) => {
-    setCotizacionCompra(compra);
-    setShowFormCotizacion(true);
   };
 
   // Función para generar orden de compra
@@ -564,13 +558,6 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
                     
                     {/* Botones de acción */}
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      {/* Botón Cargar Cotización */}
-                      <button
-                        onClick={() => handleOpenCotizacionForm(compra)}
-                        className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-amber-600 hover:to-orange-600 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none flex items-center justify-center gap-1"
-                      >
-                        📤 {compra.cotizacionDoc ? 'Actualizar Cotización' : 'Cargar Cotización'}
-                      </button>
                       {/* Botón Generar Orden de Compra */}
                       <button
                         onClick={() => handleGenerarOrdenCompra(compra)}
@@ -618,6 +605,15 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
                             {unreadMessages[compra.id] > 99 ? '99+' : unreadMessages[compra.id]}
                           </span>
                         )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setInventarioCompra(compra);
+                          setShowIngresoInventario(true);
+                        }}
+                        className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-teal-600 hover:to-emerald-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none flex items-center justify-center gap-1"
+                      >
+                        📦 Ingresar a Inventario
                       </button>
                       <button
                         onClick={() => {
@@ -673,15 +669,19 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
         />
       )}
 
-      {/* Modal de Formulario de Cotización */}
-      {showFormCotizacion && cotizacionCompra && (
-        <FormularioCotizacion
-          compra={cotizacionCompra}
+      {/* Modal de Ingreso a Inventario */}
+      {showIngresoInventario && inventarioCompra && (
+        <IngresoInventarioCompra
+          compra={inventarioCompra}
           onClose={() => {
-            setShowFormCotizacion(false);
-            setCotizacionCompra(null);
+            setShowIngresoInventario(false);
+            setInventarioCompra(null);
           }}
-          onSaved={() => {
+          onCompleted={() => {
+            cargarDatos();
+            showToastNotification('✅ Insumos ingresados al inventario exitosamente');
+          }}
+          onCotizacionSaved={() => {
             cargarDatos();
             showToastNotification('✅ Cotización guardada exitosamente');
           }}

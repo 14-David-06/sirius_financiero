@@ -49,11 +49,12 @@ interface ResultadoEnvio {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { items, validaciones, facturaId, numeroFactura } = body as {
+    const { items, validaciones, facturaId, numeroFactura, areaDestino } = body as {
       items: ItemParaInventario[];
       validaciones: ValidacionIA[];
       facturaId: string;
       numeroFactura: string;
+      areaDestino?: string;
     };
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
           'Tipo Movimiento': 'Ingreso',
           'Insumo': [insumoId],
           'ID Origen Movimiento': facturaId,
-          'Comentarios': `Ingreso desde factura ${numeroFactura}. Costo unitario: $${item['Vr. Unitario']?.toLocaleString() || 0}`,
+          ...(areaDestino && { 'ID Area Destino': areaDestino }),
         });
 
         console.log(`✅ Movimiento creado: ${movimiento.id}`);
