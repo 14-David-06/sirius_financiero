@@ -49,7 +49,7 @@ El sistema de autenticación implementado proporciona un flujo de login seguro b
 
 ## Campos de Airtable Requeridos
 
-### Tabla: Equipo Financiero (`tblcTrXmQi4EOTplV`)
+### Tabla: Equipo Financiero (`tblXXXXXXXXXXXXX12`)
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|

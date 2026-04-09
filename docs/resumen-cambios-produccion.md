@@ -34,7 +34,7 @@
 
 #### Ahora:
 ```bash
-PIROLISIS_AIRTABLE_BASE_ID=apprXBBomgiKhVc50  # ✅ Base ID correcto
+PIROLISIS_AIRTABLE_BASE_ID=appXXXXXXXXXXXXX05  # ✅ Base ID correcto
 ```
 
 ### 3. Arquitectura Simplificada
@@ -114,8 +114,8 @@ PIROLISIS_AIRTABLE_BASE_ID=apprXBBomgiKhVc50  # ✅ Base ID correcto
 
 ### Configuración
 ```typescript
-Base ID: apprXBBomgiKhVc50
-Table ID: tbljPXKCZ9FKTgsTB
+Base ID: appXXXXXXXXXXXXX05
+Table ID: tblXXXXXXXXXXXXX13
 API Key: patzfAySCZmA9Xnbo...
 ```
 
