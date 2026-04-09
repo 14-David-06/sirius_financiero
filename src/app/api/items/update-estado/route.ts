@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
+import {
   sanitizeInput, 
   checkRateLimit, 
   securityHeaders,
   secureLog 
 } from '@/lib/security/validation';
+import { ITEMS_COMPRAS_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -85,7 +86,7 @@ export async function PATCH(request: NextRequest) {
       },
       body: JSON.stringify({
         fields: {
-          'Estado Item': sanitizedEstadoItem
+          [ITEMS_COMPRAS_FIELDS.ESTADO_ITEM]: sanitizedEstadoItem
         }
       })
     });
@@ -126,7 +127,7 @@ export async function PATCH(request: NextRequest) {
         message: 'Estado del item actualizado exitosamente',
         item: {
           id: updatedItem.id,
-          estadoItem: updatedItem.fields['Estado Item']
+          estadoItem: updatedItem.fields[ITEMS_COMPRAS_FIELDS.ESTADO_ITEM]
         },
         timestamp: new Date().toISOString()
       }),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CompraCompleta } from '@/types/compras';
+import { OC_FIELDS, ITEMS_OC_FIELDS, COMPRAS_FIELDS } from '@/lib/config/airtable-fields';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
@@ -338,39 +339,39 @@ export async function POST(request: NextRequest) {
 
       // Crear registro de Orden de Compra
       const ocFields: Record<string, unknown> = {
-        [process.env.AIRTABLE_OC_ID_FIELD || 'ID Orden de Compra']: ocId,
-        [process.env.AIRTABLE_OC_FECHA_EMISION_FIELD || 'Fecha de Emisión']: fechaActual,
-        [process.env.AIRTABLE_OC_NOMBRE_SOLICITANTE_FIELD || 'Nombre Solicitante']: solicitud.nombreSolicitante,
-        [process.env.AIRTABLE_OC_CARGO_SOLICITANTE_FIELD || 'Cargo Solicitante']: solicitud.cargoSolicitante,
-        [process.env.AIRTABLE_OC_AREA_FIELD || 'Area Correspondiente']: solicitud.areaCorrespondiente,
-        [process.env.AIRTABLE_OC_ESTADO_FIELD || 'Estado Orden de Compra']: 'Emitida',
-        [process.env.AIRTABLE_OC_DOCUMENTO_FIELD || 'Documento OC']: fileUrl,
-        [process.env.AIRTABLE_OC_IVA_FIELD || 'IVA']: iva,
-        [process.env.AIRTABLE_OC_RETENCION_FIELD || 'Retencion']: retencion,
+        [OC_FIELDS.ID_ORDEN_COMPRA]: ocId,
+        [OC_FIELDS.FECHA_EMISION]: fechaActual,
+        [OC_FIELDS.NOMBRE_SOLICITANTE]: solicitud.nombreSolicitante,
+        [OC_FIELDS.CARGO_SOLICITANTE]: solicitud.cargoSolicitante,
+        [OC_FIELDS.AREA_CORRESPONDIENTE]: solicitud.areaCorrespondiente,
+        [OC_FIELDS.ESTADO]: 'Emitida',
+        [OC_FIELDS.DOCUMENTO_OC]: fileUrl,
+        [OC_FIELDS.IVA]: iva,
+        [OC_FIELDS.RETENCION]: retencion,
         // Subtotal es rollup (computado) — no se escribe
         // Total Neto es formula (computado) — no se escribe
-        [process.env.AIRTABLE_OC_COMPRA_RELACIONADA_FIELD || 'Compra Relacionada']: [compraId],
-        [process.env.AIRTABLE_OC_COTIZACION_RELACIONADA_FIELD || 'Cotización Relacionada']: [cotizacion.id],
+        [OC_FIELDS.COMPRA_RELACIONADA]: [compraId],
+        [OC_FIELDS.COTIZACION_RELACIONADA]: [cotizacion.id],
       };
 
       if (cotizacion.proveedorIds.length > 0) {
-        ocFields[process.env.AIRTABLE_OC_PROVEEDOR_FIELD || 'Proveedor'] = cotizacion.proveedorIds;
+        ocFields[OC_FIELDS.PROVEEDOR] = cotizacion.proveedorIds;
       }
 
       if (solicitud.prioridadSolicitud) {
-        ocFields[process.env.AIRTABLE_OC_PRIORIDAD_FIELD || 'Prioridad'] = solicitud.prioridadSolicitud;
+        ocFields[OC_FIELDS.PRIORIDAD] = solicitud.prioridadSolicitud;
       }
 
       if (solicitud.nombresAdmin) {
-        ocFields[process.env.AIRTABLE_OC_AUTORIZADO_POR_FIELD || 'Autorizado Por'] = solicitud.nombresAdmin;
+        ocFields[OC_FIELDS.AUTORIZADO_POR] = solicitud.nombresAdmin;
       }
 
       if (solicitud.descripcionIA || solicitud.descripcionSolicitud) {
-        ocFields[process.env.AIRTABLE_OC_DESCRIPCION_FIELD || 'Descripción'] = solicitud.descripcionIA || solicitud.descripcionSolicitud;
+        ocFields[OC_FIELDS.DESCRIPCION] = solicitud.descripcionIA || solicitud.descripcionSolicitud;
       }
 
       if (cotizacion.documentoUrl) {
-        ocFields[process.env.AIRTABLE_OC_COT_DOC_URL_FIELD || 'Cotización Documento URL'] = cotizacion.documentoUrl;
+        ocFields[OC_FIELDS.COTIZACION_DOC_URL] = cotizacion.documentoUrl;
       }
 
       const ocRecord = await airtableCreate(ORDENES_TABLE_ID, ocFields);
@@ -386,20 +387,20 @@ export async function POST(request: NextRequest) {
       for (const batch of batches) {
         const records = batch.map((item, idx) => {
           const itemFields: Record<string, unknown> = {
-            [process.env.AIRTABLE_IOC_ID_FIELD || 'ID Item OC']: `${ocId}-ITEM-${String(allItemRecordIds.length + idx + 1).padStart(2, '0')}`,
-            [process.env.AIRTABLE_IOC_OC_RELACIONADA_FIELD || 'Orden de Compra Relacionada']: [ordenCompraRecordId],
-            [process.env.AIRTABLE_IOC_DESCRIPCION_FIELD || 'Descripcion del Item']: item.descripcion,
-            [process.env.AIRTABLE_IOC_CANTIDAD_FIELD || 'Cantidad']: item.cantidad,
-            [process.env.AIRTABLE_IOC_VALOR_UNITARIO_FIELD || 'Valor Unitario']: item.valorUnitario,
+            [ITEMS_OC_FIELDS.ID_ITEM_OC]: `${ocId}-ITEM-${String(allItemRecordIds.length + idx + 1).padStart(2, '0')}`,
+            [ITEMS_OC_FIELDS.ORDEN_COMPRA_RELACIONADA]: [ordenCompraRecordId],
+            [ITEMS_OC_FIELDS.DESCRIPCION]: item.descripcion,
+            [ITEMS_OC_FIELDS.CANTIDAD]: item.cantidad,
+            [ITEMS_OC_FIELDS.VALOR_UNITARIO]: item.valorUnitario,
             // Valor Total Item es fórmula (computado) — no se escribe
           };
 
           // Link de trazabilidad al item cotizado
-          itemFields[process.env.AIRTABLE_IOC_ITEM_COTIZADO_FIELD || 'Item Cotizado Relacionado'] = [item.id];
+          itemFields[ITEMS_OC_FIELDS.ITEM_COTIZADO_RELACIONADO] = [item.id];
 
           // Link de trazabilidad al item de compra original
           if (item.itemCompraRelacionado?.length) {
-            itemFields[process.env.AIRTABLE_IOC_ITEM_COMPRA_FIELD || 'Item Compra Relacionado'] = item.itemCompraRelacionado;
+            itemFields[ITEMS_OC_FIELDS.ITEM_COMPRA_RELACIONADO] = item.itemCompraRelacionado;
           }
 
           return { fields: itemFields };
@@ -414,7 +415,7 @@ export async function POST(request: NextRequest) {
 
     // 6. Actualizar Documento Solicitud en la Compra original
     if (COMPRAS_TABLE_ID) {
-      await airtableUpdate(COMPRAS_TABLE_ID, compraId, { 'Documento Solicitud': fileUrl });
+      await airtableUpdate(COMPRAS_TABLE_ID, compraId, { [COMPRAS_FIELDS.DOCUMENTO_SOLICITUD]: fileUrl });
     }
 
     return NextResponse.json({

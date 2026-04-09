@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeInput } from '@/lib/security/validation';
+import { CONVERSACIONES_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -8,16 +9,7 @@ const CONVERSACIONES_TABLE_ID = process.env.AIRTABLE_CONVERSACIONES_TABLE_ID;
 
 interface MensajeChat {
   id: string;
-  fields: {
-    'ID Conversacion': number;
-    'Fecha/Hora Mensaje': string;
-    'Remitente': 'Solicitante' | 'Administrador de Compras';
-    'Nombre Remitente': string;
-    'Mensaje': string;
-    'Realiza Registro'?: string;
-    'Solicitud de Compra': string[];
-    'Fecha/Hora Visto'?: string;
-  };
+  fields: Record<string, unknown>;
 }
 
 // GET - Obtener mensajes de una conversación específica
@@ -45,8 +37,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Construir URL de Airtable con filtro
-    const filterFormula = encodeURIComponent(`{Solicitud de Compra} = '${sanitizedCompraId}'`);
-    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${CONVERSACIONES_TABLE_ID}?filterByFormula=${filterFormula}&sort[0][field]=Fecha/Hora Mensaje&sort[0][direction]=asc`;
+    const filterFormula = encodeURIComponent(`{${CONVERSACIONES_FIELDS.SOLICITUD_COMPRA}} = '${sanitizedCompraId}'`);
+    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${CONVERSACIONES_TABLE_ID}?filterByFormula=${filterFormula}&sort[0][field]=${encodeURIComponent(CONVERSACIONES_FIELDS.FECHA_HORA_MENSAJE)}&sort[0][direction]=asc`;
 
     console.log('Chat API - GET', `Obteniendo mensajes para compra: ${sanitizedCompraId}`);
 
@@ -76,14 +68,14 @@ export async function GET(request: NextRequest) {
     // Transformar datos de Airtable al formato esperado
     const mensajes = data.records.map((record: MensajeChat) => ({
       id: record.id,
-      idConversacion: record.fields['ID Conversacion'],
-      fechaHoraMensaje: record.fields['Fecha/Hora Mensaje'],
-      remitente: record.fields['Remitente'],
-      nombreRemitente: record.fields['Nombre Remitente'],
-      mensaje: record.fields['Mensaje'],
-      realizaRegistro: record.fields['Realiza Registro'],
-      solicitudCompra: record.fields['Solicitud de Compra'],
-      fechaHoraVisto: record.fields['Fecha/Hora Visto']
+      idConversacion: record.fields[CONVERSACIONES_FIELDS.ID_CONVERSACION],
+      fechaHoraMensaje: record.fields[CONVERSACIONES_FIELDS.FECHA_HORA_MENSAJE],
+      remitente: record.fields[CONVERSACIONES_FIELDS.REMITENTE],
+      nombreRemitente: record.fields[CONVERSACIONES_FIELDS.NOMBRE_REMITENTE],
+      mensaje: record.fields[CONVERSACIONES_FIELDS.MENSAJE],
+      realizaRegistro: record.fields[CONVERSACIONES_FIELDS.REALIZA_REGISTRO],
+      solicitudCompra: record.fields[CONVERSACIONES_FIELDS.SOLICITUD_COMPRA],
+      fechaHoraVisto: record.fields[CONVERSACIONES_FIELDS.FECHA_HORA_VISTO]
     }));
 
     console.log(`Encontrados ${mensajes.length} mensajes para la compra ${sanitizedCompraId}`);
@@ -137,11 +129,11 @@ export async function POST(request: NextRequest) {
     // Preparar datos para Airtable
     const recordData = {
       fields: {
-        'Remitente': remitente,
-        'Nombre Remitente': sanitizedNombreRemitente,
-        'Mensaje': sanitizedMensaje,
-        'Solicitud de Compra': [sanitizedCompraId],
-        'Realiza Registro': sanitizedRealizaRegistro
+        [CONVERSACIONES_FIELDS.REMITENTE]: remitente,
+        [CONVERSACIONES_FIELDS.NOMBRE_REMITENTE]: sanitizedNombreRemitente,
+        [CONVERSACIONES_FIELDS.MENSAJE]: sanitizedMensaje,
+        [CONVERSACIONES_FIELDS.SOLICITUD_COMPRA]: [sanitizedCompraId],
+        [CONVERSACIONES_FIELDS.REALIZA_REGISTRO]: sanitizedRealizaRegistro
       }
     };
 
@@ -215,7 +207,7 @@ export async function PATCH(request: NextRequest) {
     // Preparar datos para actualizar en Airtable
     const updateData = {
       fields: {
-        'Fecha/Hora Visto': fechaHoraVisto
+        [CONVERSACIONES_FIELDS.FECHA_HORA_VISTO]: fechaHoraVisto
       }
     };
 

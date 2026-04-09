@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { BBVA_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable para BBVA
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const maxRecords = parseInt(searchParams.get('maxRecords') || '1000');
-    const sortField = searchParams.get('sort[0][field]') || 'Creada';
+    const sortField = searchParams.get('sort[0][field]') || BBVA_FIELDS.CREADA;
     const sortDirection = searchParams.get('sort[0][direction]') || 'desc';
 
     const records: Record<string, unknown>[] = [];
@@ -41,24 +42,22 @@ export async function GET(request: NextRequest) {
           
           console.log(`BBVA Record ID: ${record.id}`);
           console.log('BBVA Fields disponibles:', Object.keys(fields));
-          console.log('BBVA Saldo Bancario Actual:', fields['Saldo Bancario Actual']);
+          console.log('BBVA Saldo Bancario Actual:', fields[BBVA_FIELDS.SALDO_BANCARIO_ACTUAL]);
           console.log('BBVA Field con ID:', fields[BBVA_SALDO_FIELD_ID!]);
-          console.log('BBVA Creada:', fields['Creada']);
-          console.log('BBVA Fecha:', fields['Fecha']);
+          console.log('BBVA Creada:', fields[BBVA_FIELDS.CREADA]);
+          console.log('BBVA Fecha:', fields[BBVA_FIELDS.FECHA]);
           
           // Procesar los campos del registro - intentar múltiples nombres de campo
-          const saldoActual = fields['Saldo Bancario Actual'] || 
-                             fields[BBVA_SALDO_FIELD_ID!] || 
-                             fields['Saldo_Bancario_Actual'] ||
-                             fields['SALDO_BANCARIO_ACTUAL'] || 0;
+          const saldoActual = fields[BBVA_FIELDS.SALDO_BANCARIO_ACTUAL] || 
+                             fields[BBVA_SALDO_FIELD_ID!] || 0;
           
           const processedRecord: Record<string, unknown> = {
             id: record.id,
             'Saldo Bancario Actual': saldoActual,
-            'Fecha': fields['Fecha'] || '',
-            'Descripción': fields['Descripción'] || '',
-            'Valor': fields['Valor'] || 0,
-            'Creada': fields['Creada'] || '',
+            'Fecha': fields[BBVA_FIELDS.FECHA] || '',
+            'Descripción': fields[BBVA_FIELDS.DESCRIPCION] || '',
+            'Valor': fields[BBVA_FIELDS.VALOR] || 0,
+            'Creada': fields[BBVA_FIELDS.CREADA] || '',
           };
 
           console.log('BBVA Processed record:', processedRecord);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { REMISIONES_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configurar Airtable
 const base = new Airtable({
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       .select({
         filterByFormula: `AND(
           {Factura Relacionada} = BLANK(),
-          {Nombre Clientes Laboratorio} != "SIRIUS REGENERATIVE SOLUTIONS S.A.S ZOMAC"
+          {${REMISIONES_FIELDS.NOMBRE_CLIENTES}} != "SIRIUS REGENERATIVE SOLUTIONS S.A.S ZOMAC"
         )`
       })
       .all();
@@ -54,20 +55,20 @@ export async function GET(request: NextRequest) {
       const fields = record.fields;
       
       // Buscar los campos correctos por nombre
-      const totalLitros = parseNumber(fields['Total Litros']);
-      const valorTotalLitros = parseNumber(fields['Valor Total Litros']);
-      const nombreCliente = fields['Nombre Clientes Laboratorio']?.toString() || '';
+      const totalLitros = parseNumber(fields[REMISIONES_FIELDS.TOTAL_LITROS]);
+      const valorTotalLitros = parseNumber(fields[REMISIONES_FIELDS.VALOR_TOTAL_LITROS]);
+      const nombreCliente = fields[REMISIONES_FIELDS.NOMBRE_CLIENTES]?.toString() || '';
       
       console.log(`🔍 Procesando ${record.id}: Cliente="${nombreCliente}", Litros=${totalLitros}, Valor=${valorTotalLitros}`);
       
       return {
         id: record.id,
-        numeroRemision: parseNumber(fields['Numero Remision']),
+        numeroRemision: parseNumber(fields[REMISIONES_FIELDS.NUMERO_REMISION]),
         nombreCliente,
-        nitCliente: fields['NIT Clientes Laboratorio']?.toString() || '',
+        nitCliente: fields[REMISIONES_FIELDS.NIT_CLIENTES]?.toString() || '',
         totalLitros,
         valorTotalLitros,
-        fechaCreacion: fields['Fecha Creacion'] || null
+        fechaCreacion: fields[REMISIONES_FIELDS.FECHA_CREACION] || null
       };
     })
     .filter(remision => remision.valorTotalLitros > 0); // Solo incluir remisiones con valor

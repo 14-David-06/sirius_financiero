@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import {
+  INSUMO_FIELDS, MOVIMIENTO_INSUMO_FIELDS, UNIDAD_FIELDS
+} from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable para Sirius Insumos Core
 const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
@@ -60,16 +63,16 @@ interface UnidadMedida {
 async function cargarUnidades(): Promise<UnidadMedida[]> {
   const unidades: UnidadMedida[] = [];
   await base(UNIDADES_TABLE)
-    .select({ fields: ['Nombre', 'Simbolo', 'Tipo', 'Factor a Base', 'Unidad Base de Tipo'] })
+    .select({ fields: [UNIDAD_FIELDS.NOMBRE, UNIDAD_FIELDS.SIMBOLO, UNIDAD_FIELDS.TIPO, UNIDAD_FIELDS.FACTOR_A_BASE, UNIDAD_FIELDS.UNIDAD_BASE_DE_TIPO] })
     .eachPage((records, fetchNextPage) => {
       records.forEach((record) => {
         unidades.push({
           id: record.id,
-          nombre: record.fields['Nombre'] as string || '',
-          simbolo: record.fields['Simbolo'] as string || '',
-          tipo: record.fields['Tipo'] as string || '',
-          factorABase: record.fields['Factor a Base'] as number || 1,
-          unidadBaseDeTipo: record.fields['Unidad Base de Tipo'] as string || '',
+          nombre: record.fields[UNIDAD_FIELDS.NOMBRE] as string || '',
+          simbolo: record.fields[UNIDAD_FIELDS.SIMBOLO] as string || '',
+          tipo: record.fields[UNIDAD_FIELDS.TIPO] as string || '',
+          factorABase: record.fields[UNIDAD_FIELDS.FACTOR_A_BASE] as number || 1,
+          unidadBaseDeTipo: record.fields[UNIDAD_FIELDS.UNIDAD_BASE_DE_TIPO] as string || '',
         });
       });
       fetchNextPage();
@@ -163,11 +166,11 @@ export async function POST(request: NextRequest) {
             : unidades.find(u => u.simbolo === 'und');
 
           const nuevoInsumo = await base(INSUMO_TABLE).create({
-            'Nombre': item.Item,
-            'Unidad Medida': item.Unidad || 'Unidad',
-            'Estado Insumo': 'Activo',
-            ...(unidadBase && { 'Unidad Base': [unidadBase.id] }),
-            ...(categoriaDefecto && { 'Categoria': [categoriaDefecto] }),
+            [INSUMO_FIELDS.NOMBRE]: item.Item,
+            [INSUMO_FIELDS.UNIDAD_MEDIDA]: item.Unidad || 'Unidad',
+            [INSUMO_FIELDS.ESTADO]: 'Activo',
+            ...(unidadBase && { [INSUMO_FIELDS.UNIDAD_BASE]: [unidadBase.id] }),
+            ...(categoriaDefecto && { [INSUMO_FIELDS.CATEGORIA]: [categoriaDefecto] }),
           });
           
           insumoId = nuevoInsumo.id;
@@ -176,32 +179,32 @@ export async function POST(request: NextRequest) {
 
         // Crear movimiento de ingreso con datos de conversión y costos
         const movimientoFields: Record<string, string | number | string[] | boolean> = {
-          'Name': `Ingreso - ${numeroFactura} - ${item.Item}`,
-          'Tipo Movimiento': 'Ingreso',
-          'Subtipo': 'Compra',
-          'Estado Entrada Insumo': 'Pendiente',
-          'Insumo': [insumoId],
-          'Cantidad Original': item.Cantidad,
-          'Factor Conversion': factorConversion,
-          'Cantidad Base': cantidadBase,
-          'Costo Unitario': costoUnitario,
-          'Costo Total': costoTotal,
-          'Costo Unitario Base': costoUnitarioBase,
-          'Documento Origen': numeroFactura,
+          [MOVIMIENTO_INSUMO_FIELDS.NOMBRE]: `Ingreso - ${numeroFactura} - ${item.Item}`,
+          [MOVIMIENTO_INSUMO_FIELDS.TIPO_MOVIMIENTO]: 'Ingreso',
+          [MOVIMIENTO_INSUMO_FIELDS.SUBTIPO]: 'Compra',
+          [MOVIMIENTO_INSUMO_FIELDS.ESTADO]: 'Pendiente',
+          [MOVIMIENTO_INSUMO_FIELDS.INSUMO_LINK]: [insumoId],
+          [MOVIMIENTO_INSUMO_FIELDS.CANTIDAD_ORIGINAL]: item.Cantidad,
+          [MOVIMIENTO_INSUMO_FIELDS.FACTOR_CONVERSION]: factorConversion,
+          [MOVIMIENTO_INSUMO_FIELDS.CANTIDAD_BASE]: cantidadBase,
+          [MOVIMIENTO_INSUMO_FIELDS.COSTO_UNITARIO]: costoUnitario,
+          [MOVIMIENTO_INSUMO_FIELDS.COSTO_TOTAL]: costoTotal,
+          [MOVIMIENTO_INSUMO_FIELDS.COSTO_UNITARIO_BASE]: costoUnitarioBase,
+          [MOVIMIENTO_INSUMO_FIELDS.DOCUMENTO_ORIGEN]: numeroFactura,
         };
 
         // Link a unidad original si se encontró
         if (unidadEncontrada) {
-          movimientoFields['Unidad Original'] = [unidadEncontrada.id];
+          movimientoFields[MOVIMIENTO_INSUMO_FIELDS.UNIDAD_ORIGINAL] = [unidadEncontrada.id];
         }
 
         // Link al área destino (Bodega por defecto)
         if (areaDestinoId) {
-          movimientoFields['Area Destino Link'] = [areaDestinoId];
+          movimientoFields[MOVIMIENTO_INSUMO_FIELDS.AREA_DESTINO_LINK] = [areaDestinoId];
         }
 
         // Mantener campo legacy
-        movimientoFields['Cantidad '] = cantidadBase;
+        movimientoFields[MOVIMIENTO_INSUMO_FIELDS.CANTIDAD] = cantidadBase;
 
         const movimiento = await base(MOVIMIENTOS_TABLE).create(movimientoFields);
         console.log(`✅ Movimiento creado: ${movimiento.id} (${item.Cantidad} ${item.Unidad} → ${cantidadBase} base, $${costoTotal})`);

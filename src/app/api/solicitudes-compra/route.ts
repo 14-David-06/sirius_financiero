@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { securityHeaders } from '@/lib/security/validation';
+import { COMPRAS_FIELDS, ITEMS_COMPRAS_FIELDS } from '@/lib/config/airtable-fields';
 
 interface SolicitudCompraData {
   // Datos del solicitante
@@ -68,28 +69,28 @@ export async function POST(request: NextRequest) {
       for (const item of data.items) {
         const itemRecord: AirtableRecord = {
           fields: {
-            'Objeto': item.objeto,
-            'Centro Costos': item.centroCostos,
-            'Cantidad': item.cantidad,
-            'Valor Item': item.valorItem,
-            'valor UVT': valorUVT,
-            'Estado Item': 'Sin comprar',
-            'Compra/Servicio': item.compraServicio,
-            'Prioridad': item.prioridad
+            [ITEMS_COMPRAS_FIELDS.OBJETO]: item.objeto,
+            [ITEMS_COMPRAS_FIELDS.CENTRO_COSTOS]: item.centroCostos,
+            [ITEMS_COMPRAS_FIELDS.CANTIDAD]: item.cantidad,
+            [ITEMS_COMPRAS_FIELDS.VALOR_ITEM]: item.valorItem,
+            [ITEMS_COMPRAS_FIELDS.VALOR_UVT]: valorUVT,
+            [ITEMS_COMPRAS_FIELDS.ESTADO_ITEM]: 'Sin comprar',
+            [ITEMS_COMPRAS_FIELDS.COMPRA_SERVICIO]: item.compraServicio,
+            [ITEMS_COMPRAS_FIELDS.PRIORIDAD]: item.prioridad
           }
         };
 
         // Agregar campos opcionales si están presentes
         if (item.fechaRequerida) {
-          itemRecord.fields['Fecha Requerida Entrega'] = item.fechaRequerida;
+          itemRecord.fields[ITEMS_COMPRAS_FIELDS.FECHA_REQUERIDA] = item.fechaRequerida;
         }
         
         if (item.formaPago) {
-          itemRecord.fields['FORMA DE PAGO'] = item.formaPago;
+          itemRecord.fields[ITEMS_COMPRAS_FIELDS.FORMA_PAGO] = item.formaPago;
         }
 
         if (item.justificacion) {
-          itemRecord.fields['Recibo/Remision'] = item.justificacion;
+          itemRecord.fields[ITEMS_COMPRAS_FIELDS.RECIBO_REMISION] = item.justificacion;
         }
 
         const itemResponse = await fetch(
@@ -115,43 +116,34 @@ export async function POST(request: NextRequest) {
     // Paso 2: Crear la solicitud de compra principal
     const solicitudRecord: AirtableRecord = {
       fields: {
-        'Area Correspondiente': data.areaSolicitante,
-        'Nombre Solicitante': data.nombreSolicitante,
-        'Cargo Solicitante': data.cargoSolicitante,
-        'HasProvider': data.hasProvider,
-        'valor UVT': valorUVT,
-        'Estado Solicitud': 'Pendiente',
-        'Prioridad Solicitud': data.prioridadSolicitud
+        [COMPRAS_FIELDS.AREA_CORRESPONDIENTE]: data.areaSolicitante,
+        [COMPRAS_FIELDS.NOMBRE_SOLICITANTE]: data.nombreSolicitante,
+        [COMPRAS_FIELDS.CARGO_SOLICITANTE]: data.cargoSolicitante,
+        [COMPRAS_FIELDS.HAS_PROVIDER]: data.hasProvider,
+        [COMPRAS_FIELDS.VALOR_UVT]: valorUVT,
+        [COMPRAS_FIELDS.ESTADO_SOLICITUD]: 'Pendiente',
+        [COMPRAS_FIELDS.PRIORIDAD_SOLICITUD]: data.prioridadSolicitud
       }
     };
 
-    // Si existe sesión autenticada, intentar extraer el recordId del usuario
-    let userRecordId: string | undefined = undefined;
-    try {
-      const token = request.cookies.get('auth-token')?.value;
-      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-      if (token) {
-        const decoded = jwt.verify(token, JWT_SECRET) as Record<string, unknown>;
-        userRecordId = typeof decoded.recordId === 'string' ? decoded.recordId : undefined;
-        if (userRecordId) {
-          // Campo link a Equipo Financiero (ID del registro)
-          solicitudRecord.fields['Equipo Financiero'] = [userRecordId];
-        }
-      }
-    } catch (err) {
-      // No bloquear: si el token es inválido o no existe, continuamos sin el enlace
-      console.warn('No se pudo obtener recordId desde la sesión:', err);
-      userRecordId = undefined;
-    }
+    // MIGRACIÓN COMPLETADA: Eliminado campo enlazado 'Equipo Financiero'
+    // El campo 'Equipo Financiero' apuntaba a la tabla legacy (Equipo Financiero)
+    // pero el JWT ahora contiene recordId de la tabla Personal de Nómina Core.
+    // Como son bases diferentes, no se puede mantener el campo enlazado.
+    // La información del usuario ya está en los campos planos:
+    // - Nombre Solicitante
+    // - Cargo Solicitante
+    // - Area Correspondiente
+    // Estos campos son suficientes para filtrado y auditoría.
 
     // SOLO AGREGAR ITEMS SI EXISTEN
     if (itemsCreados.length > 0) {
-      solicitudRecord.fields['Items Compras y Adquisiciones'] = itemsCreados;
+      solicitudRecord.fields[COMPRAS_FIELDS.ITEMS_LINK] = itemsCreados;
     }
 
     // Agregar campos opcionales
     if (data.descripcionTranscripcion) {
-      solicitudRecord.fields['Descripcion Solicitud Transcripcion'] = data.descripcionTranscripcion;
+      solicitudRecord.fields[COMPRAS_FIELDS.DESCRIPCION_TRANSCRIPCION] = data.descripcionTranscripcion;
     }
 
     // Nota: 'Descripcion Solicitud IAInterpretacion' parece ser un campo computado en Airtable
@@ -161,21 +153,21 @@ export async function POST(request: NextRequest) {
     // }
 
     if (data.razonSocialProveedor) {
-      solicitudRecord.fields['Razon Social Proveedor'] = data.razonSocialProveedor;
+      solicitudRecord.fields[COMPRAS_FIELDS.RAZON_SOCIAL_PROVEEDOR] = data.razonSocialProveedor;
     }
 
     if (data.cotizacionDoc) {
       // Si es una URL de S3, guardarla directamente
       if (data.cotizacionDoc.startsWith('https://')) {
-        solicitudRecord.fields['Cotizacion Doc'] = data.cotizacionDoc;
+        solicitudRecord.fields[COMPRAS_FIELDS.COTIZACION_DOC] = data.cotizacionDoc;
       } else {
         try {
           const attachmentData = JSON.parse(data.cotizacionDoc);
-          solicitudRecord.fields['Cotizacion Doc'] = attachmentData;
+          solicitudRecord.fields[COMPRAS_FIELDS.COTIZACION_DOC] = attachmentData;
         } catch (error) {
           console.error('Error parsing cotization document:', error);
           // Si no es JSON válido, guardarlo como texto
-          solicitudRecord.fields['Cotizacion Doc'] = data.cotizacionDoc;
+          solicitudRecord.fields[COMPRAS_FIELDS.COTIZACION_DOC] = data.cotizacionDoc;
         }
       }
     }
@@ -226,7 +218,7 @@ export async function POST(request: NextRequest) {
             records: [{
               id: itemId,
               fields: {
-                'Compra y Adquisicion': [solicitudId]
+                [ITEMS_COMPRAS_FIELDS.COMPRA_Y_ADQUISICION]: [solicitudId]
               }
             }]
           })
@@ -253,8 +245,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
             solicitudData: data,
-            solicitudId: solicitudId,
-            userRecordId: userRecordId
+            solicitudId: solicitudId
           })
       });
 

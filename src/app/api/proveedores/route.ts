@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { PROVEEDORES_FIELDS } from '@/lib/config/airtable-fields';
 
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -18,10 +19,10 @@ export async function GET() {
 
     do {
       const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${PROVEEDORES_TABLE_ID}`);
-      url.searchParams.set('fields[]', 'Nombre');
-      url.searchParams.append('fields[]', 'C.c o Nit');
-      url.searchParams.append('fields[]', 'Ciudad');
-      url.searchParams.set('sort[0][field]', 'Nombre');
+      url.searchParams.set('fields[]', PROVEEDORES_FIELDS.NOMBRE);
+      url.searchParams.append('fields[]', PROVEEDORES_FIELDS.NIT);
+      url.searchParams.append('fields[]', PROVEEDORES_FIELDS.CIUDAD);
+      url.searchParams.set('sort[0][field]', PROVEEDORES_FIELDS.NOMBRE);
       url.searchParams.set('sort[0][direction]', 'asc');
       if (offset) url.searchParams.set('offset', offset);
 
@@ -38,9 +39,9 @@ export async function GET() {
       for (const record of data.records) {
         proveedores.push({
           id: record.id,
-          nombre: record.fields['Nombre'] || '',
-          nit: record.fields['C.c o Nit'] || '',
-          ciudad: record.fields['Ciudad'] || '',
+          nombre: record.fields[PROVEEDORES_FIELDS.NOMBRE] || '',
+          nit: record.fields[PROVEEDORES_FIELDS.NIT] || '',
+          ciudad: record.fields[PROVEEDORES_FIELDS.CIUDAD] || '',
         });
       }
 

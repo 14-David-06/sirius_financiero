@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
 import OpenAI from 'openai';
+import { INSUMO_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable para Sirius Insumos Core
 const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
@@ -62,17 +63,17 @@ export async function POST(request: NextRequest) {
     
     await base(INSUMO_TABLE)
       .select({
-        fields: ['Nombre', 'Código SIRIUS-INS', 'Unidad Medida', 'Estado Insumo'],
-        filterByFormula: `{Estado Insumo} = "Activo"`,
+        fields: [INSUMO_FIELDS.NOMBRE, INSUMO_FIELDS.CODIGO_SIRIUS, INSUMO_FIELDS.UNIDAD_MEDIDA, INSUMO_FIELDS.ESTADO],
+        filterByFormula: `{${INSUMO_FIELDS.ESTADO}} = "Activo"`,
       })
       .eachPage((records, fetchNextPage) => {
         records.forEach((record) => {
           insumosInventario.push({
             id: record.id,
-            nombre: record.fields['Nombre'] as string || '',
-            codigo: record.fields['Código SIRIUS-INS'] as string || '',
-            unidadMedida: record.fields['Unidad Medida'] as string || '',
-            estado: record.fields['Estado Insumo'] as string || '',
+            nombre: record.fields[INSUMO_FIELDS.NOMBRE] as string || '',
+            codigo: record.fields[INSUMO_FIELDS.CODIGO_SIRIUS] as string || '',
+            unidadMedida: record.fields[INSUMO_FIELDS.UNIDAD_MEDIDA] as string || '',
+            estado: record.fields[INSUMO_FIELDS.ESTADO] as string || '',
           });
         });
         fetchNextPage();

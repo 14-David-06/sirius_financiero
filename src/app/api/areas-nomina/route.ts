@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { AREA_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración Airtable para Sirius Insumos Core — tabla Areas
 const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
@@ -26,16 +27,16 @@ export async function GET() {
     const areasData: AreaRecord[] = [];
 
     await base(AREAS_TABLE)
-      .select({ fields: ['Name', 'ID Core', 'Responsable'] })
+      .select({ fields: [AREA_FIELDS.NOMBRE, AREA_FIELDS.ID_CORE, AREA_FIELDS.RESPONSABLE] })
       .eachPage((records, fetchNextPage) => {
         records.forEach((record) => {
-          const nombre = record.fields['Name'] as string || '';
+          const nombre = record.fields[AREA_FIELDS.NOMBRE] as string || '';
           if (nombre.trim()) {
             areasData.push({
               id: record.id,
               nombre: nombre.trim(),
-              idCore: record.fields['ID Core'] as string || '',
-              responsable: record.fields['Responsable'] as string || '',
+              idCore: record.fields[AREA_FIELDS.ID_CORE] as string || '',
+              responsable: record.fields[AREA_FIELDS.RESPONSABLE] as string || '',
             });
           }
         });

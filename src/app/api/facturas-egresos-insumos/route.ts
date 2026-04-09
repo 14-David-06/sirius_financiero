@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { FACTURACION_EGRESOS_FIELDS, ITEM_FACTURACION_EGRESOS_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(
@@ -106,14 +107,14 @@ export async function GET() {
 
     // IMPORTANTE: Las fórmulas de Airtable usan NOMBRES de campos, no Field IDs
     // Filtro: BANCO Y PROYECCION = "❌ Proyección y Banco", "❌ Proyección", o "❌ Banco"
-    const filterFormula = `OR({BANCO Y PROYECCION} = "❌ Proyección y Banco", {BANCO Y PROYECCION} = "❌ Proyección", {BANCO Y PROYECCION} = "❌ Banco")`;
+    const filterFormula = `OR({${FACTURACION_EGRESOS_FIELDS.BANCO_Y_PROYECCION}} = "❌ Proyección y Banco", {${FACTURACION_EGRESOS_FIELDS.BANCO_Y_PROYECCION}} = "❌ Proyección", {${FACTURACION_EGRESOS_FIELDS.BANCO_Y_PROYECCION}} = "❌ Banco")`;
     
     console.log('📋 Filtro aplicado:', filterFormula);
 
     await base(FACTURACION_EGRESOS_TABLE)
       .select({
         filterByFormula: filterFormula,
-        sort: [{ field: 'Fecha de Emisión', direction: 'desc' }],
+        sort: [{ field: FACTURACION_EGRESOS_FIELDS.FECHA_EMISION, direction: 'desc' }],
         maxRecords: 100,
       })
       .eachPage((records, fetchNextPage) => {
@@ -123,50 +124,50 @@ export async function GET() {
           const fields = record.fields;
           
           console.log(`📋 Factura encontrada: ${record.id}`, {
-            numeroFactura: fields['Número de Factura'],
-            emisor: fields['Emisor'],
-            bancoProyeccion: fields['BANCO Y PROYECCION'],
+            numeroFactura: fields[FACTURACION_EGRESOS_FIELDS.NUMERO_FACTURA],
+            emisor: fields[FACTURACION_EGRESOS_FIELDS.EMISOR],
+            bancoProyeccion: fields[FACTURACION_EGRESOS_FIELDS.BANCO_Y_PROYECCION],
           });
 
           // Obtener IDs de items relacionados usando nombre de campo
-          const itemsRelacionados = fields['Items factura'] as string[] | undefined;
+          const itemsRelacionados = fields[FACTURACION_EGRESOS_FIELDS.ITEMS_FACTURA] as string[] | undefined;
           if (itemsRelacionados && Array.isArray(itemsRelacionados)) {
             facturaItemsMap.set(record.id, itemsRelacionados);
           }
 
           const factura: FacturaEgreso = {
             id: record.id,
-            // Usar nombres de campo en lugar de Field IDs para acceder a los datos
-            ID: parseString(fields['ID']),
-            'Número de Factura': parseString(fields['Número de Factura']),
-            'Fecha de Emisión': parseString(fields['Fecha de Emisión']),
-            'Fecha de Vencimiento': parseString(fields['Fecha de Vencimiento']),
-            Emisor: parseString(fields['Emisor']),
-            'NIT/CIF del Emisor': parseString(fields['NIT/CIF del Emisor']),
-            'Dirección del Emisor': parseString(fields['Dirección del Emisor']),
-            'Forma de Pago': parseString(fields['Forma de Pago']),
-            'Condiciones de Pago': parseString(fields['Condiciones de Pago']),
-            Moneda: parseString(fields['Moneda']) || 'COP',
-            subtotal: parseNumber(fields['subtotal']),
-            descuentos: parseNumber(fields['descuentos']),
-            iva: parseNumber(fields['iva']),
-            inc: parseNumber(fields['inc']),
-            retencion: parseNumber(fields['retencion']),
-            reteiva: parseNumber(fields['reteiva']),
-            reteica: parseNumber(fields['reteica']),
-            total_pagar: parseNumber(fields['total_pagar']),
-            'C. Costos': parseString(fields['C. Costos']),
-            GRUPO: parseString(fields['GRUPO']),
-            CLASE: parseString(fields['CLASE']),
-            CUENTA: parseString(fields['CUENTA']),
-            'SUB-CUENTA': parseString(fields['SUB-CUENTA']),
-            'BANCO Y PROYECCION': parseString(fields['BANCO Y PROYECCION']),
-            tipo_retencion: parseString(fields['tipo_retencion']),
-            'Tipo de Operación': parseString(fields['Tipo de Operación']),
-            CUFE: parseString(fields['CUFE']),
-            'Producto Terminado': parseString(fields['Producto Terminado']),
-            'Clasificación del Costo': parseString(fields['Clasificación del Costo']),
-            'Para Efectos Contables': parseString(fields['Para Efectos Contables']),
+            // Usar nombres de campo desde config centralizada
+            ID: parseString(fields[FACTURACION_EGRESOS_FIELDS.ID]),
+            'Número de Factura': parseString(fields[FACTURACION_EGRESOS_FIELDS.NUMERO_FACTURA]),
+            'Fecha de Emisión': parseString(fields[FACTURACION_EGRESOS_FIELDS.FECHA_EMISION]),
+            'Fecha de Vencimiento': parseString(fields[FACTURACION_EGRESOS_FIELDS.FECHA_VENCIMIENTO]),
+            Emisor: parseString(fields[FACTURACION_EGRESOS_FIELDS.EMISOR]),
+            'NIT/CIF del Emisor': parseString(fields[FACTURACION_EGRESOS_FIELDS.NIT_EMISOR]),
+            'Dirección del Emisor': parseString(fields[FACTURACION_EGRESOS_FIELDS.DIRECCION_EMISOR]),
+            'Forma de Pago': parseString(fields[FACTURACION_EGRESOS_FIELDS.FORMA_PAGO]),
+            'Condiciones de Pago': parseString(fields[FACTURACION_EGRESOS_FIELDS.CONDICIONES_PAGO]),
+            Moneda: parseString(fields[FACTURACION_EGRESOS_FIELDS.MONEDA]) || 'COP',
+            subtotal: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.SUBTOTAL]),
+            descuentos: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.DESCUENTOS]),
+            iva: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.IVA]),
+            inc: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.INC]),
+            retencion: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.RETENCION]),
+            reteiva: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.RETEIVA]),
+            reteica: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.RETEICA]),
+            total_pagar: parseNumber(fields[FACTURACION_EGRESOS_FIELDS.TOTAL_PAGAR]),
+            'C. Costos': parseString(fields[FACTURACION_EGRESOS_FIELDS.C_COSTOS]),
+            GRUPO: parseString(fields[FACTURACION_EGRESOS_FIELDS.GRUPO]),
+            CLASE: parseString(fields[FACTURACION_EGRESOS_FIELDS.CLASE]),
+            CUENTA: parseString(fields[FACTURACION_EGRESOS_FIELDS.CUENTA]),
+            'SUB-CUENTA': parseString(fields[FACTURACION_EGRESOS_FIELDS.SUB_CUENTA]),
+            'BANCO Y PROYECCION': parseString(fields[FACTURACION_EGRESOS_FIELDS.BANCO_Y_PROYECCION]),
+            tipo_retencion: parseString(fields[FACTURACION_EGRESOS_FIELDS.TIPO_RETENCION]),
+            'Tipo de Operación': parseString(fields[FACTURACION_EGRESOS_FIELDS.TIPO_OPERACION]),
+            CUFE: parseString(fields[FACTURACION_EGRESOS_FIELDS.CUFE]),
+            'Producto Terminado': parseString(fields[FACTURACION_EGRESOS_FIELDS.PRODUCTO_TERMINADO]),
+            'Clasificación del Costo': parseString(fields[FACTURACION_EGRESOS_FIELDS.CLASIFICACION_COSTO]),
+            'Para Efectos Contables': parseString(fields[FACTURACION_EGRESOS_FIELDS.PARA_EFECTOS_CONTABLES]),
             items: [],
           };
 
@@ -208,16 +209,16 @@ export async function GET() {
 
               const item: ItemFactura = {
                 id: record.id,
-                // Usar nombres de campo
-                Item: parseString(fields['Item']),
-                Unidad: parseString(fields['Unidad']),
-                Cantidad: parseNumber(fields['Cantidad']),
-                'Vr. Unitario': parseNumber(fields['Vr. Unitario']),
-                'Vr. Total Flow 19%': parseNumber(fields['Vr. Total Flow 19%']),
-                'Unidad de Negocio': parseString(fields['Unidad de Negocio']),
-                'Centro de Costo': parseString(fields['Centro de Costo']),
-                COMENTARIOS: parseString(fields['COMENTARIOS']),
-                TipoRTFE: parseString(fields['TipoRTFE']),
+                // Usar nombres de campo desde config centralizada
+                Item: parseString(fields[ITEM_FACTURACION_EGRESOS_FIELDS.ITEM]),
+                Unidad: parseString(fields[ITEM_FACTURACION_EGRESOS_FIELDS.UNIDAD]),
+                Cantidad: parseNumber(fields[ITEM_FACTURACION_EGRESOS_FIELDS.CANTIDAD]),
+                'Vr. Unitario': parseNumber(fields[ITEM_FACTURACION_EGRESOS_FIELDS.VR_UNITARIO]),
+                'Vr. Total Flow 19%': parseNumber(fields[ITEM_FACTURACION_EGRESOS_FIELDS.VR_TOTAL_FLOW]),
+                'Unidad de Negocio': parseString(fields[ITEM_FACTURACION_EGRESOS_FIELDS.UNIDAD_NEGOCIO]),
+                'Centro de Costo': parseString(fields[ITEM_FACTURACION_EGRESOS_FIELDS.CENTRO_COSTO]),
+                COMENTARIOS: parseString(fields[ITEM_FACTURACION_EGRESOS_FIELDS.COMENTARIOS]),
+                TipoRTFE: parseString(fields[ITEM_FACTURACION_EGRESOS_FIELDS.TIPO_RTFE]),
               };
 
               itemsMap.set(record.id, item);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BBVA_FIELDS } from '@/lib/config/airtable-fields';
 
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${BBVA_TABLE_ID}`;
     const params = new URLSearchParams({
       maxRecords: '5',
-      sort: JSON.stringify([{ field: 'Creada', direction: 'desc' }])
+      sort: JSON.stringify([{ field: BBVA_FIELDS.CREADA, direction: 'desc' }])
     });
 
     const response = await fetch(`${url}?${params}`, {
@@ -44,20 +45,20 @@ export async function GET(request: NextRequest) {
         
         console.log('🔍 Procesando registro BBVA:', {
           id: record.id,
-          creada: fields.Creada,
-          fecha: fields.Fecha,
-          saldoField1: fields['Saldo Bancario Actual'],
+          creada: fields[BBVA_FIELDS.CREADA],
+          fecha: fields[BBVA_FIELDS.FECHA],
+          saldoField1: fields[BBVA_FIELDS.SALDO_BANCARIO_ACTUAL],
           saldoField2: fields[BBVA_SALDO_FIELD_ID!],
-          descripcion: fields['Descripción']?.substring(0, 50)
+          descripcion: (fields[BBVA_FIELDS.DESCRIPCION] as string)?.substring(0, 50)
         });
 
         return {
           id: record.id,
-          saldoBancarioActual: fields['Saldo Bancario Actual'] || fields[BBVA_SALDO_FIELD_ID!] || 0,
-          fecha: fields['Fecha'],
-          creada: fields['Creada'],
-          descripcion: fields['Descripción'],
-          valor: fields['Valor']
+          saldoBancarioActual: fields[BBVA_FIELDS.SALDO_BANCARIO_ACTUAL] || fields[BBVA_SALDO_FIELD_ID!] || 0,
+          fecha: fields[BBVA_FIELDS.FECHA],
+          creada: fields[BBVA_FIELDS.CREADA],
+          descripcion: fields[BBVA_FIELDS.DESCRIPCION],
+          valor: fields[BBVA_FIELDS.VALOR]
         };
       });
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { PAGO_FACTURAS_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable para PagoFacturas
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(
@@ -42,8 +43,8 @@ export async function GET(request: NextRequest) {
     await base(PAGO_FACTURAS_TABLE_ID!)
       .select({
         maxRecords,
-        filterByFormula: "{Estado_Factura} = 'Sin Pagar'",
-        sort: [{ field: 'Fecha Creacion', direction: 'desc' }],
+        filterByFormula: `{${PAGO_FACTURAS_FIELDS.ESTADO_FACTURA}} = 'Sin Pagar'`,
+        sort: [{ field: PAGO_FACTURAS_FIELDS.FECHA_CREACION, direction: 'desc' }],
         view: "Grid view"
       })
       .eachPage((pageRecords, fetchNextPage) => {
@@ -55,30 +56,25 @@ export async function GET(request: NextRequest) {
           
           const processedRecord: Record<string, unknown> = {
             id: record.id,
-            // Información básica de la factura - con fallbacks
-            facturaNo: fields['Factura No'] || fields['FacturaNo'] || fields['Numero Factura'] || `F-${record.id.slice(-6)}`,
-            nombreComprador: fields['Nombre del Comprador (from id_factura)'] || 
-                           fields['Nombre del Comprador'] || 
-                           fields['Cliente'] || 
-                           fields['Comprador'] || 'Cliente no especificado',
-            nitComprador: fields['NIT Comprador (from id_factura)'] || 
-                         fields['NIT Comprador'] || 
-                         fields['NIT'] || null,
+            // Información básica de la factura
+            facturaNo: fields[PAGO_FACTURAS_FIELDS.FACTURA_NO] || `F-${record.id.slice(-6)}`,
+            nombreComprador: fields[PAGO_FACTURAS_FIELDS.NOMBRE_COMPRADOR] || 'Cliente no especificado',
+            nitComprador: fields[PAGO_FACTURAS_FIELDS.NIT_COMPRADOR] || null,
             
-            // Montos - con fallbacks y conversión segura
-            totalRecibir: parseNumber(fields['Total_recibir'] || fields['Total Recibir'] || fields['Monto'] || 0),
-            saldoAnterior: parseNumber(fields['Saldo Anterior'] || 0),
-            montoRestante: parseNumber(fields['Monto_restante'] || fields['Monto Restante'] || fields['Pendiente'] || 0),
-            totalMovimientos: parseNumber(fields['Total Movimientos'] || 0),
+            // Montos
+            totalRecibir: parseNumber(fields[PAGO_FACTURAS_FIELDS.TOTAL_RECIBIR] || 0),
+            saldoAnterior: parseNumber(fields[PAGO_FACTURAS_FIELDS.SALDO_ANTERIOR] || 0),
+            montoRestante: parseNumber(fields[PAGO_FACTURAS_FIELDS.MONTO_RESTANTE] || 0),
+            totalMovimientos: parseNumber(fields[PAGO_FACTURAS_FIELDS.TOTAL_MOVIMIENTOS] || 0),
             
             // Estado y fechas
-            estadoFactura: fields['Estado_Factura'] || fields['Estado Factura'] || fields['Estado'] || 'Sin Pagar',
-            fechaCreacion: fields['Fecha Creacion'] || fields['Fecha de Creacion'] || fields['Created'] || null,
-            ultimaModificacion: fields['Ultima Modificación'] || fields['Last Modified'] || null,
+            estadoFactura: fields[PAGO_FACTURAS_FIELDS.ESTADO_FACTURA] || 'Sin Pagar',
+            fechaCreacion: fields[PAGO_FACTURAS_FIELDS.FECHA_CREACION] || null,
+            ultimaModificacion: fields[PAGO_FACTURAS_FIELDS.ULTIMA_MODIFICACION] || null,
             
             // IDs relacionados - manejo de arrays
-            idFactura: Array.isArray(fields['id_factura']) ? fields['id_factura'][0] : fields['id_factura'],
-            movimientosBancarios: fields['Movimientos_Bancarios (from id_factura)'] || fields['Movimientos Bancarios'] || []
+            idFactura: Array.isArray(fields[PAGO_FACTURAS_FIELDS.ID_FACTURA]) ? (fields[PAGO_FACTURAS_FIELDS.ID_FACTURA] as string[])[0] : fields[PAGO_FACTURAS_FIELDS.ID_FACTURA],
+            movimientosBancarios: fields[PAGO_FACTURAS_FIELDS.MOVIMIENTOS_BANCARIOS] || []
           };
 
           console.log('📋 Factura sin pagar procesada:', {

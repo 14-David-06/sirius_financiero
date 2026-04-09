@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import base from '@/lib/airtable';
+import { NOMINA_PERSONAL_FIELDS, NOMINA_ROLES_FIELDS, NOMINA_AREAS_FIELDS } from '@/lib/config/airtable-fields';
 
 interface Employee {
   id: string;
@@ -9,77 +9,109 @@ interface Employee {
   area: string;
 }
 
-// Función para mapear categoria a cargo y area
-function mapCategoria(categoria: string): { cargo: string; area: string } {
-  switch (categoria) {
-    case "Desarrollador":
-      return { cargo: "Ingeniero de desarrollo", area: "RAAS" };
-    case "Gerencia":
-      return { cargo: "Gerente", area: "Administrativo" };
-    case "Administrador":
-      return { cargo: "Administrador", area: "Administrativo" };
-    case "Colaborador":
-      return { cargo: "Colaborador", area: "Administrativo" };
-    default:
-      return { cargo: categoria, area: "Administrativo" };
-  }
-}
+// Configuración de Sirius Nomina Core
+const NOMINA_BASE_ID = process.env.NOMINA_AIRTABLE_BASE_ID;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const NOMINA_PERSONAL_TABLE_ID = process.env.NOMINA_PERSONAL_TABLE_ID;
+const NOMINA_ROLES_TABLE_ID = process.env.NOMINA_ROLES_TABLE_ID;
+const NOMINA_AREAS_TABLE_ID = process.env.NOMINA_AREAS_TABLE_ID;
 
-// No per-user hard-coded overrides here. Use explicit fields in Airtable
-// or expand mapCategoria() if you need category-based mappings.
+async function airtableFetch(baseId: string, tableId: string, endpoint: string = '') {
+  const url = `https://api.airtable.com/v0/${baseId}/${tableId}${endpoint}`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Airtable error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 export async function GET() {
   try {
     // Verificar que tenemos las credenciales necesarias
-    const apiKey = process.env.AIRTABLE_API_KEY;
-    const baseId = process.env.AIRTABLE_BASE_ID;
-    const tableName = process.env.AIRTABLE_TEAM_TABLE_NAME;
-
-    if (!apiKey || !baseId || !tableName) {
-      console.error('Missing Airtable credentials or table name');
+    if (!AIRTABLE_API_KEY || !NOMINA_BASE_ID || !NOMINA_PERSONAL_TABLE_ID) {
+      console.error('Missing Nomina Core credentials');
       return NextResponse.json(
         { error: 'Missing database configuration' },
         { status: 500 }
       );
     }
 
-    // Consultar la tabla Equipo Financiero con filtro de usuarios activos
-    const records = await base(tableName)
-      .select({
-        filterByFormula: "{Estado Usuario} = 'Activo'"
-      })
-      .all();
+    // Consultar la tabla Personal de Nómina Core con filtro de usuarios activos
+    const filterFormula = `{${NOMINA_PERSONAL_FIELDS.ESTADO_ACTIVIDAD}} = 'Activo'`;
+    const personalUrl = `https://api.airtable.com/v0/${NOMINA_BASE_ID}/${NOMINA_PERSONAL_TABLE_ID}?filterByFormula=${encodeURIComponent(filterFormula)}`;
+
+    const response = await fetch(personalUrl, {
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Error fetching from Nomina Core:', response.status);
+      return NextResponse.json(
+        { error: 'Error fetching employees from Nomina Core' },
+        { status: 500 }
+      );
+    }
+
+    const data = await response.json();
 
     // Procesar los registros y extraer la información relevante
-    const employees: Employee[] = records.map((record) => {
+    const employeesPromises = data.records.map(async (record: any) => {
       const fields = record.fields;
-      const name = (fields['Nombre'] || '') as string;
+      const name = (fields[NOMINA_PERSONAL_FIELDS.NOMBRE_COMPLETO] || '') as string;
+      const cedula = (fields[NOMINA_PERSONAL_FIELDS.CEDULA] || '') as string;
 
-      // Preferir campos explícitos si existen
-      const explicitCargo = ((fields['Cargo'] || fields['Position'] || '') as string).trim();
-      const explicitArea = ((fields['Area'] || fields['Área'] || '') as string).trim();
+      // Obtener rol del usuario (lookup a tabla Roles y Permisos)
+      let cargo = 'Colaborador'; // Valor por defecto
+      const rolIds = fields[NOMINA_PERSONAL_FIELDS.ROL] || [];
 
+      if (rolIds.length > 0 && NOMINA_ROLES_TABLE_ID) {
+        try {
+          const rolData = await airtableFetch(NOMINA_BASE_ID!, NOMINA_ROLES_TABLE_ID, `/${rolIds[0]}`);
+          cargo = rolData.fields[NOMINA_ROLES_FIELDS.NOMBRE_ROL] || 'Colaborador';
+        } catch (error) {
+          console.warn('Error fetching role for user');
+        }
+      }
 
-      // Si no hay campos explícitos, mapear desde la categoria
-      const categoria = (fields['Categoria Usuario'] || '') as string;
-      const mapped = mapCategoria(categoria);
+      // Obtener área del usuario (lookup a tabla Areas)
+      let area = 'Sin área';
+      const areaIds = fields[NOMINA_PERSONAL_FIELDS.AREAS] || [];
 
-      const cargo = explicitCargo || mapped.cargo || '';
-      const area = explicitArea || mapped.area || '';
+      if (areaIds.length > 0 && NOMINA_AREAS_TABLE_ID) {
+        try {
+          const areaData = await airtableFetch(NOMINA_BASE_ID!, NOMINA_AREAS_TABLE_ID, `/${areaIds[0]}`);
+          area = areaData.fields[NOMINA_AREAS_FIELDS.NOMBRE_AREA] || 'Sin área';
+        } catch (error) {
+          console.warn('Error fetching area for user');
+        }
+      }
 
       return {
         id: record.id,
         name,
-        cedula: (fields['Cedula'] || '') as string,
+        cedula,
         cargo,
         area
       };
-    }).filter((employee: Employee) => employee.name && employee.name.trim() !== '');
+    });
+
+    const employees: Employee[] = (await Promise.all(employeesPromises))
+      .filter((employee: Employee) => employee.name && employee.name.trim() !== '');
 
     // Ordenar por nombre
     employees.sort((a, b) => a.name.localeCompare(b.name));
 
-    console.log(`Successfully fetched ${employees.length} employees from Equipo Financiero`);
+    console.log(`Successfully fetched ${employees.length} employees from Nomina Core`);
 
     return NextResponse.json({
       success: true,
@@ -91,77 +123,6 @@ export async function GET() {
     console.error('Error fetching employees:', error);
     return NextResponse.json(
       { error: 'Internal server error while fetching employees' },
-      { status: 500 }
-    );
-  }
-}
-
-// También podemos agregar soporte para POST si necesitamos filtros específicos
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { area, cargo } = body;
-
-    // Usar la misma lógica pero con filtros
-    const apiKey = process.env.AIRTABLE_API_KEY;
-    const baseId = process.env.AIRTABLE_BASE_ID;
-    const tableName = process.env.AIRTABLE_TEAM_TABLE_NAME;
-
-    if (!apiKey || !baseId || !tableName) {
-      return NextResponse.json(
-        { error: 'Missing database configuration' },
-        { status: 500 }
-      );
-    }
-
-    // Construir filtro
-    const filters = ["{Estado Usuario} = 'Activo'"];
-    if (area) filters.push(`{Categoria Usuario} = '${area.replace(/'/g, "\\'")}'`);
-    if (cargo) filters.push(`{Categoria Usuario} = '${cargo.replace(/'/g, "\\'")}'`);
-    
-    const filterFormula = filters.length > 1 ? `AND(${filters.join(', ')})` : filters[0];
-
-    const records = await base(tableName)
-      .select({
-        filterByFormula: filterFormula
-      })
-      .all();
-
-    const employees: Employee[] = records.map((record) => {
-      const fields = record.fields;
-      const name = (fields['Nombre'] || '') as string;
-
-      const explicitCargo = ((fields['Cargo'] || fields['Position'] || '') as string).trim();
-      const explicitArea = ((fields['Area'] || fields['Área'] || '') as string).trim();
-      // No per-user overrides here - prefer explicit fields then mapped values
-      const categoria = (fields['Categoria Usuario'] || '') as string;
-      const mapped = mapCategoria(categoria);
-
-      const cargo = explicitCargo || mapped.cargo || '';
-      const area = explicitArea || mapped.area || '';
-
-      return {
-        id: record.id,
-        name,
-        cedula: (fields['Cedula'] || '') as string,
-        cargo,
-        area
-      };
-    }).filter((employee: Employee) => employee.name && employee.name.trim() !== '');
-
-    employees.sort((a, b) => a.name.localeCompare(b.name));
-
-    return NextResponse.json({
-      success: true,
-      employees,
-      count: employees.length,
-      filters: { area, cargo }
-    });
-
-  } catch (error) {
-    console.error('Error fetching filtered employees:', error);
-    return NextResponse.json(
-      { error: 'Internal server error while fetching filtered employees' },
       { status: 500 }
     );
   }

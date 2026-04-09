@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { COTIZACION_FIELDS, ITEMS_COTIZADOS_FIELDS, COMPRAS_FIELDS } from '@/lib/config/airtable-fields';
 
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -70,26 +71,26 @@ export async function POST(request: NextRequest) {
 
     // 1. Crear registro de Cotización
     const cotizacionFields: Record<string, any> = {
-      [process.env.AIRTABLE_COT_ID_FIELD || 'ID Cotización']: data.idCotizacion,
-      [process.env.AIRTABLE_COT_FECHA_FIELD || 'Fecha de Cotización']: data.fecha,
+      [COTIZACION_FIELDS.ID_COTIZACION]: data.idCotizacion,
+      [COTIZACION_FIELDS.FECHA]: data.fecha,
       // Valor Total Cotizado es rollup (computado) - no se escribe
-      [process.env.AIRTABLE_COT_SOLICITANTE_FIELD || 'Solicitante']: data.solicitante,
-      [process.env.AIRTABLE_COT_COMPRA_RELACIONADA_FIELD || 'Compras y Adquisiciones Relacionada']: [data.compraId],
-      [process.env.AIRTABLE_COT_ESTADO_FIELD || 'Estado de Cotización']: data.estado || 'Recibida',
+      [COTIZACION_FIELDS.SOLICITANTE]: data.solicitante,
+      [COTIZACION_FIELDS.COMPRA_RELACIONADA]: [data.compraId],
+      [COTIZACION_FIELDS.ESTADO]: data.estado || 'Recibida',
     };
 
     if (data.documentoUrl) {
-      cotizacionFields[process.env.AIRTABLE_COT_DOCUMENTO_FIELD || 'Documento Cotización'] = [
+      cotizacionFields[COTIZACION_FIELDS.DOCUMENTO] = [
         { url: data.documentoUrl }
       ];
     }
 
     if (data.comentarios) {
-      cotizacionFields[process.env.AIRTABLE_COT_COMENTARIOS_FIELD || 'Comentarios'] = data.comentarios;
+      cotizacionFields[COTIZACION_FIELDS.COMENTARIOS] = data.comentarios;
     }
 
     if (data.proveedorId) {
-      cotizacionFields[process.env.AIRTABLE_COT_PROVEEDOR_FIELD || 'Proveedor'] = [data.proveedorId];
+      cotizacionFields[COTIZACION_FIELDS.PROVEEDOR] = [data.proveedorId];
     }
 
     const cotizacionRecord = await airtableRequest(COTIZACIONES_TABLE_ID, 'POST', {
@@ -109,21 +110,21 @@ export async function POST(request: NextRequest) {
     for (const batch of batches) {
       const records = batch.map((item, idx) => {
         const fields: Record<string, any> = {
-          [process.env.AIRTABLE_ICOT_ID_FIELD || 'ID Item Cotizado']: `${data.idCotizacion}-ITEM-${String(itemRecords.length + idx + 1).padStart(2, '0')}`,
-          [process.env.AIRTABLE_ICOT_COTIZACION_FIELD || 'Cotización Relacionada']: [cotizacionRecordId],
-          [process.env.AIRTABLE_ICOT_DESCRIPCION_FIELD || 'Descripción del Item']: item.descripcion,
-          [process.env.AIRTABLE_ICOT_CANTIDAD_FIELD || 'Cantidad Cotizada']: item.cantidad,
-          [process.env.AIRTABLE_ICOT_UNIDAD_FIELD || 'Unidad de Medida']: item.unidadMedida,
-          [process.env.AIRTABLE_ICOT_VALOR_UNITARIO_FIELD || 'Valor Unitario Cotizado']: item.valorUnitario,
+          [ITEMS_COTIZADOS_FIELDS.ID_ITEM_COTIZADO]: `${data.idCotizacion}-ITEM-${String(itemRecords.length + idx + 1).padStart(2, '0')}`,
+          [ITEMS_COTIZADOS_FIELDS.COTIZACION_RELACIONADA]: [cotizacionRecordId],
+          [ITEMS_COTIZADOS_FIELDS.DESCRIPCION]: item.descripcion,
+          [ITEMS_COTIZADOS_FIELDS.CANTIDAD]: item.cantidad,
+          [ITEMS_COTIZADOS_FIELDS.UNIDAD_MEDIDA]: item.unidadMedida,
+          [ITEMS_COTIZADOS_FIELDS.VALOR_UNITARIO]: item.valorUnitario,
           // Valor Total Item Cotizado es formula (computado) - no se escribe
         };
 
         if (item.comentarios) {
-          fields[process.env.AIRTABLE_ICOT_COMENTARIOS_FIELD || 'Comentarios Item Cotizado'] = item.comentarios;
+          fields[ITEMS_COTIZADOS_FIELDS.COMENTARIOS] = item.comentarios;
         }
 
         if (item.itemCompraId) {
-          fields[process.env.AIRTABLE_ICOT_ITEM_COMPRA_FIELD || 'Item Compra Relacionado'] = [item.itemCompraId];
+          fields[ITEMS_COTIZADOS_FIELDS.ITEM_COMPRA_RELACIONADO] = [item.itemCompraId];
         }
 
         return { fields };
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           fields: {
-            [process.env.AIRTABLE_COT_ITEMS_FIELD || 'Items Cotizados']: itemRecords.map(r => r.id),
+            [COTIZACION_FIELDS.ITEMS_COTIZADOS]: itemRecords.map(r => r.id),
           }
         }),
       }
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
           },
           body: JSON.stringify({
             fields: {
-              'Cotizacion Doc': data.documentoUrl,
+              [COMPRAS_FIELDS.COTIZACION_DOC]: data.documentoUrl,
             }
           }),
         }

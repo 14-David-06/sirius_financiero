@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AirtableRecord, AirtableResponse, CompraCompleta, ApiResponse, AirtableField } from '@/types/compras';
-import { 
+import {
   sanitizeInput, 
   checkRateLimit, 
   securityHeaders,
   secureLog,
   escapeAirtableQuery
 } from '@/lib/security/validation';
+import { COMPRAS_FIELDS, ITEMS_COMPRAS_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const COMPRAS_TABLE_ID = process.env.AIRTABLE_COMPRAS_TABLE_ID;
 const ITEMS_TABLE_ID = process.env.AIRTABLE_ITEMS_TABLE_ID;
-const EQUIPO_FINANCIERO_TABLE_ID = process.env.AIRTABLE_TEAM_TABLE_ID;
 
 // ESTRATEGIA DE FILTRADO OPTIMIZADA PARA "MIS SOLICITUDES DE COMPRAS"
 //
@@ -131,59 +131,19 @@ export async function GET(request: NextRequest) {
 
     // Construir URL para obtener compras
     const comprasUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${COMPRAS_TABLE_ID}`;
-    let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=Fecha de solicitud&sort[0][direction]=desc`;
-    
-    // Construir filtro para usuario usando campo enlazado "Equipo Financiero"
-    let userRecordId = null;
-    
-    // Primero, obtener el record ID del usuario de la tabla Equipo Financiero
-    if (filterByCedula) {
-      try {
-        const equipoFinancieroUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${EQUIPO_FINANCIERO_TABLE_ID}?filterByFormula={Cédula}="${escapeAirtableQuery(filterByCedula)}"`;
-        const equipoResponse = await fetch(equipoFinancieroUrl, {
-          headers: {
-            'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (equipoResponse.ok) {
-          const equipoData = await equipoResponse.json();
-          if (equipoData.records && equipoData.records.length > 0) {
-            userRecordId = equipoData.records[0].id;
-            secureLog('✅ Usuario encontrado en Equipo Financiero', { 
-              cedula: filterByCedula, 
-              recordId: userRecordId,
-              nombre: equipoData.records[0].fields['Nombre Completo'] || equipoData.records[0].fields.Nombre
-            });
-          } else {
-            secureLog('⚠️ Usuario no encontrado en Equipo Financiero', { cedula: filterByCedula });
-          }
-        } else {
-          secureLog('🚨 Error al consultar Equipo Financiero', { 
-            status: equipoResponse.status,
-            cedula: filterByCedula 
-          });
-        }
-      } catch (error) {
-        secureLog('🚨 Error al buscar usuario en Equipo Financiero', {
-          error: error instanceof Error ? error.message : String(error),
-          cedula: filterByCedula
-        });
-      }
-    }
-    
-    // Construir filtro usando el campo enlazado "Equipo Financiero"
+    let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=${COMPRAS_FIELDS.FECHA_SOLICITUD}&sort[0][direction]=desc`;
+
+    // MIGRACIÓN COMPLETADA: Eliminada búsqueda en tabla Equipo Financiero legacy
+    // Ahora filtramos directamente por nombre del solicitante
+    // NOTA: Para filtrado más robusto, se requeriría un nuevo campo enlazado en Airtable
+    // que apunte a la tabla Personal de Nómina Core (actualmente en base diferente)
+
     const filterConditions = [];
-    if (userRecordId) {
-      // Filtrar por el campo enlazado "Equipo Financiero" que contiene el record ID del usuario
-      filterConditions.push(`FIND("${userRecordId}", ARRAYJOIN({Equipo Financiero}, ",")) > 0`);
-      secureLog('🔍 Filtrando por campo enlazado Equipo Financiero', { userRecordId });
-    } else if (filterByUser) {
-      // Fallback: si no se encontró el record ID, usar filtrado por nombre (para compatibilidad)
+    if (filterByUser) {
+      // Filtrar por nombre del solicitante
       const escapedUser = escapeAirtableQuery(filterByUser);
-      filterConditions.push(`{Nombre Solicitante} = "${escapedUser}"`);
-      secureLog('🔄 Usando filtrado fallback por nombre', { filterByUser });
+      filterConditions.push(`{${COMPRAS_FIELDS.NOMBRE_SOLICITANTE}} = "${escapedUser}"`);
+      secureLog('🔍 Filtrando por nombre de solicitante', { filterByUser });
     }
 
     // Logging para debug
@@ -191,20 +151,9 @@ export async function GET(request: NextRequest) {
       filterByUser,
       filterByArea,
       filterByCedula,
-      userRecordId,
       filterConditionsCount: filterConditions.length,
-      filtrosAplicados: filterConditions
+      nota: 'Tabla Equipo Financiero eliminada - filtrado por nombre directo'
     });
-
-    // Validación adicional: verificar consistencia con tabla Equipo Financiero
-    if (filterByUser && filterByCedula && userRecordId) {
-      secureLog('🔐 Validación de usuario', {
-        nombre: filterByUser,
-        cedula: filterByCedula,
-        recordId: userRecordId,
-        nota: 'Usuario encontrado en Equipo Financiero - usando campo enlazado para filtrado'
-      });
-    }
 
     // Validar que al menos haya un filtro
     if (filterConditions.length === 0) {
@@ -264,8 +213,8 @@ export async function GET(request: NextRequest) {
     const userAreaCombinations = new Map<string, number>();
     
     comprasData.records.forEach((compra: AirtableRecord) => {
-      const nombre = compra.fields['Nombre Solicitante'] as string;
-      const area = compra.fields['Area Correspondiente'] as string;
+      const nombre = compra.fields[COMPRAS_FIELDS.NOMBRE_SOLICITANTE] as string;
+      const area = compra.fields[COMPRAS_FIELDS.AREA_CORRESPONDIENTE] as string;
       const userKey = `${nombre}||${area}`;
       
       uniqueUsers.add(nombre);
@@ -299,7 +248,7 @@ export async function GET(request: NextRequest) {
     // Extraer IDs únicos de items relacionados con las compras obtenidas
     const itemIds = new Set<string>();
     comprasData.records.forEach((compra: AirtableRecord) => {
-      const itemsIds = (compra.fields['Items Compras y Adquisiciones'] as string[]) || [];
+      const itemsIds = (compra.fields[COMPRAS_FIELDS.ITEMS_LINK] as string[]) || [];
       itemsIds.forEach(id => itemIds.add(id));
     });
 
@@ -347,88 +296,88 @@ export async function GET(request: NextRequest) {
 
     // Procesar y combinar datos
     const comprasConItems: CompraCompleta[] = comprasData.records.map((compra: AirtableRecord) => {
-      const itemsIds = (compra.fields['Items Compras y Adquisiciones'] as string[]) || [];
+      const itemsIds = (compra.fields[COMPRAS_FIELDS.ITEMS_LINK] as string[]) || [];
       const itemsRelacionados = itemsData.records.filter((item: AirtableRecord) => 
         itemsIds.includes(item.id)
       );
 
       return {
         id: compra.id,
-        fechaSolicitud: compra.fields['Fecha de solicitud'] as string,
-        areaCorrespondiente: compra.fields['Area Correspondiente'] as string,
-        nombreSolicitante: compra.fields['Nombre Solicitante'] as string,
-        cargoSolicitante: compra.fields['Cargo Solicitante'] as string,
-        descripcionSolicitud: compra.fields['Descripcion Solicitud Transcripcion'] as string,
-        descripcionIA: extractAIValue(compra.fields['Descripcion Solicitud IAInterpretacion']),
-        hasProvider: compra.fields['HasProvider'] as string,
-        razonSocialProveedor: compra.fields['Razon Social Proveedor'] as string,
-        cotizacionDoc: compra.fields['Cotizacion Doc'] as string,
-        documentoSolicitud: compra.fields['Documento Solicitud'] as string,
-        valorTotal: compra.fields['Valor Total'] as number,
-        iva: compra.fields['IVA'] as number,
-        totalNeto: compra.fields['Total Neto'] as number,
-        estadoSolicitud: compra.fields['Estado Solicitud'] as string,
-        prioridadSolicitud: compra.fields['Prioridad Solicitud'] as string,
-        retencion: compra.fields['Retencion'] as number,
-        baseMinimaEnPesos: compra.fields['Base minima en pesos'] as number,
-        baseMinimaEnUVT: compra.fields['Base minima en UVT'] as number,
-        valorUVT: compra.fields['valor UVT'] as number,
-        compraServicio: compra.fields['Compra/Servicio'] as string[],
+        fechaSolicitud: compra.fields[COMPRAS_FIELDS.FECHA_SOLICITUD] as string,
+        areaCorrespondiente: compra.fields[COMPRAS_FIELDS.AREA_CORRESPONDIENTE] as string,
+        nombreSolicitante: compra.fields[COMPRAS_FIELDS.NOMBRE_SOLICITANTE] as string,
+        cargoSolicitante: compra.fields[COMPRAS_FIELDS.CARGO_SOLICITANTE] as string,
+        descripcionSolicitud: compra.fields[COMPRAS_FIELDS.DESCRIPCION_TRANSCRIPCION] as string,
+        descripcionIA: extractAIValue(compra.fields[COMPRAS_FIELDS.DESCRIPCION_IA]),
+        hasProvider: compra.fields[COMPRAS_FIELDS.HAS_PROVIDER] as string,
+        razonSocialProveedor: compra.fields[COMPRAS_FIELDS.RAZON_SOCIAL_PROVEEDOR] as string,
+        cotizacionDoc: compra.fields[COMPRAS_FIELDS.COTIZACION_DOC] as string,
+        documentoSolicitud: compra.fields[COMPRAS_FIELDS.DOCUMENTO_SOLICITUD] as string,
+        valorTotal: compra.fields[COMPRAS_FIELDS.VALOR_TOTAL] as number,
+        iva: compra.fields[COMPRAS_FIELDS.IVA] as number,
+        totalNeto: compra.fields[COMPRAS_FIELDS.TOTAL_NETO] as number,
+        estadoSolicitud: compra.fields[COMPRAS_FIELDS.ESTADO_SOLICITUD] as string,
+        prioridadSolicitud: compra.fields[COMPRAS_FIELDS.PRIORIDAD_SOLICITUD] as string,
+        retencion: compra.fields[COMPRAS_FIELDS.RETENCION] as number,
+        baseMinimaEnPesos: compra.fields[COMPRAS_FIELDS.BASE_MINIMA_PESOS] as number,
+        baseMinimaEnUVT: compra.fields[COMPRAS_FIELDS.BASE_MINIMA_UVT] as number,
+        valorUVT: compra.fields[COMPRAS_FIELDS.VALOR_UVT] as number,
+        compraServicio: compra.fields[COMPRAS_FIELDS.COMPRA_SERVICIO] as string[],
         
         // Información del proveedor
-        nombreProveedor: compra.fields['Nombre (from Proveedor)'] as string[],
-        nitProveedor: compra.fields['C.c o Nit (from Proveedor)'] as string[],
-        autoretenedor: compra.fields['Autoretenedor (from Proveedor)'] as string[],
-        responsableIVA: compra.fields['ResponsableIVA (from Proveedor)'] as string[],
-        responsableICA: compra.fields['ResponsableICA (from Proveedor)'] as string[],
-        tarifaActividad: compra.fields['TarifaActividad (from Proveedor)'] as string[],
-        ciudadProveedor: compra.fields['Ciudad_Proveedor (from Proveedor)'] as string[],
-        departamentoProveedor: compra.fields['Departamento (from Departamento ) (from Proveedor)'] as string[],
-        rutProveedor: compra.fields['RUT (from Proveedor)'] as AirtableField[],
-        contribuyente: compra.fields['Contribuyente (from Proveedor)'] as string[],
-        facturadorElectronico: compra.fields['Facturador electronico (from Proveedor)'] as string[],
-        personaProveedor: compra.fields['Persona (from Proveedor)'] as string[],
-        declaranteRenta: compra.fields['Declarante de renta (from Proveedor)'] as string[],
+        nombreProveedor: compra.fields[COMPRAS_FIELDS.NOMBRE_FROM_PROVEEDOR] as string[],
+        nitProveedor: compra.fields[COMPRAS_FIELDS.NIT_FROM_PROVEEDOR] as string[],
+        autoretenedor: compra.fields[COMPRAS_FIELDS.AUTORETENEDOR_FROM_PROV] as string[],
+        responsableIVA: compra.fields[COMPRAS_FIELDS.RESPONSABLE_IVA_FROM_PROV] as string[],
+        responsableICA: compra.fields[COMPRAS_FIELDS.RESPONSABLE_ICA_FROM_PROV] as string[],
+        tarifaActividad: compra.fields[COMPRAS_FIELDS.TARIFA_ACTIVIDAD_FROM_PROV] as string[],
+        ciudadProveedor: compra.fields[COMPRAS_FIELDS.CIUDAD_FROM_PROV] as string[],
+        departamentoProveedor: compra.fields[COMPRAS_FIELDS.DEPARTAMENTO_FROM_PROV] as string[],
+        rutProveedor: compra.fields[COMPRAS_FIELDS.RUT_FROM_PROV] as AirtableField[],
+        contribuyente: compra.fields[COMPRAS_FIELDS.CONTRIBUYENTE_FROM_PROV] as string[],
+        facturadorElectronico: compra.fields[COMPRAS_FIELDS.FACTURADOR_ELEC_FROM_PROV] as string[],
+        personaProveedor: compra.fields[COMPRAS_FIELDS.PERSONA_FROM_PROV] as string[],
+        declaranteRenta: compra.fields[COMPRAS_FIELDS.DECLARANTE_FROM_PROV] as string[],
         
         // Información de movimiento bancario
-        numeroSemanaBancario: compra.fields['Numero semana formulado (from Copia de Declarante de renta (from Proveedor))'] as number[],
-        clasificacionBancaria: compra.fields['Clasificacion (from Copia de Declarante de renta (from Proveedor))'] as string[],
-        valorBancario: compra.fields['Valor (from Copia de Declarante de renta (from Proveedor))'] as number[],
-        proyeccionBancaria: compra.fields['Proyeccion (from Copia de Declarante de renta (from Proveedor))'] as string[],
+        numeroSemanaBancario: compra.fields[COMPRAS_FIELDS.NUMERO_SEMANA_BANCARIO] as number[],
+        clasificacionBancaria: compra.fields[COMPRAS_FIELDS.CLASIFICACION_BANCARIA] as string[],
+        valorBancario: compra.fields[COMPRAS_FIELDS.VALOR_BANCARIO] as number[],
+        proyeccionBancaria: compra.fields[COMPRAS_FIELDS.PROYECCION_BANCARIA] as string[],
         
         // Nombre del admin que aprobó/rechazó (nuevo campo)
-        nombresAdmin: compra.fields['Nombres Admin'] as string,
+        nombresAdmin: compra.fields[COMPRAS_FIELDS.NOMBRES_ADMIN] as string,
         
         items: itemsRelacionados.map((item: AirtableRecord) => ({
           id: item.id,
-          objeto: item.fields['Objeto'] as string,
-          centroCostos: item.fields['Centro Costos'] as string,
-          cantidad: item.fields['Cantidad'] as number,
-          valorItem: item.fields['Valor Item'] as number,
-          compraServicio: item.fields['Compra/Servicio'] as string,
-          estadoItem: item.fields['Estado Item'] as string, // Nuevo campo
-          prioridad: item.fields['Prioridad'] as string,
-          fechaRequerida: item.fields['Fecha Requerida Entrega'] as string,
-          formaPago: item.fields['FORMA DE PAGO'] as string,
-          aprobacion: item.fields['Aprobacion'] as string,
-          estadoGestion: item.fields['Estado Gestion'] as string,
-          reciboRemision: item.fields['Recibo/Remision'] as string,
-          transporte: item.fields['Transporte'] as string,
-          nombreProveedor: item.fields['Nombre (from Proveedor)'] as string[],
-          nitProveedor: item.fields['C.c o Nit (from Proveedor)'] as string[],
-          correoProveedor: item.fields['Correo (from Proveedor)'] as string[],
-          celularProveedor: item.fields['Celular (from Proveedor)'] as string[],
-          ciudadProveedor: item.fields['Ciudad (from Proveedor)'] as string[],
-          autoretenedorProveedor: item.fields['Autoretenedor (from Proveedor)'] as string[],
-          responsableIVAProveedor: item.fields['ResponsableIVA (from Proveedor)'] as string[],
-          responsableICAProveedor: item.fields['ResponsableICA (from Proveedor)'] as string[],
-          tarifaActividadProveedor: item.fields['TarifaActividad (from Proveedor)'] as string[],
-          departamentoProveedor: item.fields['Departamento (from Departamento ) (from Proveedor)'] as string[],
-          rutProveedor: item.fields['RUT (from Proveedor)'] as AirtableField[],
-          personaProveedor: item.fields['Persona (from Proveedor)'] as string[],
-          contribuyenteProveedor: item.fields['Contribuyente (from Proveedor)'] as string[],
-          facturadorElectronicoProveedor: item.fields['Facturador electronico (from Proveedor)'] as string[],
-          declaranteRentaProveedor: item.fields['Declarante de renta (from Proveedor)'] as string[],
+          objeto: item.fields[ITEMS_COMPRAS_FIELDS.OBJETO] as string,
+          centroCostos: item.fields[ITEMS_COMPRAS_FIELDS.CENTRO_COSTOS] as string,
+          cantidad: item.fields[ITEMS_COMPRAS_FIELDS.CANTIDAD] as number,
+          valorItem: item.fields[ITEMS_COMPRAS_FIELDS.VALOR_ITEM] as number,
+          compraServicio: item.fields[ITEMS_COMPRAS_FIELDS.COMPRA_SERVICIO] as string,
+          estadoItem: item.fields[ITEMS_COMPRAS_FIELDS.ESTADO_ITEM] as string, // Nuevo campo
+          prioridad: item.fields[ITEMS_COMPRAS_FIELDS.PRIORIDAD] as string,
+          fechaRequerida: item.fields[ITEMS_COMPRAS_FIELDS.FECHA_REQUERIDA] as string,
+          formaPago: item.fields[ITEMS_COMPRAS_FIELDS.FORMA_PAGO] as string,
+          aprobacion: item.fields[ITEMS_COMPRAS_FIELDS.APROBACION] as string,
+          estadoGestion: item.fields[ITEMS_COMPRAS_FIELDS.ESTADO_GESTION] as string,
+          reciboRemision: item.fields[ITEMS_COMPRAS_FIELDS.RECIBO_REMISION] as string,
+          transporte: item.fields[ITEMS_COMPRAS_FIELDS.TRANSPORTE] as string,
+          nombreProveedor: item.fields[ITEMS_COMPRAS_FIELDS.NOMBRE_FROM_PROV] as string[],
+          nitProveedor: item.fields[ITEMS_COMPRAS_FIELDS.NIT_FROM_PROV] as string[],
+          correoProveedor: item.fields[ITEMS_COMPRAS_FIELDS.CORREO_FROM_PROV] as string[],
+          celularProveedor: item.fields[ITEMS_COMPRAS_FIELDS.CELULAR_FROM_PROV] as string[],
+          ciudadProveedor: item.fields[ITEMS_COMPRAS_FIELDS.CIUDAD_FROM_PROV] as string[],
+          autoretenedorProveedor: item.fields[ITEMS_COMPRAS_FIELDS.AUTORETENEDOR_FROM_PROV] as string[],
+          responsableIVAProveedor: item.fields[ITEMS_COMPRAS_FIELDS.RESP_IVA_FROM_PROV] as string[],
+          responsableICAProveedor: item.fields[ITEMS_COMPRAS_FIELDS.RESP_ICA_FROM_PROV] as string[],
+          tarifaActividadProveedor: item.fields[ITEMS_COMPRAS_FIELDS.TARIFA_FROM_PROV] as string[],
+          departamentoProveedor: item.fields[ITEMS_COMPRAS_FIELDS.DEPTO_FROM_PROV] as string[],
+          rutProveedor: item.fields[ITEMS_COMPRAS_FIELDS.RUT_FROM_PROV] as AirtableField[],
+          personaProveedor: item.fields[ITEMS_COMPRAS_FIELDS.PERSONA_FROM_PROV] as string[],
+          contribuyenteProveedor: item.fields[ITEMS_COMPRAS_FIELDS.CONTRIBUYENTE_FROM_PROV] as string[],
+          facturadorElectronicoProveedor: item.fields[ITEMS_COMPRAS_FIELDS.FACTURADOR_FROM_PROV] as string[],
+          declaranteRentaProveedor: item.fields[ITEMS_COMPRAS_FIELDS.DECLARANTE_FROM_PROV] as string[],
         }))
       };
     });

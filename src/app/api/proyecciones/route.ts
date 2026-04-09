@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import base from '@/lib/airtable';
+import { PROYECCIONES_FIELDS } from '@/lib/config/airtable-fields';
 
 // Variables de entorno para la tabla de proyecciones
-const PROYECCIONES_TABLE_ID = process.env.AIRTABLE_PROYECCIONES_TABLE_ID || 'Proyecciones';
+const PROYECCIONES_TABLE_ID = process.env.AIRTABLE_PROYECCIONES_TABLE_ID;
 
 export async function GET(request: NextRequest) {
   try {
+    if (!PROYECCIONES_TABLE_ID) {
+      console.error('❌ Falta variable de entorno: AIRTABLE_PROYECCIONES_TABLE_ID');
+      return NextResponse.json(
+        { success: false, error: 'Configuración incompleta del servidor' },
+        { status: 500 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const año = searchParams.get('año');
     const semana = searchParams.get('semana');
@@ -21,14 +30,14 @@ export async function GET(request: NextRequest) {
     const filters: string[] = [];
 
     if (año) {
-      filters.push(`{Año formulado} = ${año}`);
+      filters.push(`{${PROYECCIONES_FIELDS.ANO_FORMULADO}} = ${año}`);
     }
     if (semana) {
-      filters.push(`{Semana formulada} = ${semana}`);
+      filters.push(`{${PROYECCIONES_FIELDS.SEMANA_FORMULADA}} = ${semana}`);
     }
     
     // Filtrar solo registros con presupuesto mayor a 0
-    filters.push(`{Vr.Presupuesto} > 0`);
+    filters.push(`{${PROYECCIONES_FIELDS.VR_PRESUPUESTO}} > 0`);
 
     if (filters.length > 0) {
       filterFormula = filters.length === 1 ? filters[0] : `AND(${filters.join(', ')})`;
@@ -36,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 [API Proyecciones] Filtro aplicado:', filterFormula);
 
-    const records = await base(PROYECCIONES_TABLE_ID)
+    const records = await base(PROYECCIONES_TABLE_ID!)
       .select({
         filterByFormula: filterFormula || undefined,
       })
@@ -48,16 +57,16 @@ export async function GET(request: NextRequest) {
 
     const data = records.map((record) => ({
       id: record.id,
-      año: record.get('Año formulado'),
-      semana: record.get('Semana formulada'),
-      mes: record.get('Mes'),
-      vrPresupuesto: Number(record.get('Vr.Presupuesto')) || 0,
-      concepto: record.get('Concepto'),
-      clasificacion: record.get('Clasificacion'),
-      tipoMovimiento: record.get('Tipo de movimiento'),
-      tipoProyeccion: record.get('Tipo de Proyección'),
-      grupo: record.get('Grupo'),
-      clase: record.get('Clase'),
+      año: record.get(PROYECCIONES_FIELDS.ANO_FORMULADO),
+      semana: record.get(PROYECCIONES_FIELDS.SEMANA_FORMULADA),
+      mes: record.get(PROYECCIONES_FIELDS.MES),
+      vrPresupuesto: Number(record.get(PROYECCIONES_FIELDS.VR_PRESUPUESTO)) || 0,
+      concepto: record.get(PROYECCIONES_FIELDS.CONCEPTO),
+      clasificacion: record.get(PROYECCIONES_FIELDS.CLASIFICACION),
+      tipoMovimiento: record.get(PROYECCIONES_FIELDS.TIPO_MOVIMIENTO),
+      tipoProyeccion: record.get(PROYECCIONES_FIELDS.TIPO_PROYECCION),
+      grupo: record.get(PROYECCIONES_FIELDS.GRUPO),
+      clase: record.get(PROYECCIONES_FIELDS.CLASE),
     }));
 
     console.log('📊 [API Proyecciones] Primeros registros:', data.slice(0, 3));

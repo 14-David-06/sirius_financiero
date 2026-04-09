@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { BALANCES_MASA_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable para Pirólisis
 const PIROLISIS_API_KEY = process.env.PIROLISIS_AIRTABLE_API_KEY || '';
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       .select({
         maxRecords,
         filterByFormula,
-        sort: [{ field: 'Fecha', direction: 'desc' }],
+        sort: [{ field: BALANCES_MASA_FIELDS.FECHA, direction: 'desc' }],
         pageSize: 100, // Airtable trae 100 registros por página
       })
       .eachPage((pageRecords, fetchNextPage) => {

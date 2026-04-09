@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { MOVIMIENTOS_BANCARIOS_FIELDS, BANCOLOMBIA_FIELDS } from '@/lib/config/airtable-fields';
 
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -27,16 +28,16 @@ export async function GET(request: NextRequest) {
     const año = searchParams.get('año');
     const mes = searchParams.get('mes');
     const maxRecords = searchParams.get('maxRecords');
-    const sortField = searchParams.get('sort[0][field]') || 'Fecha';
+    const sortField = searchParams.get('sort[0][field]') || MOVIMIENTOS_BANCARIOS_FIELDS.FECHA;
     const sortDirection = searchParams.get('sort[0][direction]') || 'desc';
 
     // Construir filtros para Airtable
     let filterFormula = '';
     if (año) {
-      filterFormula = `{Año formulado} = ${año}`;
+      filterFormula = `{${MOVIMIENTOS_BANCARIOS_FIELDS.ANO_FORMULADO}} = ${año}`;
     }
     if (mes) {
-      const mesFormula = `{Numero Mes formulado} = ${mes}`;
+      const mesFormula = `{${MOVIMIENTOS_BANCARIOS_FIELDS.NUMERO_MES_FORMULADO}} = ${mes}`;
       filterFormula = filterFormula 
         ? `AND(${filterFormula}, ${mesFormula})`
         : mesFormula;
@@ -123,20 +124,20 @@ export async function GET(request: NextRequest) {
       
       return {
         id: record.id,
-        fecha: fields['Fecha'] || '',
-        descripcion: fields['Descripción'] || '',
-        clasificacion: fields['Clasificacion'] || '',
-        valor: Number(fields['Valor']) || 0,
+        fecha: fields[BANCOLOMBIA_FIELDS.FECHA] || '',
+        descripcion: fields[BANCOLOMBIA_FIELDS.DESCRIPCION] || '',
+        clasificacion: fields[BANCOLOMBIA_FIELDS.CLASIFICACION] || '',
+        valor: Number(fields[BANCOLOMBIA_FIELDS.VALOR]) || 0,
         saldoBancarioAnterior: Number(fields['Saldo_Bancario_Anterior']) || 0,
         saldoBancarioActual: Number(fields['Saldo_Bancario_Actual']) || 0,
         tipoMovimiento: fields['Tipo de Movimiento (Apoyo)'] || '',
         centroResultados: fields['Centro de Resultados (Solo Ingresos)'] || '',
-        centroCostos: fields['Centro de Costos'] || '',
+        centroCostos: fields[BANCOLOMBIA_FIELDS.CENTRO_COSTOS] || '',
         unidadNegocio: fields['Unidad de Negocio 1'] || '',
-        fijoVariable: fields['Fijo o Variable'] || '',
-        naturalezaContable: fields['Naturaleza Contable'] || '',
-        legalizada: fields['Legalización'] || '',
-        afecta: fields['AFECTA'] || '',
+        fijoVariable: fields[BANCOLOMBIA_FIELDS.FIJO_VARIABLE] || '',
+        naturalezaContable: fields[BANCOLOMBIA_FIELDS.NATURALEZA_CONTABLE] || '',
+        legalizada: fields[BANCOLOMBIA_FIELDS.LEGALIZACION] || '',
+        afecta: fields[BANCOLOMBIA_FIELDS.AFECTA] || '',
         grupo,
         clase,
         grupoPrueba: grupoPruebaLimpio,

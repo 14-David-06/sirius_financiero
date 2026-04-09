@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AirtableRecord, AirtableResponse, CompraCompleta, EstadisticasData, ApiResponse, AirtableField } from '@/types/compras';
+import { COMPRAS_FIELDS, ITEMS_COMPRAS_FIELDS } from '@/lib/config/airtable-fields';
 import { 
   sanitizeInput, 
   checkRateLimit, 
@@ -121,11 +122,11 @@ export async function GET(request: NextRequest) {
 
     // Construir URL para obtener compras
     const comprasUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${COMPRAS_TABLE_ID}`;
-    let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=Fecha de solicitud&sort[0][direction]=desc`;
+    let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=${encodeURIComponent(COMPRAS_FIELDS.FECHA_SOLICITUD)}&sort[0][direction]=desc`;
     
     if (filterByUser) {
       const escapedUser = escapeAirtableQuery(filterByUser);
-      const filterFormula = `{Nombre Solicitante} = "${escapedUser}"`;
+      const filterFormula = `{${COMPRAS_FIELDS.NOMBRE_SOLICITANTE}} = "${escapedUser}"`;
       comprasQuery += `&filterByFormula=${encodeURIComponent(filterFormula)}`;
     }
 
@@ -198,92 +199,92 @@ export async function GET(request: NextRequest) {
 
     // Procesar y combinar datos
     const comprasConItems: CompraCompleta[] = comprasData.records.map((compra: AirtableRecord) => {
-      const itemsIds = (compra.fields['Items Compras y Adquisiciones'] as string[]) || [];
+      const itemsIds = (compra.fields[COMPRAS_FIELDS.ITEMS_LINK] as string[]) || [];
       const itemsRelacionados = itemsData.records.filter((item: AirtableRecord) => 
         itemsIds.includes(item.id)
       );
 
       return {
         id: compra.id,
-        fechaSolicitud: processAirtableField(compra.fields['Fecha de solicitud']),
-        areaCorrespondiente: processAirtableField(compra.fields['Area Correspondiente']),
-        nombreSolicitante: processAirtableField(compra.fields['Nombre Solicitante']),
-        cargoSolicitante: processAirtableField(compra.fields['Cargo Solicitante']),
-        descripcionSolicitud: processAirtableField(compra.fields['Descripcion Solicitud Transcripcion']),
-        descripcionIA: processAirtableField(compra.fields['Descripcion Solicitud IAInterpretacion']),
-        hasProvider: processAirtableField(compra.fields['HasProvider']),
-        razonSocialProveedor: processAirtableField(compra.fields['Razon Social Proveedor']),
-        cotizacionDoc: processAirtableField(compra.fields['Cotizacion Doc']),
-        documentoSolicitud: processAirtableField(compra.fields['Documento Solicitud']),
-        valorTotal: processAirtableField(compra.fields['Valor Total']),
-        iva: processAirtableField(compra.fields['IVA']),
-        totalNeto: processAirtableField(compra.fields['Total Neto']),
-        estadoSolicitud: processAirtableField(compra.fields['Estado Solicitud']),
-        prioridadSolicitud: processAirtableField(compra.fields['Prioridad Solicitud']),
-        retencion: processAirtableField(compra.fields['Retencion']),
-        baseMinimaEnPesos: processAirtableField(compra.fields['Base minima en pesos']),
-        baseMinimaEnUVT: processAirtableField(compra.fields['Base minima en UVT']),
-        valorUVT: processAirtableField(compra.fields['valor UVT']),
-        compraServicio: processAirtableArray(compra.fields['Compra/Servicio']),
+        fechaSolicitud: processAirtableField(compra.fields[COMPRAS_FIELDS.FECHA_SOLICITUD]),
+        areaCorrespondiente: processAirtableField(compra.fields[COMPRAS_FIELDS.AREA_CORRESPONDIENTE]),
+        nombreSolicitante: processAirtableField(compra.fields[COMPRAS_FIELDS.NOMBRE_SOLICITANTE]),
+        cargoSolicitante: processAirtableField(compra.fields[COMPRAS_FIELDS.CARGO_SOLICITANTE]),
+        descripcionSolicitud: processAirtableField(compra.fields[COMPRAS_FIELDS.DESCRIPCION_TRANSCRIPCION]),
+        descripcionIA: processAirtableField(compra.fields[COMPRAS_FIELDS.DESCRIPCION_IA]),
+        hasProvider: processAirtableField(compra.fields[COMPRAS_FIELDS.HAS_PROVIDER]),
+        razonSocialProveedor: processAirtableField(compra.fields[COMPRAS_FIELDS.RAZON_SOCIAL_PROVEEDOR]),
+        cotizacionDoc: processAirtableField(compra.fields[COMPRAS_FIELDS.COTIZACION_DOC]),
+        documentoSolicitud: processAirtableField(compra.fields[COMPRAS_FIELDS.DOCUMENTO_SOLICITUD]),
+        valorTotal: processAirtableField(compra.fields[COMPRAS_FIELDS.VALOR_TOTAL]),
+        iva: processAirtableField(compra.fields[COMPRAS_FIELDS.IVA]),
+        totalNeto: processAirtableField(compra.fields[COMPRAS_FIELDS.TOTAL_NETO]),
+        estadoSolicitud: processAirtableField(compra.fields[COMPRAS_FIELDS.ESTADO_SOLICITUD]),
+        prioridadSolicitud: processAirtableField(compra.fields[COMPRAS_FIELDS.PRIORIDAD_SOLICITUD]),
+        retencion: processAirtableField(compra.fields[COMPRAS_FIELDS.RETENCION]),
+        baseMinimaEnPesos: processAirtableField(compra.fields[COMPRAS_FIELDS.BASE_MINIMA_PESOS]),
+        baseMinimaEnUVT: processAirtableField(compra.fields[COMPRAS_FIELDS.BASE_MINIMA_UVT]),
+        valorUVT: processAirtableField(compra.fields[COMPRAS_FIELDS.VALOR_UVT]),
+        compraServicio: processAirtableArray(compra.fields[COMPRAS_FIELDS.COMPRA_SERVICIO]),
         
         // IDs de registros vinculados
-        proveedorRecordId: compra.fields['Proveedor'] as string[],
-        cotizacionRecordIds: compra.fields['Cotizaciones'] as string[],
+        proveedorRecordId: compra.fields[COMPRAS_FIELDS.PROVEEDOR] as string[],
+        cotizacionRecordIds: compra.fields[COMPRAS_FIELDS.COTIZACIONES] as string[],
         
         // Información del proveedor
-        nombreProveedor: processAirtableArray(compra.fields['Nombre (from Proveedor)']),
-        nitProveedor: processAirtableArray(compra.fields['C.c o Nit (from Proveedor)']),
-        autoretenedor: processAirtableArray(compra.fields['Autoretenedor (from Proveedor)']),
-        responsableIVA: processAirtableArray(compra.fields['ResponsableIVA (from Proveedor)']),
-        responsableICA: processAirtableArray(compra.fields['ResponsableICA (from Proveedor)']),
-        tarifaActividad: processAirtableArray(compra.fields['TarifaActividad (from Proveedor)']),
-        ciudadProveedor: processAirtableArray(compra.fields['Ciudad_Proveedor (from Proveedor)']),
-        departamentoProveedor: processAirtableArray(compra.fields['Departamento (from Departamento ) (from Proveedor)']),
-        rutProveedor: compra.fields['RUT (from Proveedor)'] as AirtableField[],
-        contribuyente: processAirtableArray(compra.fields['Contribuyente (from Proveedor)']),
-        facturadorElectronico: processAirtableArray(compra.fields['Facturador electronico (from Proveedor)']),
-        personaProveedor: processAirtableArray(compra.fields['Persona (from Proveedor)']),
-        declaranteRenta: processAirtableArray(compra.fields['Declarante de renta (from Proveedor)']),
+        nombreProveedor: processAirtableArray(compra.fields[COMPRAS_FIELDS.NOMBRE_FROM_PROVEEDOR]),
+        nitProveedor: processAirtableArray(compra.fields[COMPRAS_FIELDS.NIT_FROM_PROVEEDOR]),
+        autoretenedor: processAirtableArray(compra.fields[COMPRAS_FIELDS.AUTORETENEDOR_FROM_PROV]),
+        responsableIVA: processAirtableArray(compra.fields[COMPRAS_FIELDS.RESPONSABLE_IVA_FROM_PROV]),
+        responsableICA: processAirtableArray(compra.fields[COMPRAS_FIELDS.RESPONSABLE_ICA_FROM_PROV]),
+        tarifaActividad: processAirtableArray(compra.fields[COMPRAS_FIELDS.TARIFA_ACTIVIDAD_FROM_PROV]),
+        ciudadProveedor: processAirtableArray(compra.fields[COMPRAS_FIELDS.CIUDAD_FROM_PROV]),
+        departamentoProveedor: processAirtableArray(compra.fields[COMPRAS_FIELDS.DEPARTAMENTO_FROM_PROV]),
+        rutProveedor: compra.fields[COMPRAS_FIELDS.RUT_FROM_PROV] as AirtableField[],
+        contribuyente: processAirtableArray(compra.fields[COMPRAS_FIELDS.CONTRIBUYENTE_FROM_PROV]),
+        facturadorElectronico: processAirtableArray(compra.fields[COMPRAS_FIELDS.FACTURADOR_ELEC_FROM_PROV]),
+        personaProveedor: processAirtableArray(compra.fields[COMPRAS_FIELDS.PERSONA_FROM_PROV]),
+        declaranteRenta: processAirtableArray(compra.fields[COMPRAS_FIELDS.DECLARANTE_FROM_PROV]),
         
-        // Información de movimiento bancario - procesar objetos complejos
-        numeroSemanaBancario: processAirtableArray(compra.fields['Numero semana formulado (from Copia de Declarante de renta (from Proveedor))']),
-        clasificacionBancaria: processAirtableArray(compra.fields['Clasificacion (from Copia de Declarante de renta (from Proveedor))']),
-        valorBancario: processAirtableArray(compra.fields['Valor (from Copia de Declarante de renta (from Proveedor))']),
-        proyeccionBancaria: processAirtableArray(compra.fields['Proyeccion (from Copia de Declarante de renta (from Proveedor))']),
+        // Información de movimiento bancario
+        numeroSemanaBancario: processAirtableArray(compra.fields[COMPRAS_FIELDS.NUMERO_SEMANA_BANCARIO]),
+        clasificacionBancaria: processAirtableArray(compra.fields[COMPRAS_FIELDS.CLASIFICACION_BANCARIA]),
+        valorBancario: processAirtableArray(compra.fields[COMPRAS_FIELDS.VALOR_BANCARIO]),
+        proyeccionBancaria: processAirtableArray(compra.fields[COMPRAS_FIELDS.PROYECCION_BANCARIA]),
         
-        // Nombre del admin que aprobó/rechazó (nuevo campo)
-        nombresAdmin: processAirtableField(compra.fields['Nombres Admin']),
+        // Nombre del admin que aprobó/rechazó
+        nombresAdmin: processAirtableField(compra.fields[COMPRAS_FIELDS.NOMBRES_ADMIN]),
         
         items: itemsRelacionados.map((item: AirtableRecord) => ({
           id: item.id,
-          objeto: processAirtableField(item.fields['Objeto']),
-          centroCostos: processAirtableField(item.fields['Centro Costos']),
-          cantidad: processAirtableField(item.fields['Cantidad']),
-          valorItem: processAirtableField(item.fields['Valor Item']),
-          compraServicio: processAirtableField(item.fields['Compra/Servicio']),
-          estadoItem: processAirtableField(item.fields['Estado Item']), // Nuevo campo
-          prioridad: processAirtableField(item.fields['Prioridad']),
-          fechaRequerida: processAirtableField(item.fields['Fecha Requerida Entrega']),
-          formaPago: processAirtableField(item.fields['FORMA DE PAGO']),
-          aprobacion: processAirtableField(item.fields['Aprobacion']),
-          estadoGestion: processAirtableField(item.fields['Estado Gestion']),
-          reciboRemision: processAirtableField(item.fields['Recibo/Remision']),
-          transporte: processAirtableField(item.fields['Transporte']),
-          nombreProveedor: processAirtableArray(item.fields['Nombre (from Proveedor)']),
-          nitProveedor: processAirtableArray(item.fields['C.c o Nit (from Proveedor)']),
-          correoProveedor: processAirtableArray(item.fields['Correo (from Proveedor)']),
-          celularProveedor: processAirtableArray(item.fields['Celular (from Proveedor)']),
-          ciudadProveedor: processAirtableArray(item.fields['Ciudad (from Proveedor)']),
-          autoretenedorProveedor: processAirtableArray(item.fields['Autoretenedor (from Proveedor)']),
-          responsableIVAProveedor: processAirtableArray(item.fields['ResponsableIVA (from Proveedor)']),
-          responsableICAProveedor: processAirtableArray(item.fields['ResponsableICA (from Proveedor)']),
-          tarifaActividadProveedor: processAirtableArray(item.fields['TarifaActividad (from Proveedor)']),
-          departamentoProveedor: processAirtableArray(item.fields['Departamento (from Departamento ) (from Proveedor)']),
-          rutProveedor: item.fields['RUT (from Proveedor)'] as AirtableField[],
-          personaProveedor: processAirtableArray(item.fields['Persona (from Proveedor)']),
-          contribuyenteProveedor: processAirtableArray(item.fields['Contribuyente (from Proveedor)']),
-          facturadorElectronicoProveedor: processAirtableArray(item.fields['Facturador electronico (from Proveedor)']),
-          declaranteRentaProveedor: processAirtableArray(item.fields['Declarante de renta (from Proveedor)']),
+          objeto: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.OBJETO]),
+          centroCostos: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.CENTRO_COSTOS]),
+          cantidad: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.CANTIDAD]),
+          valorItem: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.VALOR_ITEM]),
+          compraServicio: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.COMPRA_SERVICIO]),
+          estadoItem: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.ESTADO_ITEM]),
+          prioridad: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.PRIORIDAD]),
+          fechaRequerida: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.FECHA_REQUERIDA]),
+          formaPago: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.FORMA_PAGO]),
+          aprobacion: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.APROBACION]),
+          estadoGestion: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.ESTADO_GESTION]),
+          reciboRemision: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.RECIBO_REMISION]),
+          transporte: processAirtableField(item.fields[ITEMS_COMPRAS_FIELDS.TRANSPORTE]),
+          nombreProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.NOMBRE_FROM_PROV]),
+          nitProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.NIT_FROM_PROV]),
+          correoProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.CORREO_FROM_PROV]),
+          celularProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.CELULAR_FROM_PROV]),
+          ciudadProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.CIUDAD_FROM_PROV]),
+          autoretenedorProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.AUTORETENEDOR_FROM_PROV]),
+          responsableIVAProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.RESP_IVA_FROM_PROV]),
+          responsableICAProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.RESP_ICA_FROM_PROV]),
+          tarifaActividadProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.TARIFA_FROM_PROV]),
+          departamentoProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.DEPTO_FROM_PROV]),
+          rutProveedor: item.fields[ITEMS_COMPRAS_FIELDS.RUT_FROM_PROV] as AirtableField[],
+          personaProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.PERSONA_FROM_PROV]),
+          contribuyenteProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.CONTRIBUYENTE_FROM_PROV]),
+          facturadorElectronicoProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.FACTURADOR_FROM_PROV]),
+          declaranteRentaProveedor: processAirtableArray(item.fields[ITEMS_COMPRAS_FIELDS.DECLARANTE_FROM_PROV]),
         }))
       };
     });

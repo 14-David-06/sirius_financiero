@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import base from '@/lib/airtable';
+import { CENTRALIZACION_FIELDS } from '@/lib/config/airtable-fields';
 
 const CENTRALIZACION_TABLE_ID = process.env.AIRTABLE_CENTRALIZACION_TABLE_ID;
 const SEMANA_FIELD_ID = process.env.AIRTABLE_CENTRALIZACION_SEMANA_FIELD_ID;
@@ -27,19 +28,19 @@ export async function GET(request: NextRequest) {
     const filters: string[] = [];
 
     if (año) {
-      filters.push(`{Año formulado} = ${año}`);
+      filters.push(`{${CENTRALIZACION_FIELDS.ANO_FORMULADO}} = ${año}`);
     }
     if (mes) {
-      filters.push(`{Numero Mes} = ${mes}`);
+      filters.push(`{${CENTRALIZACION_FIELDS.NUMERO_MES}} = ${mes}`);
     }
     
     // Si mode es 'triple' y hay una semana, traer semana-1, semana, semana+1
     if (mode === 'triple' && semana) {
       const semanaNum = parseInt(semana);
       const semanas = [semanaNum - 1, semanaNum, semanaNum + 1].filter(s => s > 0 && s <= 53);
-      filters.push(`OR(${semanas.map(s => `{Semana formulada} = ${s}`).join(', ')})`);
+      filters.push(`OR(${semanas.map(s => `{${CENTRALIZACION_FIELDS.SEMANA_FORMULADA}} = ${s}`).join(', ')})`);
     } else if (semana) {
-      filters.push(`{Semana formulada} = ${semana}`);
+      filters.push(`{${CENTRALIZACION_FIELDS.SEMANA_FORMULADA}} = ${semana}`);
     }
 
     if (filters.length > 0) {
@@ -55,57 +56,57 @@ export async function GET(request: NextRequest) {
 
     const data = records.map((record) => ({
       id: record.id,
-      fechaCreacion: record.get('Fecha de creacion'),
-      año: record.get('Año formulado'),
-      mes: record.get('Mes'),
-      numeroMes: record.get('Numero Mes'),
-      semana: record.get('Semana formulada'),
+      fechaCreacion: record.get(CENTRALIZACION_FIELDS.FECHA_CREACION),
+      año: record.get(CENTRALIZACION_FIELDS.ANO_FORMULADO),
+      mes: record.get(CENTRALIZACION_FIELDS.MES),
+      numeroMes: record.get(CENTRALIZACION_FIELDS.NUMERO_MES),
+      semana: record.get(CENTRALIZACION_FIELDS.SEMANA_FORMULADA),
       
       // Productos UNB
-      unb_purpureocillium: record.get('UNB Purpureocillium Lilacinum') || 0,
-      unb_metarhizium: record.get('UNB Metarhizium Anisopliae') || 0,
-      unb_bacillus: record.get('UNB Bacillus Thuringiensis') || 0,
-      unb_siriusbacter: record.get('UNB SiriusBacter') || 0,
-      unb_beauveria: record.get('UNB Beauveria Bassiana') || 0,
-      unb_trichoderma: record.get('UNB Trichoderma Harzianum') || 0,
-      totalUNB: record.get('Total UNB') || 0,
+      unb_purpureocillium: record.get(CENTRALIZACION_FIELDS.UNB_PURPUREOCILLIUM) || 0,
+      unb_metarhizium: record.get(CENTRALIZACION_FIELDS.UNB_METARHIZIUM) || 0,
+      unb_bacillus: record.get(CENTRALIZACION_FIELDS.UNB_BACILLUS) || 0,
+      unb_siriusbacter: record.get(CENTRALIZACION_FIELDS.UNB_SIRIUSBACTER) || 0,
+      unb_beauveria: record.get(CENTRALIZACION_FIELDS.UNB_BEAUVERIA) || 0,
+      unb_trichoderma: record.get(CENTRALIZACION_FIELDS.UNB_TRICHODERMA) || 0,
+      totalUNB: record.get(CENTRALIZACION_FIELDS.TOTAL_UNB) || 0,
       
       // Productos UNP
-      unp_biocharPuro: record.get('UNP Biochar Puro') || 0,
-      unp_biocharFiltro: record.get('UNP Biochar Filtro') || 0,
-      unp_biocharInoculado: record.get('UNP Biochar Inoculado') || 0,
-      unp_biocharBlend: record.get('UNP Biochar Blend') || 0,
-      totalUNP: record.get('Total UNP') || 0,
+      unp_biocharPuro: record.get(CENTRALIZACION_FIELDS.UNP_BIOCHAR_PURO) || 0,
+      unp_biocharFiltro: record.get(CENTRALIZACION_FIELDS.UNP_BIOCHAR_FILTRO) || 0,
+      unp_biocharInoculado: record.get(CENTRALIZACION_FIELDS.UNP_BIOCHAR_INOCULADO) || 0,
+      unp_biocharBlend: record.get(CENTRALIZACION_FIELDS.UNP_BIOCHAR_BLEND) || 0,
+      totalUNP: record.get(CENTRALIZACION_FIELDS.TOTAL_UNP) || 0,
       
       // Ingresos
-      ingresosTotalesUNB: record.get('Ingresos Totales UNB') || 0,
-      ingresosTotalesUNP: record.get('Ingresos Totales UNP') || 0,
-      ingresosOperacionales: record.get('Ingresos Operacionales') || 0,
-      ingresosNoOperacionales: record.get('Ingresos No Operacionales') || 0,
-      totalIngresos: record.get('Total Ingresos') || 0,
-      ingresosEstimados: record.get('Ingresos Estimados') || 0,
+      ingresosTotalesUNB: record.get(CENTRALIZACION_FIELDS.INGRESOS_TOTALES_UNB) || 0,
+      ingresosTotalesUNP: record.get(CENTRALIZACION_FIELDS.INGRESOS_TOTALES_UNP) || 0,
+      ingresosOperacionales: record.get(CENTRALIZACION_FIELDS.INGRESOS_OPERACIONALES) || 0,
+      ingresosNoOperacionales: record.get(CENTRALIZACION_FIELDS.INGRESOS_NO_OPERACIONALES) || 0,
+      totalIngresos: record.get(CENTRALIZACION_FIELDS.TOTAL_INGRESOS) || 0,
+      ingresosEstimados: record.get(CENTRALIZACION_FIELDS.INGRESOS_ESTIMADOS) || 0,
       
       // Egresos
-      movimientoCostos: record.get('Movimiento Costos') || 0,
-      movimientoGastos: record.get('Movimiento Gastos') || 0,
-      movimientoInversion: record.get('Movimiento Inversion') || 0,
-      totalEgresos: record.get('Total Egresos') || 0,
-      egresosEstimados: record.get('Cálculo') || 0, // Campo CALCULO_FIELD_ID
-      totalCostosGastosPirolisis: record.get('Total Costos Gastos Pirolisis') || 0,
+      movimientoCostos: record.get(CENTRALIZACION_FIELDS.MOVIMIENTO_COSTOS) || 0,
+      movimientoGastos: record.get(CENTRALIZACION_FIELDS.MOVIMIENTO_GASTOS) || 0,
+      movimientoInversion: record.get(CENTRALIZACION_FIELDS.MOVIMIENTO_INVERSION) || 0,
+      totalEgresos: record.get(CENTRALIZACION_FIELDS.TOTAL_EGRESOS) || 0,
+      egresosEstimados: record.get(CENTRALIZACION_FIELDS.EGRESOS_ESTIMADOS) || 0,
+      totalCostosGastosPirolisis: record.get(CENTRALIZACION_FIELDS.TOTAL_COSTOS_GASTOS_PIROLISIS) || 0,
       
       // Saldos Bancarios
-      saldoInicialBancos: record.get('Saldo Inicial Semana/Bancos') || 0,
-      saldoFinalBancos: record.get('Saldo Final Semana/Bancos') || 0,
-      netoSemanalBancos: record.get('Neto Semanal/Bancos') || 0,
+      saldoInicialBancos: record.get(CENTRALIZACION_FIELDS.SALDO_INICIAL_BANCOS) || 0,
+      saldoFinalBancos: record.get(CENTRALIZACION_FIELDS.SALDO_FINAL_BANCOS) || 0,
+      netoSemanalBancos: record.get(CENTRALIZACION_FIELDS.NETO_SEMANAL_BANCOS) || 0,
       
       // Saldos Proyectados
-      saldoInicioProyectado: record.get('Saldo Inicio Semana/Proyectado') || 0,
-      saldoFinalProyectado: record.get('Saldo Final Semana/Proyectado') || 0,
-      netoSemanalProyectado: record.get('Neto Semanal/Proyectado') || 0,
+      saldoInicioProyectado: record.get(CENTRALIZACION_FIELDS.SALDO_INICIO_PROYECTADO) || 0,
+      saldoFinalProyectado: record.get(CENTRALIZACION_FIELDS.SALDO_FINAL_PROYECTADO) || 0,
+      netoSemanalProyectado: record.get(CENTRALIZACION_FIELDS.NETO_SEMANAL_PROYECTADO) || 0,
       
       // Metas de ventas
-      cantidadLitrosDeberia: record.get('Cantidad Litros Deberia Vender (Biologicos)') || 0,
-      cantidadKilogramosDeberia: record.get('Cantidad Kilogramos Deberia Vender (Biochar)') || 0,
+      cantidadLitrosDeberia: record.get(CENTRALIZACION_FIELDS.CANT_LITROS_DEBERIA) || 0,
+      cantidadKilogramosDeberia: record.get(CENTRALIZACION_FIELDS.CANT_KG_DEBERIA) || 0,
     }));
 
     return NextResponse.json({ 

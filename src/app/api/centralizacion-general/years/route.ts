@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import base from '@/lib/airtable';
+import { CENTRALIZACION_FIELDS } from '@/lib/config/airtable-fields';
 
 const CENTRALIZACION_TABLE_ID = process.env.AIRTABLE_CENTRALIZACION_TABLE_ID;
 
@@ -17,7 +18,7 @@ export async function GET() {
     // Obtener todos los años únicos
     const records = await base(CENTRALIZACION_TABLE_ID)
       .select({
-        fields: ['Año formulado'],
+        fields: [CENTRALIZACION_FIELDS.ANO_FORMULADO],
       })
       .all();
 
@@ -25,7 +26,7 @@ export async function GET() {
     const years = Array.from(
       new Set(
         records
-          .map((record) => record.get('Año formulado') as number)
+          .map((record) => record.get(CENTRALIZACION_FIELDS.ANO_FORMULADO) as number)
           .filter((year) => year !== undefined && year !== null)
       )
     ).sort((a, b) => b - a); // Ordenar descendente (más reciente primero)

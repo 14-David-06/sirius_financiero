@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { FACTURACION_INGRESOS_FIELDS } from '@/lib/config/airtable-fields';
 
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -40,14 +41,14 @@ export async function GET(request: NextRequest) {
     ];
     
     const centrosFilter = `OR(${centrosPermitidos.map(centro => 
-      `{Centro de Resultados (Solo Ingresos)} = "${centro}"`
+      `{${FACTURACION_INGRESOS_FIELDS.CENTRO_RESULTADOS}} = "${centro}"`
     ).join(', ')})`;
     
     if (año) {
-      filterFormula = `AND(${centrosFilter}, {Año formulado} = ${año})`;
+      filterFormula = `AND(${centrosFilter}, {${FACTURACION_INGRESOS_FIELDS.ANO_FORMULADO}} = ${año})`;
       
       if (mes) {
-        filterFormula = `AND(${centrosFilter}, {Año formulado} = ${año}, {Mes formulado} = ${mes})`;
+        filterFormula = `AND(${centrosFilter}, {${FACTURACION_INGRESOS_FIELDS.ANO_FORMULADO}} = ${año}, {${FACTURACION_INGRESOS_FIELDS.MES_FORMULADO}} = ${mes})`;
       }
     } else {
       filterFormula = centrosFilter;
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     // Construir URL de Airtable
     const baseUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${TABLE_ID}`;
-    let url = baseUrl + '?maxRecords=1000&sort[0][field]=Creada&sort[0][direction]=desc';
+    let url = baseUrl + `?maxRecords=1000&sort[0][field]=${encodeURIComponent(FACTURACION_INGRESOS_FIELDS.CREADA)}&sort[0][direction]=desc`;
     
     if (filterFormula) {
       url += `&filterByFormula=${encodeURIComponent(filterFormula)}`;
@@ -91,8 +92,8 @@ export async function GET(request: NextRequest) {
     const centrosValidos = ['Biochar Blend', 'Biológicos General', 'Biochar Puro', 'Biochar Como Filtro'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const facturacionRecords = records.filter((record: any) => {
-      const centro = record['Centro de Resultados (Solo Ingresos)'];
-      return centro && centrosValidos.includes(centro) && record['Valor'];
+      const centro = record[FACTURACION_INGRESOS_FIELDS.CENTRO_RESULTADOS];
+      return centro && centrosValidos.includes(centro) && record[FACTURACION_INGRESOS_FIELDS.VALOR];
     });
 
     console.log(`API Facturación - Total registros obtenidos: ${records.length}`);
@@ -101,8 +102,8 @@ export async function GET(request: NextRequest) {
     // Agrupar por Centro de Resultados y sumar valores (replicar lógica del gráfico)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const agrupados = facturacionRecords.reduce((acc: any, record: any) => {
-      const centro = record['Centro de Resultados (Solo Ingresos)'];
-      const valor = parseFloat(record['Valor']) || 0;
+      const centro = record[FACTURACION_INGRESOS_FIELDS.CENTRO_RESULTADOS];
+      const valor = parseFloat(record[FACTURACION_INGRESOS_FIELDS.VALOR]) || 0;
       
       if (!acc[centro]) {
         acc[centro] = {
@@ -180,10 +181,10 @@ export async function POST(request: NextRequest) {
 
     // Campos opcionales
     if (body.observaciones) {
-      fields['Observaciones'] = body.observaciones;
+      fields[FACTURACION_INGRESOS_FIELDS.OBSERVACIONES] = body.observaciones;
     }
     if (body.cufe) {
-      fields['CUFE'] = body.cufe;
+      fields[FACTURACION_INGRESOS_FIELDS.CUFE] = body.cufe;
     }
     if (body.idDocumento) {
       fields['id_documento'] = body.idDocumento;
