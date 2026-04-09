@@ -2,15 +2,16 @@
 
 import ValidacionUsuario from './ValidacionUsuario';
 import CajaMenorAgent from './CajaMenorAgent';
+import ScannerComprobante from './ScannerComprobante';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
 import { UserData } from '@/types/compras';
-import { 
-  DollarSign, 
-  Plus, 
+import {
+  DollarSign,
+  Plus,
   Search,
-  AlertTriangle, 
-  Filter, 
+  AlertTriangle,
+  Filter,
   Download,
   Calendar,
   Receipt,
@@ -75,7 +76,8 @@ interface FormDataType {
   centroCostoOtro: string;
   valor: string;
   realizaRegistro: string;
-  comprobanteFile: File | null;
+  comprobanteFile: File | Blob | null;
+  comprobanteFileName?: string;
 }
 
 function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogout: () => void }) {
@@ -1120,28 +1122,37 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
         let comprobanteUrl = '';
         if (formData.comprobanteFile) {
           console.log('📤 Subiendo comprobante para edición...');
-          
+
           const fechaActual = new Date();
           const mes = fechaActual.toLocaleString('es-CO', { month: 'long' }).toLowerCase();
           const año = fechaActual.getFullYear();
           const carpetaCajaMenor = `${mes}_${año}`;
-          
+
           const formDataUpload = new FormData();
-          formDataUpload.append('file', formData.comprobanteFile);
+
+          // Si es un Blob generado por el scanner, crear un File con nombre
+          if (formData.comprobanteFile instanceof Blob && !(formData.comprobanteFile instanceof File)) {
+            const fileName = formData.comprobanteFileName || `comprobante-${Date.now()}.pdf`;
+            const file = new File([formData.comprobanteFile], fileName, { type: 'application/pdf' });
+            formDataUpload.append('file', file);
+          } else {
+            formDataUpload.append('file', formData.comprobanteFile);
+          }
+
           formDataUpload.append('carpetaCajaMenor', carpetaCajaMenor);
           formDataUpload.append('beneficiario', formData.beneficiario);
-          
+
           const uploadResponse = await fetch('/api/upload-comprobante-caja-menor', {
             method: 'POST',
             body: formDataUpload,
           });
-          
+
           const uploadResult = await uploadResponse.json();
-          
+
           if (!uploadResponse.ok) {
             throw new Error(uploadResult.error || 'Error al subir el comprobante');
           }
-          
+
           comprobanteUrl = uploadResult.fileUrl;
           console.log('✅ Comprobante actualizado:', comprobanteUrl);
         }
@@ -1201,33 +1212,42 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       const centroCostoFinal = formData.centroCosto === 'Otro' ? formData.centroCostoOtro : formData.centroCosto;
       
       let comprobanteUrl = '';
-      
+
       // Subir archivo si existe
       if (formData.comprobanteFile) {
         console.log('📤 Subiendo comprobante...');
-        
+
         // Generar carpeta basada en el mes y año actual
         const fechaActual = new Date();
         const mes = fechaActual.toLocaleString('es-CO', { month: 'long' }).toLowerCase();
         const año = fechaActual.getFullYear();
         const carpetaCajaMenor = `${mes}_${año}`;
-        
+
         const formDataUpload = new FormData();
-        formDataUpload.append('file', formData.comprobanteFile);
+
+        // Si es un Blob generado por el scanner, crear un File con nombre
+        if (formData.comprobanteFile instanceof Blob && !(formData.comprobanteFile instanceof File)) {
+          const fileName = formData.comprobanteFileName || `comprobante-${Date.now()}.pdf`;
+          const file = new File([formData.comprobanteFile], fileName, { type: 'application/pdf' });
+          formDataUpload.append('file', file);
+        } else {
+          formDataUpload.append('file', formData.comprobanteFile);
+        }
+
         formDataUpload.append('carpetaCajaMenor', carpetaCajaMenor);
         formDataUpload.append('beneficiario', formData.beneficiario);
-        
+
         const uploadResponse = await fetch('/api/upload-comprobante-caja-menor', {
           method: 'POST',
           body: formDataUpload,
         });
-        
+
         const uploadResult = await uploadResponse.json();
-        
+
         if (!uploadResponse.ok) {
           throw new Error(uploadResult.error || 'Error al subir el comprobante');
         }
-        
+
         comprobanteUrl = uploadResult.fileUrl;
         console.log('✅ Comprobante subido:', comprobanteUrl);
       }
@@ -2524,26 +2544,28 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 <div>
                   <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-blue-400" />
-                    Documento soporte (Opcional)
+                    Escanear Comprobante (Opcional)
                   </label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setFormData(prev => ({ ...prev, comprobanteFile: file }));
+                  <div className="p-4 bg-slate-700/30 border border-white/10 rounded-xl">
+                    <ScannerComprobante
+                      onPdfReady={(pdfBlob, fileName) => {
+                        console.log('📄 PDF generado:', fileName);
+                        setFormData(prev => ({
+                          ...prev,
+                          comprobanteFile: pdfBlob,
+                          comprobanteFileName: fileName
+                        }));
                       }}
-                      className="w-full px-4 py-3 bg-slate-700/60 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 transition-all duration-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                      onClear={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          comprobanteFile: null,
+                          comprobanteFileName: undefined
+                        }));
+                      }}
+                      maxImages={5}
+                      disabled={loading}
                     />
-                    <p className="text-xs text-white/50 mt-2">
-                      Formatos permitidos: PDF, JPG, PNG. Tamaño máximo: 10MB
-                    </p>
-                    {formData.comprobanteFile && (
-                      <p className="text-xs text-green-400 mt-1">
-                        📄 Archivo seleccionado: {formData.comprobanteFile.name}
-                      </p>
-                    )}
                   </div>
                 </div>
 

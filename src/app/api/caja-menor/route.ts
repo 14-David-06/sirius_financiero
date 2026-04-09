@@ -181,23 +181,23 @@ export async function GET(request: NextRequest) {
       maxRecords,
       ...(filterByFormula && { filterByFormula }),
       sort: [
-        { field: 'Fecha Anticipo', direction: 'desc' } // Usar nombre de campo
+        { field: CAJA_MENOR_FIELDS.FECHA_ANTICIPO, direction: 'desc' }
       ]
     }).eachPage((pageRecords, fetchNextPage) => {
       pageRecords.forEach(record => {
         // Airtable devuelve datos con NOMBRES de campos, no Field IDs
         cajaMenorRecords.push({
           id: record.id,
-          fechaAnticipo: record.fields['Fecha Anticipo'], 
-          beneficiario: record.fields['Beneficiario'], 
-          nitCC: record.fields['Nit-CC'], 
-          concepto: record.fields['Concepto Caja Menor'], 
-          valor: record.fields['Valor Caja Menor'], 
-          itemsCajaMenor: record.fields['Items Caja Menor'], 
-          realizaRegistro: record.fields['Realiza Registro'],
-          fechaConsolidacion: record.fields['Fecha Consolidacion'],
-          documentoConsolidacion: record.fields['Documento Consiliacion'],
-          estadoCajaMenor: record.fields['Estado Caja Menor']
+          fechaAnticipo: record.fields[CAJA_MENOR_FIELDS.FECHA_ANTICIPO], 
+          beneficiario: record.fields[CAJA_MENOR_FIELDS.BENEFICIARIO], 
+          nitCC: record.fields[CAJA_MENOR_FIELDS.NIT_CC], 
+          concepto: record.fields[CAJA_MENOR_FIELDS.CONCEPTO], 
+          valor: record.fields[CAJA_MENOR_FIELDS.VALOR], 
+          itemsCajaMenor: record.fields[CAJA_MENOR_FIELDS.ITEMS_CAJA_MENOR], 
+          realizaRegistro: record.fields[CAJA_MENOR_FIELDS.REALIZA_REGISTRO],
+          fechaConsolidacion: record.fields[CAJA_MENOR_FIELDS.FECHA_CONSOLIDACION],
+          documentoConsolidacion: record.fields[CAJA_MENOR_FIELDS.DOCUMENTO_CONSOLIDACION],
+          estadoCajaMenor: record.fields[CAJA_MENOR_FIELDS.ESTADO_CAJA_MENOR]
         });
       });
       fetchNextPage();
@@ -210,21 +210,21 @@ export async function GET(request: NextRequest) {
     await base(ITEMS_CAJA_MENOR_TABLE_ID).select({
       maxRecords: 5000, // Más items que registros principales
       sort: [
-        { field: 'Fecha', direction: 'desc' } // Fecha
+        { field: ITEMS_CAJA_MENOR_FIELDS.FECHA, direction: 'desc' }
       ]
     }).eachPage((pageRecords, fetchNextPage) => {
       itemsRecords.push(...pageRecords.map(record => ({
         id: record.id,
-        item: record.fields['Item'], // Auto Number
-        fecha: record.fields['Fecha'], // Fecha
-        beneficiario: record.fields['Beneficiario'], // Beneficiario
-        nitCC: record.fields['Nit/CC'], // Nit/CC
-        concepto: record.fields['Concepto'], // Concepto
-        centroCosto: record.fields['Centro Costo'], // Centro Costo
-        valor: record.fields['Valor'], // Valor
-        realizaRegistro: record.fields['Realiza Registro'], // Realiza Registro
-        cajaMenor: record.fields['Caja Menor'], // Caja Menor (links)
-        comprobante: record.fields['Comprobante'] // Comprobante (attachments)
+        item: record.fields[ITEMS_CAJA_MENOR_FIELDS.ITEM],
+        fecha: record.fields[ITEMS_CAJA_MENOR_FIELDS.FECHA],
+        beneficiario: record.fields[ITEMS_CAJA_MENOR_FIELDS.BENEFICIARIO],
+        nitCC: record.fields[ITEMS_CAJA_MENOR_FIELDS.NIT_CC],
+        concepto: record.fields[ITEMS_CAJA_MENOR_FIELDS.CONCEPTO],
+        centroCosto: record.fields[ITEMS_CAJA_MENOR_FIELDS.CENTRO_COSTO],
+        valor: record.fields[ITEMS_CAJA_MENOR_FIELDS.VALOR],
+        realizaRegistro: record.fields[ITEMS_CAJA_MENOR_FIELDS.REALIZA_REGISTRO],
+        cajaMenor: record.fields[ITEMS_CAJA_MENOR_FIELDS.CAJA_MENOR],
+        comprobante: record.fields[ITEMS_CAJA_MENOR_FIELDS.COMPROBANTE]
       })));
       fetchNextPage();
     });
@@ -301,12 +301,12 @@ export async function POST(request: NextRequest) {
 
       // Crear el registro en la tabla Caja Menor usando NOMBRES de campos
       const createdRecord = await base(CAJA_MENOR_TABLE_ID).create({
-        'Fecha Anticipo': data.fechaAnticipo, // Fecha Anticipo
-        'Beneficiario': data.beneficiario, // Beneficiario
-        'Nit-CC': data.nitCC || '', // Nit-CC 
-        'Concepto Caja Menor': data.concepto, // Concepto Caja Menor
-        'Valor Caja Menor': parseFloat(data.valor), // Valor Caja Menor
-        'Realiza Registro': data.realizaRegistro || '' // Realiza Registro
+        [CAJA_MENOR_FIELDS.FECHA_ANTICIPO]: data.fechaAnticipo,
+        [CAJA_MENOR_FIELDS.BENEFICIARIO]: data.beneficiario,
+        [CAJA_MENOR_FIELDS.NIT_CC]: data.nitCC || '',
+        [CAJA_MENOR_FIELDS.CONCEPTO]: data.concepto,
+        [CAJA_MENOR_FIELDS.VALOR]: parseFloat(data.valor),
+        [CAJA_MENOR_FIELDS.REALIZA_REGISTRO]: data.realizaRegistro || ''
       });
 
       console.log('✅ Registro de caja menor creado exitosamente:', (createdRecord as any).id);
@@ -343,19 +343,19 @@ export async function POST(request: NextRequest) {
 
       // Crear el item en la tabla Items Caja Menor
       const itemFields: any = {
-        'Fecha': data.fecha,
-        'Beneficiario': data.beneficiario,
-        'Nit/CC': data.nitCC || '',
-        'Concepto': data.concepto,
-        'Centro Costo': data.centroCosto || '',
-        'Valor': parseFloat(data.valor),
-        'Realiza Registro': data.realizaRegistro || '',
-        'Caja Menor': [data.cajaMenorId] // Link al registro de caja menor
+        [ITEMS_CAJA_MENOR_FIELDS.FECHA]: data.fecha,
+        [ITEMS_CAJA_MENOR_FIELDS.BENEFICIARIO]: data.beneficiario,
+        [ITEMS_CAJA_MENOR_FIELDS.NIT_CC]: data.nitCC || '',
+        [ITEMS_CAJA_MENOR_FIELDS.CONCEPTO]: data.concepto,
+        [ITEMS_CAJA_MENOR_FIELDS.CENTRO_COSTO]: data.centroCosto || '',
+        [ITEMS_CAJA_MENOR_FIELDS.VALOR]: parseFloat(data.valor),
+        [ITEMS_CAJA_MENOR_FIELDS.REALIZA_REGISTRO]: data.realizaRegistro || '',
+        [ITEMS_CAJA_MENOR_FIELDS.CAJA_MENOR]: [data.cajaMenorId]
       };
 
       // Agregar comprobante si existe (formato Airtable Attachment)
       if (data.comprobanteUrl) {
-        itemFields['Comprobante'] = [{ url: data.comprobanteUrl }];
+        itemFields[ITEMS_CAJA_MENOR_FIELDS.COMPROBANTE] = [{ url: data.comprobanteUrl }];
         itemFields[ITEMS_CAJA_MENOR_FIELDS.URL_S3] = data.comprobanteUrl;
         console.log('📎 Adjuntando comprobante:', data.comprobanteUrl);
         console.log('🔗 Guardando URL S3 original en campo "URL S3":', data.comprobanteUrl);
@@ -403,12 +403,12 @@ export async function POST(request: NextRequest) {
 
     // Crear el registro principal en la tabla Caja Menor usando NOMBRES de campos
     const createdRecord = await base(CAJA_MENOR_TABLE_ID).create({
-      'Fecha Anticipo': data.fechaAnticipo, // Fecha Anticipo
-      'Beneficiario': data.beneficiario, // Beneficiario
-      'Nit-CC': data.nitCC || '', // Nit-CC
-      'Concepto Caja Menor': data.concepto, // Concepto Caja Menor
-      'Valor Caja Menor': parseFloat(data.valor), // Valor Caja Menor
-      'Realiza Registro': data.realizaRegistro || '' // Realiza Registro
+      [CAJA_MENOR_FIELDS.FECHA_ANTICIPO]: data.fechaAnticipo,
+      [CAJA_MENOR_FIELDS.BENEFICIARIO]: data.beneficiario,
+      [CAJA_MENOR_FIELDS.NIT_CC]: data.nitCC || '',
+      [CAJA_MENOR_FIELDS.CONCEPTO]: data.concepto,
+      [CAJA_MENOR_FIELDS.VALOR]: parseFloat(data.valor),
+      [CAJA_MENOR_FIELDS.REALIZA_REGISTRO]: data.realizaRegistro || ''
     });
 
     console.log('✅ Registro principal creado exitosamente:', (createdRecord as any).id);

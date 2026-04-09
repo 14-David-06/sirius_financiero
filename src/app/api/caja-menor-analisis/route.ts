@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
+import { CAJA_MENOR_FIELDS, ITEMS_CAJA_MENOR_FIELDS } from '@/lib/config/airtable-fields';
 
 // Configuración de Airtable
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || '';
@@ -58,21 +59,21 @@ export async function GET(request: NextRequest) {
     const cajaMenorRecords: any[] = [];
     await base(CAJA_MENOR_TABLE_ID).select({
       maxRecords: 100,
-      sort: [{ field: 'Fecha Anticipo', direction: 'desc' }]
+      sort: [{ field: CAJA_MENOR_FIELDS.FECHA_ANTICIPO, direction: 'desc' }]
     }).eachPage((records, fetchNextPage) => {
       records.forEach(record => {
         cajaMenorRecords.push({
           id: record.id,
-          fechaAnticipo: record.fields['Fecha Anticipo'],
-          beneficiario: record.fields['Beneficiario'],
+          fechaAnticipo: record.fields[CAJA_MENOR_FIELDS.FECHA_ANTICIPO],
+          beneficiario: record.fields[CAJA_MENOR_FIELDS.BENEFICIARIO],
           nitCC: record.fields['Nit-CC'],
-          concepto: record.fields['Concepto Caja Menor'],
-          valor: record.fields['Valor Caja Menor'],
-          itemsCajaMenor: record.fields['Items Caja Menor'],
-          realizaRegistro: record.fields['Realiza Registro'],
-          fechaConsolidacion: record.fields['Fecha Consolidacion'],
-          documentoConsolidacion: record.fields['Documento Consiliacion'],
-          estadoCajaMenor: record.fields['Estado Caja Menor']
+          concepto: record.fields[CAJA_MENOR_FIELDS.CONCEPTO],
+          valor: record.fields[CAJA_MENOR_FIELDS.VALOR],
+          itemsCajaMenor: record.fields[CAJA_MENOR_FIELDS.ITEMS_CAJA_MENOR],
+          realizaRegistro: record.fields[CAJA_MENOR_FIELDS.REALIZA_REGISTRO],
+          fechaConsolidacion: record.fields[CAJA_MENOR_FIELDS.FECHA_CONSOLIDACION],
+          documentoConsolidacion: record.fields[CAJA_MENOR_FIELDS.DOCUMENTO_CONSOLIDACION],
+          estadoCajaMenor: record.fields[CAJA_MENOR_FIELDS.ESTADO_CAJA_MENOR]
         });
       });
       fetchNextPage();
@@ -82,21 +83,21 @@ export async function GET(request: NextRequest) {
     const itemsRecords: any[] = [];
     await base(ITEMS_CAJA_MENOR_TABLE_ID).select({
       maxRecords: 1000,
-      sort: [{ field: 'Fecha', direction: 'desc' }]
+      sort: [{ field: ITEMS_CAJA_MENOR_FIELDS.FECHA, direction: 'desc' }]
     }).eachPage((records, fetchNextPage) => {
       records.forEach(record => {
         itemsRecords.push({
           id: record.id,
-          item: record.fields['Item'],
-          fecha: record.fields['Fecha'],
-          beneficiario: record.fields['Beneficiario'],
+          item: record.fields[ITEMS_CAJA_MENOR_FIELDS.ITEM],
+          fecha: record.fields[ITEMS_CAJA_MENOR_FIELDS.FECHA],
+          beneficiario: record.fields[ITEMS_CAJA_MENOR_FIELDS.BENEFICIARIO],
           nitCC: record.fields['Nit/CC'],
-          concepto: record.fields['Concepto'],
-          centroCosto: record.fields['Centro Costo'],
-          valor: record.fields['Valor'],
-          realizaRegistro: record.fields['Realiza Registro'],
-          cajaMenor: record.fields['Caja Menor'],
-          comprobante: record.fields['Comprobante']
+          concepto: record.fields[ITEMS_CAJA_MENOR_FIELDS.CONCEPTO],
+          centroCosto: record.fields[ITEMS_CAJA_MENOR_FIELDS.CENTRO_COSTO],
+          valor: record.fields[ITEMS_CAJA_MENOR_FIELDS.VALOR],
+          realizaRegistro: record.fields[ITEMS_CAJA_MENOR_FIELDS.REALIZA_REGISTRO],
+          cajaMenor: record.fields[ITEMS_CAJA_MENOR_FIELDS.CAJA_MENOR],
+          comprobante: record.fields[ITEMS_CAJA_MENOR_FIELDS.COMPROBANTE]
         });
       });
       fetchNextPage();
