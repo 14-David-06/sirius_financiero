@@ -4,6 +4,25 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// Mapeo de roles a categorías (para compatibilidad con tokens JWT antiguos)
+function normalizarCategoria(categoria: string): string {
+  const rolesToCategoria: Record<string, string> = {
+    'INGENIERO DE DESARROLLO': 'Desarrollador',
+    'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)': 'Desarrollador',
+    'CTO (CHIEF TECHNOLOGY OFFICER)': 'Desarrollador',
+    'COORDINADORA LIDER GERENCIA': 'Desarrollador',
+    'DIRECTOR FINANCIERO': 'Gerencia',
+    'JEFE DE PLANTA': 'Gerencia',
+    'JEFE DE PRODUCCION': 'Gerencia',
+    'SUPERVISOR DE PRODUCCION': 'Gerencia',
+    'CONTADORA': 'Administrador',
+    'ASISTENTE FINANCIERO Y CONTABLE': 'Administrador',
+    'COORDINADOR DE COMPRAS': 'Administrador',
+    'ASISTENTE ADMINISTRATIVO': 'Administrador',
+  };
+  return rolesToCategoria[categoria] || categoria;
+}
+
 // Rutas que requieren autenticación
 const protectedRoutes = [
   '/solicitudes-compra',
@@ -20,6 +39,8 @@ const protectedRoutes = [
   '/diagnostic',
   '/onedrive-diagnostic',
   '/test-facturacion',
+  '/recepcion-almacen',
+  '/warehouse',
 ];
 
 // Rutas que requieren roles específicos
@@ -47,6 +68,31 @@ const elevatedRoutes = [
   '/diagnostic',
   '/onedrive-diagnostic',
   '/test-facturacion',
+];
+
+// Rutas exclusivas para almacenistas y roles elevados
+const warehouseRoutes = [
+  '/recepcion-almacen',
+  '/warehouse',
+];
+
+// Roles con acceso a warehouse (gerenciales/administrativos de Sirius Nomina Core)
+const WAREHOUSE_ALLOWED_ROLES = [
+  // Super Admin (nivel gerencial/directivo)
+  'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)',
+  'CTO (CHIEF TECHNOLOGY OFFICER)',
+  'DIRECTOR FINANCIERO',
+  'COORDINADORA LIDER GERENCIA',
+  'INGENIERO DE DESARROLLO',
+
+  // Admin Depto (jefes de área con gestión administrativa)
+  'JEFE DE PLANTA',
+  'JEFE DE PRODUCCION',
+  'SUPERVISOR DE PRODUCCION',
+
+  // Roles con nivel Avanzado que gestionan recursos/costos
+  'CONTADORA',
+  'ASISTENTE FINANCIERO Y CONTABLE',
 ];
 
 export function middleware(request: NextRequest) {
@@ -98,7 +144,8 @@ export function middleware(request: NextRequest) {
 
     if (isAdminRoute) {
       const allowedCategories = ['Administrador', 'Gerencia', 'Desarrollador'];
-      if (!allowedCategories.includes(decoded.categoria)) {
+      const categoriaNormalizada = normalizarCategoria(decoded.categoria);
+      if (!allowedCategories.includes(categoriaNormalizada)) {
         console.log('Redirigiendo porque no es admin');
         // Redirigir a solicitudes-compra si no tiene permisos
         return NextResponse.redirect(new URL('/solicitudes-compra', request.url));
@@ -106,8 +153,9 @@ export function middleware(request: NextRequest) {
     }
 
     // Verificar restricciones para colaboradores
-    if (decoded.categoria === 'Colaborador') {
-      const isElevatedRoute = elevatedRoutes.some(route => 
+    const categoriaNormalizada = normalizarCategoria(decoded.categoria);
+    if (categoriaNormalizada === 'Colaborador') {
+      const isElevatedRoute = elevatedRoutes.some(route =>
         pathname.startsWith(route)
       );
 
@@ -116,6 +164,26 @@ export function middleware(request: NextRequest) {
       if (isElevatedRoute) {
         console.log('Redirigiendo colaborador de ruta elevada');
         // Los colaboradores solo pueden acceder a solicitudes-compra
+        return NextResponse.redirect(new URL('/solicitudes-compra', request.url));
+      }
+    }
+
+    // Verificar acceso a rutas de warehouse (roles gerenciales/administrativos)
+    const isWarehouseRoute = warehouseRoutes.some(route =>
+      pathname.startsWith(route)
+    );
+
+    if (isWarehouseRoute) {
+      // Verificar tanto el rol original como la categoría mapeada
+      const categoriaNormalizada = normalizarCategoria(decoded.categoria);
+      const tieneAccesoWarehouse =
+        WAREHOUSE_ALLOWED_ROLES.includes(decoded.categoria) ||
+        categoriaNormalizada === 'Desarrollador' ||
+        categoriaNormalizada === 'Gerencia' ||
+        categoriaNormalizada === 'Administrador';
+
+      if (!tieneAccesoWarehouse) {
+        console.log('Redirigiendo porque no tiene acceso a warehouse. Rol:', decoded.categoria);
         return NextResponse.redirect(new URL('/solicitudes-compra', request.url));
       }
     }
