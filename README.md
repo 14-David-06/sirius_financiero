@@ -48,7 +48,7 @@ Plataforma integral para la gestión financiera empresarial con interfaz minimal
 
 ## 🎯 Usuarios Predefinidos
   
-El sistema incluye usuarios predefinidos con sus respectivos datos:
+El sistema incluye usuarios predefinidos con sus respectivos datos:          
 
 - **Santiago Amaya** - Pirolisis - Jefe de Planta
 - **Luisa Ramirez** - Gestión del Ser - Coordinadora Líder
