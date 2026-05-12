@@ -171,6 +171,18 @@ export default function ResumenGerencial() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [facturacionIngresos, setFacturacionIngresos] = useState<any[]>([]);
   const [loadingFacturacion, setLoadingFacturacion] = useState(true);
+
+  // Estado para Ingresos Operacionales desde Item Facturacion Ingresos
+  const [ingresosOperacionalesFact, setIngresosOperacionalesFact] = useState<number | null>(null);
+  const [loadingIngresosOpFact, setLoadingIngresosOpFact] = useState(true);
+
+  // Estado para Costo Operacional desde Facturacion Egresos
+  const [costoOperacionalFact, setCostoOperacionalFact] = useState<number | null>(null);
+  const [loadingCostoOpFact, setLoadingCostoOpFact] = useState(true);
+
+  // Filtros de rango de meses para la sección de indicadores financieros
+  const [metricsMonthFrom, setMetricsMonthFrom] = useState<number | null>(null);
+  const [metricsMonthTo, setMetricsMonthTo] = useState<number | null>(null);
   
   // Estados para saldos bancarios
   const [saldoBancolombia, setSaldoBancolombia] = useState<number | null>(null);
@@ -285,6 +297,48 @@ export default function ResumenGerencial() {
       setLoadingFacturacion(false);
     }
   }, [selectedYear, selectedMonth]);
+
+  // Fetch Ingresos Operacionales desde Item Facturacion Ingresos (excluye flete/transporte)
+  const fetchIngresosOperacionalesFact = useCallback(async () => {
+    try {
+      setLoadingIngresosOpFact(true);
+      let url = `/api/ingresos-operacionales?año=${selectedYear}`;
+      if (metricsMonthFrom) url += `&mesDesde=${metricsMonthFrom}`;
+      if (metricsMonthTo) url += `&mesHasta=${metricsMonthTo}`;
+      const response = await fetch(url);
+      const result = await response.json();
+      if (result.success) {
+        setIngresosOperacionalesFact(result.total);
+      } else {
+        console.error('Error en API ingresos-operacionales:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching ingresos operacionales:', error);
+    } finally {
+      setLoadingIngresosOpFact(false);
+    }
+  }, [selectedYear, metricsMonthFrom, metricsMonthTo]);
+
+  // Fetch Costo Operacional desde Facturacion Egresos (GRUPO=Costo, CLASE=Operacional)
+  const fetchCostoOperacionalFact = useCallback(async () => {
+    try {
+      setLoadingCostoOpFact(true);
+      let url = `/api/costo-operacional?año=${selectedYear}`;
+      if (metricsMonthFrom) url += `&mesDesde=${metricsMonthFrom}`;
+      if (metricsMonthTo) url += `&mesHasta=${metricsMonthTo}`;
+      const response = await fetch(url);
+      const result = await response.json();
+      if (result.success) {
+        setCostoOperacionalFact(result.total);
+      } else {
+        console.error('Error en API costo-operacional:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching costo operacional:', error);
+    } finally {
+      setLoadingCostoOpFact(false);
+    }
+  }, [selectedYear, metricsMonthFrom, metricsMonthTo]);
 
   // Función para obtener saldos bancarios actuales
   const fetchSaldosBancarios = useCallback(async () => {
@@ -563,11 +617,13 @@ export default function ResumenGerencial() {
     fetchData();
     fetchMovimientosBancarios();
     fetchFacturacionIngresos();
+    fetchIngresosOperacionalesFact();
+    fetchCostoOperacionalFact();
     fetchSaldosBancarios();
     fetchFacturasSinPagar();
     fetchRemisionesSinFacturar();
     fetchProyeccionesSemana();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar, fetchProyeccionesSemana]);
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchIngresosOperacionalesFact, fetchCostoOperacionalFact, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar, fetchProyeccionesSemana]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -662,16 +718,27 @@ export default function ResumenGerencial() {
       return null;
     }
 
+    // Filtrar por rango de meses si está activo
+    const movsFiltrados = (metricsMonthFrom || metricsMonthTo)
+      ? movimientosBancarios.filter(mov => {
+          if (!mov.fecha) return false;
+          const month = new Date(mov.fecha + 'T00:00:00').getMonth() + 1;
+          if (metricsMonthFrom && month < metricsMonthFrom) return false;
+          if (metricsMonthTo && month > metricsMonthTo) return false;
+          return true;
+        })
+      : movimientosBancarios;
+
     // Debugging: ver todos los valores únicos de GRUPO y CLASE
-    const gruposUnicos = [...new Set(movimientosBancarios.map(mov => mov.grupo))];
-    const clasesUnicas = [...new Set(movimientosBancarios.map(mov => mov.clase))];
+    const gruposUnicos = [...new Set(movsFiltrados.map(mov => mov.grupo))];
+    const clasesUnicas = [...new Set(movsFiltrados.map(mov => mov.clase))];
     
     console.log('Grupos únicos encontrados:', gruposUnicos);
     console.log('Clases únicas encontradas:', clasesUnicas);
 
     // Totalizador de ingresos operacionales (GRUPO = "Ingreso" y CLASE = "Operacional")
     // CAPTURA TODOS ABSOLUTAMENTE TODOS LOS REGISTROS QUE CUMPLAN ESTA CONDICIÓN
-    const registrosIngresosOperacionales = movimientosBancarios.filter(mov => {
+    const registrosIngresosOperacionales = movsFiltrados.filter(mov => {
       // Verificación exhaustiva de la condición
       const grupoEsIngreso = mov.grupo === 'Ingreso';
       const claseEsOperacional = mov.clase === 'Operacional';
@@ -696,7 +763,7 @@ export default function ResumenGerencial() {
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
 
     // Totalizador de costos operacionales (GRUPO PRUEBA = "Costo" y CLASE PRUEBA = "Operacional")
-    const registrosCostosOperacionales = movimientosBancarios.filter(mov => {
+    const registrosCostosOperacionales = movsFiltrados.filter(mov => {
       const grupoLimpio = mov.grupoPrueba?.toString().trim();
       const claseLimpia = mov.clasePrueba?.toString().trim();
       
@@ -725,7 +792,7 @@ export default function ResumenGerencial() {
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
 
     // Totalizador de gastos de administración (GRUPO PRUEBA = "Gasto" y CLASE PRUEBA = "Administración")
-    const registrosGastosAdministracion = movimientosBancarios.filter(mov => {
+    const registrosGastosAdministracion = movsFiltrados.filter(mov => {
       const grupoLimpio = mov.grupoPrueba?.toString().trim();
       const claseLimpia = mov.clasePrueba?.toString().trim();
       
@@ -740,7 +807,7 @@ export default function ResumenGerencial() {
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
 
     // Totalizador de gastos de ventas (GRUPO PRUEBA = "Gasto" y CLASE PRUEBA = "Ventas")
-    const registrosGastosVentas = movimientosBancarios.filter(mov => {
+    const registrosGastosVentas = movsFiltrados.filter(mov => {
       const grupoLimpio = mov.grupoPrueba?.toString().trim();
       const claseLimpia = mov.clasePrueba?.toString().trim();
       
@@ -755,7 +822,7 @@ export default function ResumenGerencial() {
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
 
     // Totalizador de gastos no operacionales (GRUPO PRUEBA = "Gasto" y CLASE PRUEBA = "No Operacional")
-    const registrosGastosNoOperacionales = movimientosBancarios.filter(mov => {
+    const registrosGastosNoOperacionales = movsFiltrados.filter(mov => {
       const grupoLimpio = mov.grupoPrueba?.toString().trim();
       const claseLimpia = mov.clasePrueba?.toString().trim();
       
@@ -840,7 +907,7 @@ export default function ResumenGerencial() {
     })));
 
     // Otros cálculos por clasificación
-    const movimientoPorClasificacion = movimientosBancarios.reduce((acc, mov) => {
+    const movimientoPorClasificacion = movsFiltrados.reduce((acc, mov) => {
       if (!acc[mov.clasificacion]) {
         acc[mov.clasificacion] = 0;
       }
@@ -849,7 +916,7 @@ export default function ResumenGerencial() {
     }, {} as Record<string, number>);
 
     // Movimientos por unidad de negocio
-    const movimientoPorUnidad = movimientosBancarios.reduce((acc, mov) => {
+    const movimientoPorUnidad = movsFiltrados.reduce((acc, mov) => {
       if (!acc[mov.unidadNegocio]) {
         acc[mov.unidadNegocio] = 0;
       }
@@ -870,9 +937,9 @@ export default function ResumenGerencial() {
       registrosGastosNoOperacionales: registrosGastosNoOperacionales.length,
       movimientoPorClasificacion,
       movimientoPorUnidad,
-      totalMovimientos: movimientosBancarios.length
+      totalMovimientos: movsFiltrados.length
     };
-  }, [movimientosBancarios]);
+  }, [movimientosBancarios, metricsMonthFrom, metricsMonthTo]);
 
   // Cálculos de facturación de ingresos
   const facturacionMetrics = useMemo(() => {
@@ -2130,7 +2197,40 @@ export default function ResumenGerencial() {
 
         {/* Movimientos Bancarios Bancolombia - Capital de Trabajo */}
         <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-bold text-white">Indicadores Financieros</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-white/60 text-sm">Período:</span>
+              <select
+                value={metricsMonthFrom ?? ''}
+                onChange={(e) => setMetricsMonthFrom(e.target.value ? Number(e.target.value) : null)}
+                className="bg-slate-800/60 text-white border border-white/20 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Desde (mes)</option>
+                {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((mes, i) => (
+                  <option key={i + 1} value={i + 1}>{mes}</option>
+                ))}
+              </select>
+              <span className="text-white/40">—</span>
+              <select
+                value={metricsMonthTo ?? ''}
+                onChange={(e) => setMetricsMonthTo(e.target.value ? Number(e.target.value) : null)}
+                className="bg-slate-800/60 text-white border border-white/20 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Hasta (mes)</option>
+                {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((mes, i) => (
+                  <option key={i + 1} value={i + 1}>{mes}</option>
+                ))}
+              </select>
+              {(metricsMonthFrom || metricsMonthTo) && (
+                <button
+                  onClick={() => { setMetricsMonthFrom(null); setMetricsMonthTo(null); }}
+                  className="text-white/50 hover:text-white text-xs underline transition-colors"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
           </div>
 
           {loadingMovimientos ? (
@@ -2147,7 +2247,10 @@ export default function ResumenGerencial() {
                     Ingresos Operacionales
                   </p>
                   <p className="text-white text-3xl font-bold">
-                    ${movimientosMetrics.ingresosOperacionales.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                    {loadingIngresosOpFact
+                      ? <span className="animate-pulse text-white/50">...</span>
+                      : `$${(ingresosOperacionalesFact ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+                    }
                   </p>
                 </div>
               </div>
@@ -2159,7 +2262,10 @@ export default function ResumenGerencial() {
                     Costo Operacional
                   </p>
                   <p className="text-white text-3xl font-bold">
-                    ${movimientosMetrics.costosOperacionales.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                    {loadingCostoOpFact
+                      ? <span className="animate-pulse text-white/50">...</span>
+                      : `$${(costoOperacionalFact ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+                    }
                   </p>
                 </div>
               </div>
