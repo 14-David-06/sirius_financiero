@@ -180,6 +180,14 @@ export default function ResumenGerencial() {
   const [costoOperacionalFact, setCostoOperacionalFact] = useState<number | null>(null);
   const [loadingCostoOpFact, setLoadingCostoOpFact] = useState(true);
 
+  // Estado para Gastos de Administración desde Facturacion Egresos
+  const [gastosAdministracionFact, setGastosAdministracionFact] = useState<number | null>(null);
+  const [loadingGastosAdminFact, setLoadingGastosAdminFact] = useState(true);
+
+  // Estado para Gastos de Ventas desde Facturacion Egresos
+  const [gastosVentasFact, setGastosVentasFact] = useState<number | null>(null);
+  const [loadingGastosVentasFact, setLoadingGastosVentasFact] = useState(true);
+
   // Filtros de rango de meses para la sección de indicadores financieros
   const [metricsMonthFrom, setMetricsMonthFrom] = useState<number | null>(null);
   const [metricsMonthTo, setMetricsMonthTo] = useState<number | null>(null);
@@ -337,6 +345,48 @@ export default function ResumenGerencial() {
       console.error('Error fetching costo operacional:', error);
     } finally {
       setLoadingCostoOpFact(false);
+    }
+  }, [selectedYear, metricsMonthFrom, metricsMonthTo]);
+
+  // Fetch Gastos Ventas desde Facturacion Egresos (GRUPO=Gasto, CLASE=Ventas)
+  const fetchGastosVentasFact = useCallback(async () => {
+    try {
+      setLoadingGastosVentasFact(true);
+      let url = `/api/gastos-ventas?año=${selectedYear}`;
+      if (metricsMonthFrom) url += `&mesDesde=${metricsMonthFrom}`;
+      if (metricsMonthTo) url += `&mesHasta=${metricsMonthTo}`;
+      const response = await fetch(url);
+      const result = await response.json();
+      if (result.success) {
+        setGastosVentasFact(result.total);
+      } else {
+        console.error('Error en API gastos-ventas:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching gastos ventas:', error);
+    } finally {
+      setLoadingGastosVentasFact(false);
+    }
+  }, [selectedYear, metricsMonthFrom, metricsMonthTo]);
+
+  // Fetch Gastos Administración desde Facturacion Egresos (GRUPO=Gasto, CLASE=Administración)
+  const fetchGastosAdministracionFact = useCallback(async () => {
+    try {
+      setLoadingGastosAdminFact(true);
+      let url = `/api/gastos-administracion?año=${selectedYear}`;
+      if (metricsMonthFrom) url += `&mesDesde=${metricsMonthFrom}`;
+      if (metricsMonthTo) url += `&mesHasta=${metricsMonthTo}`;
+      const response = await fetch(url);
+      const result = await response.json();
+      if (result.success) {
+        setGastosAdministracionFact(result.total);
+      } else {
+        console.error('Error en API gastos-administracion:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching gastos administración:', error);
+    } finally {
+      setLoadingGastosAdminFact(false);
     }
   }, [selectedYear, metricsMonthFrom, metricsMonthTo]);
 
@@ -619,11 +669,13 @@ export default function ResumenGerencial() {
     fetchFacturacionIngresos();
     fetchIngresosOperacionalesFact();
     fetchCostoOperacionalFact();
+    fetchGastosAdministracionFact();
+    fetchGastosVentasFact();
     fetchSaldosBancarios();
     fetchFacturasSinPagar();
     fetchRemisionesSinFacturar();
     fetchProyeccionesSemana();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchIngresosOperacionalesFact, fetchCostoOperacionalFact, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar, fetchProyeccionesSemana]);
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchIngresosOperacionalesFact, fetchCostoOperacionalFact, fetchGastosAdministracionFact, fetchGastosVentasFact, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar, fetchProyeccionesSemana]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -2198,7 +2250,7 @@ export default function ResumenGerencial() {
         {/* Movimientos Bancarios Bancolombia - Capital de Trabajo */}
         <div className="bg-slate-800/40 backdrop-blur-md rounded-xl shadow-xl p-6 mb-6 border border-white/30">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-xl font-bold text-white">Indicadores Financieros</h2>
+            <h2 className="text-xl font-bold text-white">Estado de Resultados Integral (P&L)</h2>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-white/60 text-sm">Período:</span>
               <select
@@ -2277,7 +2329,10 @@ export default function ResumenGerencial() {
                     Gasto Administración
                   </p>
                   <p className="text-white text-3xl font-bold">
-                    ${movimientosMetrics.gastosAdministracion.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                    {loadingGastosAdminFact
+                      ? <span className="animate-pulse text-white/50">...</span>
+                      : `$${(gastosAdministracionFact ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+                    }
                   </p>
                 </div>
               </div>
@@ -2289,19 +2344,31 @@ export default function ResumenGerencial() {
                     Gasto de ventas
                   </p>
                   <p className="text-white text-3xl font-bold">
-                    ${movimientosMetrics.gastosVentas.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                    {loadingGastosVentasFact
+                      ? <span className="animate-pulse text-white/50">...</span>
+                      : `$${(gastosVentasFact ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+                    }
                   </p>
                 </div>
               </div>
 
-              {/* Totalizador de Gastos No Operacionales */}
+              {/* Resultado Operacional = Ingresos Op - Costo Op - Gasto Admin - Gasto Ventas */}
               <div className="bg-slate-800/40 backdrop-blur-sm rounded-lg p-4 border border-white/30">
                 <div>
                   <p className="text-white/80 text-sm font-medium mb-1">
-                    Gasto No Operacional
+                    Resultado Operacional
                   </p>
                   <p className="text-white text-3xl font-bold">
-                    ${movimientosMetrics.gastosNoOperacionales.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                    {(loadingIngresosOpFact || loadingCostoOpFact || loadingGastosAdminFact || loadingGastosVentasFact)
+                      ? <span className="animate-pulse text-white/50">...</span>
+                      : (() => {
+                          const resultado = (ingresosOperacionalesFact ?? 0)
+                            - (costoOperacionalFact ?? 0)
+                            - (gastosAdministracionFact ?? 0)
+                            - (gastosVentasFact ?? 0);
+                          return `$${resultado.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+                        })()
+                    }
                   </p>
                 </div>
               </div>
