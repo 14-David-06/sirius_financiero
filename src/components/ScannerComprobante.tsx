@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Camera, Upload, X, FileText, Loader2, CheckCircle, Eye, Trash2, Plus } from 'lucide-react';
 
@@ -34,69 +34,7 @@ function resizeCanvas(
   return canvas;
 }
 
-interface Point { x: number; y: number }
 
-function detectDocumentEdges(canvas: HTMLCanvasElement): Point[] {
-  const { width, height } = canvas;
-  const margin = Math.round(Math.min(width, height) * 0.10);
-  return [
-    { x: margin, y: margin },
-    { x: width - margin, y: margin },
-    { x: width - margin, y: height - margin },
-    { x: margin, y: height - margin },
-  ];
-}
-
-function applyPerspectiveCorrection(
-  source: HTMLCanvasElement,
-  corners: Point[]
-): HTMLCanvasElement {
-  const destWidth = source.width;
-  const destHeight = source.height;
-  const dest = document.createElement('canvas');
-  dest.width = destWidth;
-  dest.height = destHeight;
-  const srcCtx = source.getContext('2d')!;
-  const dstCtx = dest.getContext('2d')!;
-
-  const srcData = srcCtx.getImageData(0, 0, source.width, source.height);
-  const dstData = dstCtx.createImageData(destWidth, destHeight);
-
-  const [tl, tr, br, bl] = corners;
-
-  for (let y = 0; y < destHeight; y++) {
-    for (let x = 0; x < destWidth; x++) {
-      const u = x / (destWidth - 1);
-      const v = y / (destHeight - 1);
-
-      const srcX =
-        tl.x * (1 - u) * (1 - v) +
-        tr.x * u * (1 - v) +
-        br.x * u * v +
-        bl.x * (1 - u) * v;
-
-      const srcY =
-        tl.y * (1 - u) * (1 - v) +
-        tr.y * u * (1 - v) +
-        br.y * u * v +
-        bl.y * (1 - u) * v;
-
-      const sx = Math.max(0, Math.min(source.width - 1, Math.round(srcX)));
-      const sy = Math.max(0, Math.min(source.height - 1, Math.round(srcY)));
-
-      const srcIdx = (sy * source.width + sx) * 4;
-      const dstIdx = (y * destWidth + x) * 4;
-
-      dstData.data[dstIdx] = srcData.data[srcIdx];
-      dstData.data[dstIdx + 1] = srcData.data[srcIdx + 1];
-      dstData.data[dstIdx + 2] = srcData.data[srcIdx + 2];
-      dstData.data[dstIdx + 3] = srcData.data[srcIdx + 3];
-    }
-  }
-
-  dstCtx.putImageData(dstData, 0, 0);
-  return dest;
-}
 
 function enhanceDocument(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const out = document.createElement('canvas');
@@ -154,9 +92,7 @@ async function processImage(file: File): Promise<{ original: string; scanned: st
         rawCtx.drawImage(img, 0, 0);
 
         const resized = resizeCanvas(raw);
-        const corners = detectDocumentEdges(resized);
-        const corrected = applyPerspectiveCorrection(resized, corners);
-        const enhanced = enhanceDocument(corrected);
+        const enhanced = enhanceDocument(resized);
 
         resolve({
           original: resized.toDataURL('image/jpeg', 0.8),
@@ -265,23 +201,28 @@ export default function ScannerComprobante({
   }, [images.length, maxImages]);
 
   const removeImage = (id: string) => {
-    setImages(prev => prev.filter(img => img.id !== id));
-    setPdfReady(false);
-    setPdfPreviewUrl(null);
-    if (images.length <= 1) {
+    const next = images.filter(img => img.id !== id);
+    setImages(next);
+    if (next.length === 0) {
+      if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+      setPdfPreviewUrl(null);
+      setPdfReady(false);
       onClear?.();
     }
   };
 
-  const handleGeneratePdf = async () => {
-    if (images.length === 0) return;
+  const handleGeneratePdf = useCallback(async (imagesToProcess: ScannedImage[]) => {
+    if (imagesToProcess.length === 0) return;
     setGeneratingPdf(true);
     setError(null);
     try {
-      const blob = await generatePdf(images);
+      const blob = await generatePdf(imagesToProcess);
       const fileName = `comprobante-${Date.now()}.pdf`;
       const previewUrl = URL.createObjectURL(blob);
-      setPdfPreviewUrl(previewUrl);
+      setPdfPreviewUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return previewUrl;
+      });
       setPdfReady(true);
       onPdfReady(blob, fileName);
     } catch {
@@ -289,7 +230,13 @@ export default function ScannerComprobante({
     } finally {
       setGeneratingPdf(false);
     }
-  };
+  }, [onPdfReady]);
+
+  // Auto-generar PDF cada vez que cambia la lista de imágenes
+  useEffect(() => {
+    if (images.length === 0) return;
+    handleGeneratePdf(images);
+  }, [images]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClear = () => {
     setImages([]);
@@ -433,31 +380,17 @@ export default function ScannerComprobante({
 
           {/* Acciones */}
           <div className="flex gap-2">
-            {!pdfReady ? (
-              <button
-                type="button"
-                onClick={handleGeneratePdf}
-                disabled={disabled || generatingPdf || images.length === 0}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {generatingPdf ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generando PDF...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="w-4 h-4" />
-                    Generar PDF ({images.length} pág.)
-                  </>
-                )}
-              </button>
-            ) : (
+            {generatingPdf ? (
+              <div className="flex-1 flex items-center gap-2 py-2.5 bg-blue-600/20 border border-blue-500/30 rounded-xl text-blue-300 text-sm px-3">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generando PDF...
+              </div>
+            ) : pdfReady ? (
               <div className="flex-1 flex items-center gap-2 py-2.5 bg-emerald-600/20 border border-emerald-500/30 rounded-xl text-emerald-300 text-sm px-3">
                 <CheckCircle className="w-4 h-4 text-emerald-400" />
                 PDF listo ({images.length} página{images.length > 1 ? 's' : ''})
               </div>
-            )}
+            ) : null}
             <button
               type="button"
               onClick={handleClear}
