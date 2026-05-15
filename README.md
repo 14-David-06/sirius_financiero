@@ -47,7 +47,7 @@ Plataforma integral para la gestión financiera empresarial con interfaz minimal
 - **Herramientas**: ESLint, PostCSS
 
 ## 🎯 Usuarios Predefinidos
-  
+      
 El sistema incluye usuarios predefinidos con sus respectivos datos:          
 
 - **Santiago Amaya** - Pirolisis - Jefe de Planta
