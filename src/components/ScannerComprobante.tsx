@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import { Camera, Upload, X, FileText, Loader2, CheckCircle, Eye, Trash2, Plus } from 'lucide-react';
+import { Camera, Upload, X, FileText, Loader2, CheckCircle, Eye, Trash2, Plus, File } from 'lucide-react';
 
 interface ScannerComprobanteProps {
   onPdfReady: (pdfBlob: Blob, fileName: string) => void;
@@ -10,6 +10,8 @@ interface ScannerComprobanteProps {
   maxImages?: number;
   disabled?: boolean;
 }
+
+type UploadMode = 'scanner' | 'pdf';
 
 interface ScannedImage {
   id: string;
@@ -152,15 +154,18 @@ export default function ScannerComprobante({
   maxImages = 5,
   disabled = false,
 }: ScannerComprobanteProps) {
+  const [uploadMode, setUploadMode] = useState<UploadMode>('scanner');
   const [images, setImages] = useState<ScannedImage[]>([]);
   const [processing, setProcessing] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfReady, setPdfReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadedPdfFile, setUploadedPdfFile] = useState<File | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -238,8 +243,38 @@ export default function ScannerComprobante({
     handleGeneratePdf(images);
   }, [images]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handlePdfUpload = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (file.type !== 'application/pdf') {
+      setError('Solo se aceptan archivos PDF');
+      return;
+    }
+
+    setError(null);
+    setProcessing(true);
+
+    try {
+      setUploadedPdfFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setPdfPreviewUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return previewUrl;
+      });
+      setPdfReady(true);
+      onPdfReady(file, file.name);
+    } catch (err) {
+      setError('Error al cargar el archivo PDF');
+      console.error(err);
+    } finally {
+      setProcessing(false);
+    }
+  }, [onPdfReady]);
+
   const handleClear = () => {
     setImages([]);
+    setUploadedPdfFile(null);
     setPdfReady(false);
     if (pdfPreviewUrl) {
       URL.revokeObjectURL(pdfPreviewUrl);
@@ -249,12 +284,44 @@ export default function ScannerComprobante({
     onClear?.();
   };
 
-  const canAddMore = images.length < maxImages && !disabled;
+  const canAddMore = images.length < maxImages && !disabled && uploadMode === 'scanner' && !uploadedPdfFile;
 
   return (
     <div className="space-y-4">
-      {/* Botones de captura */}
-      {canAddMore && (
+      {/* Selector de modo de carga */}
+      {!pdfReady && images.length === 0 && (
+        <div className="flex gap-2 p-1 bg-slate-700/50 rounded-lg border border-white/10">
+          <button
+            type="button"
+            onClick={() => setUploadMode('scanner')}
+            disabled={disabled}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+              uploadMode === 'scanner'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'text-white/60 hover:text-white/80'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            Escanear Imágenes
+          </button>
+          <button
+            type="button"
+            onClick={() => setUploadMode('pdf')}
+            disabled={disabled}
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+              uploadMode === 'pdf'
+                ? 'bg-purple-600 text-white shadow-lg'
+                : 'text-white/60 hover:text-white/80'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Cargar PDF
+          </button>
+        </div>
+      )}
+
+      {/* Botones de captura para modo scanner */}
+      {uploadMode === 'scanner' && canAddMore && !uploadedPdfFile && (
         <div className="flex gap-2 flex-wrap">
           <button
             type="button"
@@ -282,6 +349,19 @@ export default function ScannerComprobante({
         </div>
       )}
 
+      {/* Botón de carga para modo PDF */}
+      {uploadMode === 'pdf' && !uploadedPdfFile && !pdfReady && (
+        <button
+          type="button"
+          onClick={() => pdfInputRef.current?.click()}
+          disabled={disabled || processing}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-lg text-purple-300 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <File className="w-5 h-5" />
+          Seleccionar archivo PDF
+        </button>
+      )}
+
       {/* Inputs ocultos */}
       <input
         ref={cameraInputRef}
@@ -300,6 +380,13 @@ export default function ScannerComprobante({
         className="hidden"
         onChange={e => handleFiles(e.target.files)}
       />
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={e => handlePdfUpload(e.target.files)}
+      />
 
       {/* Indicador de procesamiento */}
       {processing && (
@@ -317,8 +404,59 @@ export default function ScannerComprobante({
         </p>
       )}
 
+      {/* Vista de PDF cargado */}
+      {uploadMode === 'pdf' && uploadedPdfFile && (
+        <div className="space-y-3">
+          <div className="bg-slate-800/40 border border-white/10 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-500/20 rounded-lg border border-purple-500/30">
+                  <FileText className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{uploadedPdfFile.name}</p>
+                  <p className="text-xs text-white/60">
+                    {(uploadedPdfFile.size / 1024).toFixed(2)} KB • PDF
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={disabled}
+                className="text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+
+            {pdfReady && (
+              <div className="flex items-center gap-2 py-2 px-3 bg-emerald-600/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-sm">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                PDF listo para subir
+              </div>
+            )}
+          </div>
+
+          {/* Vista previa del PDF */}
+          {pdfPreviewUrl && (
+            <div>
+              <p className="text-xs text-white/50 flex items-center gap-1 mb-2">
+                <Eye className="w-3 h-3" />
+                Vista previa del PDF
+              </p>
+              <iframe
+                src={pdfPreviewUrl}
+                className="w-full h-64 rounded-lg border border-white/10"
+                title="Vista previa del comprobante PDF"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Galería de imágenes procesadas */}
-      {images.length > 0 && (
+      {uploadMode === 'scanner' && images.length > 0 && (
         <div className="space-y-3">
           {images.map((img, idx) => (
             <div
@@ -419,9 +557,11 @@ export default function ScannerComprobante({
       )}
 
       {/* Estado vacío */}
-      {images.length === 0 && !processing && (
+      {images.length === 0 && !uploadedPdfFile && !processing && (
         <div className="text-center py-4 text-white/30 text-xs">
-          Use los botones de arriba para capturar o subir imágenes del comprobante
+          {uploadMode === 'scanner'
+            ? 'Use los botones de arriba para capturar o subir imágenes del comprobante'
+            : 'Haga clic en el botón de arriba para seleccionar un archivo PDF'}
         </div>
       )}
     </div>

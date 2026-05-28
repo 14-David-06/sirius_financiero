@@ -100,7 +100,7 @@ src/
 │   ├── DashboardCompras.tsx    # Panel admin compras
 │   ├── CajaMenor.tsx           # Gestión caja menor
 │   ├── CajaMenorAgent.tsx      # Chat IA + voz
-│   ├── ScannerComprobante.tsx  # Escaneo de imágenes → PDF (client-side)
+│   ├── ScannerComprobante.tsx  # Escaneo de imágenes → PDF o carga directa de PDF
 │   ├── FacturacionIngresos.tsx
 │   ├── FacturacionEgresos.tsx
 │   ├── MovimientosBancarios.tsx
@@ -153,16 +153,26 @@ src/
 
 ## Funcionalidades Destacadas
 
-### Escaneo de Comprobantes (Caja Menor)
-El formulario de registro de gastos de caja menor incluye un scanner integrado:
+### Carga de Comprobantes (Caja Menor)
+El formulario de registro de gastos de caja menor incluye dos opciones para cargar comprobantes:
+
+#### Opción 1: Escanear Imágenes
 - **Captura:** Toma fotos con la cámara del dispositivo o sube desde galería
 - **Procesamiento:** Mejora de contraste automática usando Canvas API
 - **PDF:** Generación client-side con pdf-lib (sin servicios externos)
-- **Multipágina:** Soporte para múltiples imágenes en un solo PDF
-- **Almacenamiento:** Upload a S3 y guardado en Airtable campo `Comprobante`
-- **Componente:** `ScannerComprobante.tsx` (reutilizable)
+- **Multipágina:** Soporte para múltiples imágenes (hasta 5) en un solo PDF
+- **Flujo:** Captura imagen → Mejora contraste → Genera PDF → Sube a S3 → Guarda en Airtable
 
-Flujo: Captura imagen → Mejora contraste → Genera PDF → Sube a S3 → Guarda en Airtable
+#### Opción 2: Cargar PDF Directamente (Nuevo - 2026-05-28)
+- **Carga directa:** Selecciona archivos PDF existentes desde el dispositivo
+- **Sin procesamiento:** El PDF se sube tal cual, sin conversión
+- **Validación:** Solo acepta archivos tipo `application/pdf`
+- **Vista previa:** Muestra preview del PDF antes de guardar
+- **Flujo:** Selecciona PDF → Vista previa → Sube a S3 → Guarda en Airtable
+
+**Componente:** `ScannerComprobante.tsx` (reutilizable)  
+**Selector de modo:** UI con dos botones para alternar entre "Escanear Imágenes" y "Cargar PDF"  
+**Almacenamiento:** Upload a S3 y guardado en Airtable campo `Comprobante`
 
 ## Patrones Clave del Código
 

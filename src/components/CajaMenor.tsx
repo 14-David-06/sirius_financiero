@@ -2544,12 +2544,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 <div>
                   <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-blue-400" />
-                    Escanear Comprobante (Opcional)
+                    Comprobante (Opcional)
                   </label>
+                  <p className="text-xs text-white/60 mb-2">
+                    Puede escanear imágenes o cargar un archivo PDF directamente
+                  </p>
                   <div className="p-4 bg-slate-700/30 border border-white/10 rounded-xl">
                     <ScannerComprobante
                       onPdfReady={(pdfBlob, fileName) => {
-                        console.log('📄 PDF generado:', fileName);
+                        console.log('📄 Archivo listo:', fileName);
                         setFormData(prev => ({
                           ...prev,
                           comprobanteFile: pdfBlob,
