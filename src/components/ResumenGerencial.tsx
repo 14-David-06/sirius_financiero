@@ -591,15 +591,6 @@ export default function ResumenGerencial() {
     }
   }, [selectedYear]);
 
-  // Monitor changes in BBVA balance
-  useEffect(() => {
-    console.log('🔄 useEffect detectó cambio en saldoBBVA:', saldoBBVA);
-    console.log('💰 Valor mostrado en interfaz será:', saldoBBVA !== null ? 
-      `$${saldoBBVA.toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : 
-      'N/A'
-    );
-  }, [saldoBBVA]);
-
   // Función para obtener años disponibles
   const fetchAvailableYears = useCallback(async () => {
     try {
@@ -660,22 +651,40 @@ export default function ResumenGerencial() {
     fetchComparisonData();
   }, [isAuthenticated, showComparison, fetchComparisonData]);
 
-  // Fetch data
+  // --- Carga de datos dividida por dependencias ---
+  // Cada grupo depende solo de los filtros que realmente lo afectan, para que
+  // cambiar un filtro no dispare TODAS las consultas a la vez.
+
+  // Grupo 1: datos que se cargan una sola vez (no dependen de filtros)
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+    fetchSaldosBancarios();
+    fetchFacturasSinPagar();
+    fetchRemisionesSinFacturar();
+  }, [isAuthenticated, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar]);
+
+  // Grupo 2: datos por año / mes / semana (centralización, movimientos, facturación)
+  useEffect(() => {
+    if (!isAuthenticated) return;
     fetchData();
     fetchMovimientosBancarios();
     fetchFacturacionIngresos();
+  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos]);
+
+  // Grupo 3: métricas de P&L por rango de meses (metricsMonthFrom / metricsMonthTo)
+  useEffect(() => {
+    if (!isAuthenticated) return;
     fetchIngresosOperacionalesFact();
     fetchCostoOperacionalFact();
     fetchGastosAdministracionFact();
     fetchGastosVentasFact();
-    fetchSaldosBancarios();
-    fetchFacturasSinPagar();
-    fetchRemisionesSinFacturar();
+  }, [isAuthenticated, fetchIngresosOperacionalesFact, fetchCostoOperacionalFact, fetchGastosAdministracionFact, fetchGastosVentasFact]);
+
+  // Grupo 4: proyecciones de la semana (solo por año)
+  useEffect(() => {
+    if (!isAuthenticated) return;
     fetchProyeccionesSemana();
-  }, [isAuthenticated, fetchData, fetchMovimientosBancarios, fetchFacturacionIngresos, fetchIngresosOperacionalesFact, fetchCostoOperacionalFact, fetchGastosAdministracionFact, fetchGastosVentasFact, fetchSaldosBancarios, fetchFacturasSinPagar, fetchRemisionesSinFacturar, fetchProyeccionesSemana]);
+  }, [isAuthenticated, fetchProyeccionesSemana]);
 
   const fetchWeekComparison = useCallback(async () => {
     try {
@@ -762,11 +771,7 @@ export default function ResumenGerencial() {
 
   // Cálculos de movimientos bancarios
   const movimientosMetrics = useMemo(() => {
-    console.log('=== INICIANDO CÁLCULO DE MÉTRICAS ===');
-    console.log(`Total movimientos bancarios disponibles: ${movimientosBancarios.length}`);
-    
     if (movimientosBancarios.length === 0) {
-      console.log('No hay movimientos bancarios para procesar');
       return null;
     }
 
@@ -781,35 +786,10 @@ export default function ResumenGerencial() {
         })
       : movimientosBancarios;
 
-    // Debugging: ver todos los valores únicos de GRUPO y CLASE
-    const gruposUnicos = [...new Set(movsFiltrados.map(mov => mov.grupo))];
-    const clasesUnicas = [...new Set(movsFiltrados.map(mov => mov.clase))];
-    
-    console.log('Grupos únicos encontrados:', gruposUnicos);
-    console.log('Clases únicas encontradas:', clasesUnicas);
-
     // Totalizador de ingresos operacionales (GRUPO = "Ingreso" y CLASE = "Operacional")
-    // CAPTURA TODOS ABSOLUTAMENTE TODOS LOS REGISTROS QUE CUMPLAN ESTA CONDICIÓN
-    const registrosIngresosOperacionales = movsFiltrados.filter(mov => {
-      // Verificación exhaustiva de la condición
-      const grupoEsIngreso = mov.grupo === 'Ingreso';
-      const claseEsOperacional = mov.clase === 'Operacional';
-      
-      // Debugging detallado para cada registro
-      if (grupoEsIngreso || claseEsOperacional) {
-        console.log(`Evaluando registro ${mov.id}:`, {
-          grupo: mov.grupo,
-          clase: mov.clase,
-          grupoEsIngreso,
-          claseEsOperacional,
-          cumpleCondicion: grupoEsIngreso && claseEsOperacional,
-          valor: mov.valor,
-          descripcion: mov.descripcion.substring(0, 50)
-        });
-      }
-      
-      return grupoEsIngreso && claseEsOperacional;
-    });
+    const registrosIngresosOperacionales = movsFiltrados.filter(
+      mov => mov.grupo === 'Ingreso' && mov.clase === 'Operacional'
+    );
 
     const ingresosOperacionales = registrosIngresosOperacionales
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
@@ -818,26 +798,7 @@ export default function ResumenGerencial() {
     const registrosCostosOperacionales = movsFiltrados.filter(mov => {
       const grupoLimpio = mov.grupoPrueba?.toString().trim();
       const claseLimpia = mov.clasePrueba?.toString().trim();
-      
-      const grupoEsCosto = grupoLimpio === 'Costo';
-      const claseEsOperacional = claseLimpia === 'Operacional';
-      
-      // Debugging detallado para costos operacionales
-      if (grupoEsCosto || claseEsOperacional) {
-        console.log(`Evaluando costo operacional ${mov.id}:`, {
-          grupoPrueba: mov.grupoPrueba,
-          clasePrueba: mov.clasePrueba,
-          grupoPruebaLimpio: grupoLimpio,
-          clasePruebaLimpia: claseLimpia,
-          grupoEsCosto,
-          claseEsOperacional,
-          cumpleCondicion: grupoEsCosto && claseEsOperacional,
-          valor: mov.valor,
-          descripcion: mov.descripcion.substring(0, 50)
-        });
-      }
-      
-      return grupoEsCosto && claseEsOperacional;
+      return grupoLimpio === 'Costo' && claseLimpia === 'Operacional';
     });
 
     const costosOperacionales = registrosCostosOperacionales
@@ -887,76 +848,6 @@ export default function ResumenGerencial() {
 
     const gastosNoOperacionales = registrosGastosNoOperacionales
       .reduce((sum, mov) => sum + Math.abs(mov.valor), 0);
-
-    // Log para debugging - ver exactamente cuántos registros se están capturando
-    console.log(`=== RESULTADO INGRESOS OPERACIONALES ===`);
-    console.log(`Total registros encontrados: ${registrosIngresosOperacionales.length}`);
-    console.log(`Valor total: $${ingresosOperacionales.toLocaleString('es-CO')}`);
-    
-    console.log(`=== RESULTADO COSTOS OPERACIONALES ===`);
-    console.log(`Total registros encontrados: ${registrosCostosOperacionales.length}`);
-    console.log(`Valor total: $${costosOperacionales.toLocaleString('es-CO')}`);
-    
-    console.log(`=== RESULTADO GASTOS ADMINISTRACIÓN ===`);
-    console.log(`Total registros encontrados: ${registrosGastosAdministracion.length}`);
-    console.log(`Valor total: $${gastosAdministracion.toLocaleString('es-CO')}`);
-    console.log(`🎯 OBJETIVO AIRTABLE: 702 registros`);
-    console.log(`📊 DIFERENCIA: ${registrosGastosAdministracion.length - 702} registros`);
-    
-    console.log(`=== RESULTADO GASTOS DE VENTAS ===`);
-    console.log(`Total registros encontrados: ${registrosGastosVentas.length}`);
-    console.log(`Valor total: $${gastosVentas.toLocaleString('es-CO')}`);
-    console.log(`📊 GRUPO PRUEBA: Gasto | CLASE PRUEBA: Ventas`);
-    
-    console.log(`=== RESULTADO GASTOS NO OPERACIONALES ===`);
-    console.log(`Total registros encontrados: ${registrosGastosNoOperacionales.length}`);
-    console.log(`Valor total: $${gastosNoOperacionales.toLocaleString('es-CO')}`);
-    console.log(`📊 GRUPO PRUEBA: Gasto | CLASE PRUEBA: No Operacional`);
-    
-    console.log('Registros de ingresos capturados:', registrosIngresosOperacionales.map(r => ({
-      id: r.id,
-      fecha: r.fecha,
-      descripcion: r.descripcion,
-      valor: r.valor,
-      grupo: r.grupo,
-      clase: r.clase
-    })));
-    
-    console.log('Registros de costos capturados:', registrosCostosOperacionales.map(r => ({
-      id: r.id,
-      fecha: r.fecha,
-      descripcion: r.descripcion,
-      valor: r.valor,
-      grupoPrueba: r.grupoPrueba,
-      clasePrueba: r.clasePrueba
-    })));
-    
-    console.log('Registros de gastos administración capturados:', registrosGastosAdministracion.map(r => ({
-      id: r.id,
-      fecha: r.fecha,
-      descripcion: r.descripcion,
-      valor: r.valor,
-      grupoPrueba: r.grupoPrueba,
-      clasePrueba: r.clasePrueba
-    })));
-    
-    console.log('Registros de gastos de ventas capturados:', registrosGastosVentas.map(r => ({
-      id: r.id,
-      fecha: r.fecha,
-      descripcion: r.descripcion,
-      valor: r.valor,
-      grupoPrueba: r.grupoPrueba,
-      clasePrueba: r.clasePrueba
-    })));
-    
-    console.log('Registros de gastos no operacionales capturados:', registrosGastosNoOperacionales.map(r => ({
-      id: r.id,
-      fecha: r.fecha,
-      descripcion: r.descripcion,
-      valor: r.valor,
-      grupoPrueba: r.grupoPrueba,
-      clasePrueba: r.clasePrueba
-    })));
 
     // Otros cálculos por clasificación
     const movimientoPorClasificacion = movsFiltrados.reduce((acc, mov) => {
