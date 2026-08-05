@@ -6,6 +6,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Mapeo de roles a categorías (para compatibilidad con tokens JWT antiguos)
 function normalizarCategoria(categoria: string): string {
+  // Si ya es una categoría normalizada, retornarla
+  if (['Desarrollador', 'Gerencia', 'Administrador', 'Colaborador'].includes(categoria)) {
+    return categoria;
+  }
+
   const rolesToCategoria: Record<string, string> = {
     'INGENIERO DE DESARROLLO': 'Desarrollador',
     'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)': 'Desarrollador',
@@ -20,7 +25,17 @@ function normalizarCategoria(categoria: string): string {
     'COORDINADOR DE COMPRAS': 'Administrador',
     'ASISTENTE ADMINISTRATIVO': 'Administrador',
   };
-  return rolesToCategoria[categoria] || categoria;
+
+  // Buscar coincidencia case-insensitive
+  const categoriaUpper = categoria.toUpperCase();
+  for (const [rol, cat] of Object.entries(rolesToCategoria)) {
+    if (rol.toUpperCase() === categoriaUpper) {
+      return cat;
+    }
+  }
+
+  // Por defecto, si no encuentra mapeo, tratarlo como Colaborador
+  return 'Colaborador';
 }
 
 // Rutas que requieren autenticación
@@ -125,7 +140,12 @@ export function middleware(request: NextRequest) {
     // Verificar token JWT
     const decoded = jwt.verify(token, JWT_SECRET) as any;
 
-    console.log('Decoded categoria:', decoded.categoria);
+    console.log('🔐 Usuario autenticado:', {
+      nombre: decoded.nombre,
+      categoria: decoded.categoria,
+      rol: decoded.rol,
+      pathname
+    });
 
     // Verificar si el token no ha expirado
     if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
@@ -154,15 +174,17 @@ export function middleware(request: NextRequest) {
 
     // Verificar restricciones para colaboradores
     const categoriaNormalizada = normalizarCategoria(decoded.categoria);
+    console.log('📊 Categoría normalizada:', categoriaNormalizada);
+
     if (categoriaNormalizada === 'Colaborador') {
       const isElevatedRoute = elevatedRoutes.some(route =>
         pathname.startsWith(route)
       );
 
-      console.log('Es colaborador, ruta elevada:', isElevatedRoute);
+      console.log('⚠️ Usuario es colaborador intentando acceder a ruta elevada:', isElevatedRoute);
 
       if (isElevatedRoute) {
-        console.log('Redirigiendo colaborador de ruta elevada');
+        console.log('🚫 Redirigiendo colaborador de ruta elevada a /solicitudes-compra');
         // Los colaboradores solo pueden acceder a solicitudes-compra
         return NextResponse.redirect(new URL('/solicitudes-compra', request.url));
       }

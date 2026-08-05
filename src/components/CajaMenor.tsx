@@ -1438,44 +1438,43 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
   const itemsFiltrados = todosLosItems.filter(item => {
     // Validar que el item existe y tiene las propiedades necesarias
     if (!item || typeof item !== 'object') return false;
-    
-    // Si no hay última caja menor, no mostrar ningún registro
-    if (!ultimaCajaMenor) return false;
-    
-    // Solo mostrar registros de cajas menores activas
-    if (item.tipo === 'anticipo' && !cajasMenoresActivas.some(caja => caja.id === item.id)) return false;
-    if (item.tipo === 'gasto' && !item.cajaMenorId?.some(id => cajasMenoresActivas.some(caja => caja.id === id))) return false;
-    
+
+    // Si no hay caja menor seleccionada, no mostrar ningún registro
+    if (!cajaMenorActual) return false;
+
+    // Solo mostrar registros de la caja menor seleccionada
+    if (item.tipo === 'anticipo' && item.id !== cajaMenorActual.id) return false;
+    if (item.tipo === 'gasto' && !item.cajaMenorId?.includes(cajaMenorActual.id)) return false;
+
     const searchText = busqueda.toLowerCase();
     const matchBusqueda = (item.concepto || '').toLowerCase().includes(searchText) ||
                          (item.beneficiario || '').toLowerCase().includes(searchText) ||
                          (item.categoria || '').toLowerCase().includes(searchText);
-    
-    const matchTipo = filtroTipo === 'todos' || 
+
+    const matchTipo = filtroTipo === 'todos' ||
                      (filtroTipo === 'ingreso' && item.tipo === 'anticipo') ||
                      (filtroTipo === 'egreso' && item.tipo === 'gasto');
-    
+
     const matchEstado = filtroEstado === 'todos' || item.estado === filtroEstado;
-    
+
     return matchBusqueda && matchTipo && matchEstado;
   });
 
-  // Calcular totales de todas las cajas menores activas
-  const totalIngresos = cajasMenoresActivas.reduce((sum, caja) => sum + (caja.valor || 0), 0);
-  
-  // Calcular egresos de todas las cajas menores activas
-  const totalEgresos = itemsRecords
-    .filter(item => {
-      // Items que pertenecen a cajas menores activas
-      return cajasMenoresActivas.some(caja => item.cajaMenor?.includes(caja.id));
-    })
-    .reduce((sum, item) => sum + (item.valor || 0), 0);
+  // Calcular totales de la caja menor seleccionada
+  const totalIngresos = cajaMenorActual?.valor || 0;
+
+  // Calcular egresos de la caja menor seleccionada
+  const totalEgresos = cajaMenorActual
+    ? itemsRecords
+        .filter(item => item.cajaMenor?.includes(cajaMenorActual.id))
+        .reduce((sum, item) => sum + (item.valor || 0), 0)
+    : 0;
 
   const saldoActual = totalIngresos - totalEgresos;
 
   // Debug: Log de estado actual
   console.log('📊 Estado Dashboard Caja Menor:', {
-    ultimaCajaMenor: !!ultimaCajaMenor,
+    cajaMenorActual: cajaMenorActual ? `${cajaMenorActual.beneficiario} - ${formatearFecha(cajaMenorActual.fechaAnticipo)}` : 'ninguna',
     estaConsolidada,
     totalIngresos,
     totalEgresos,
@@ -1872,12 +1871,12 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
               )}
               
-              {/* Botón Historial - Solo visible para usuarios autorizados */}
-              {canEditDelete && cajaMenorRecords.length > 0 && (
+              {/* Botón Historial - Visible para todos los usuarios */}
+              {cajaMenorRecords.length > 0 && (
                 <button
                   onClick={() => setShowHistoricoModal(true)}
                   className="flex items-center justify-center gap-2 px-4 py-2 md:py-3 bg-slate-600 hover:bg-slate-500 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg text-sm md:text-base border border-white/20"
-                  title="Ver y editar cajas menores anteriores"
+                  title="Ver cajas menores anteriores"
                 >
                   <Clock className="w-4 h-4" />
                   <span>Historial</span>
@@ -2651,6 +2650,32 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
           </div>
         )}
 
+          {/* Selector de Caja Menor */}
+          {cajaMenorRecords.length > 0 && (
+            <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 border border-white/30 shadow-xl mb-4">
+              <label className="block text-sm font-semibold text-white/80 mb-2">
+                📂 Seleccionar Periodo de Caja Menor
+              </label>
+              <select
+                value={cajaMenorActual?.id || ''}
+                onChange={(e) => {
+                  const selectedCaja = cajaMenorRecords.find(c => c.id === e.target.value);
+                  setCajaMenorActual(selectedCaja || null);
+                }}
+                className="w-full px-4 py-3 bg-slate-700/50 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm md:text-base"
+              >
+                {[...cajaMenorRecords]
+                  .sort((a, b) => new Date(b.fechaAnticipo).getTime() - new Date(a.fechaAnticipo).getTime())
+                  .map(caja => (
+                    <option key={caja.id} value={caja.id}>
+                      {formatearFecha(caja.fechaAnticipo)} - {caja.beneficiario} - ${(caja.valor || 0).toLocaleString('es-CO')}
+                      {caja.estadoCajaMenor === 'Caja Menor Consiliada' ? ' ✅ Consolidada' : ' 🔵 Abierta'}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
           {/* Resumen de estado de la caja menor */}
           {cajaMenorActual && (
             <div className="bg-slate-800/40 backdrop-blur-md rounded-xl p-4 md:p-6 border border-white/30 shadow-xl">
@@ -2660,9 +2685,9 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-lg md:text-xl font-bold text-white">
-                    Resumen de Caja Menor Actual
+                    Resumen de Caja Menor Seleccionada
                   </h3>
-                  <p className="text-xs md:text-sm text-white/70">Última caja registrada: {formatearFecha(cajaMenorActual.fechaAnticipo)}</p>
+                  <p className="text-xs md:text-sm text-white/70">Periodo: {formatearFecha(cajaMenorActual.fechaAnticipo)}</p>
                 </div>
               </div>
               
@@ -3020,14 +3045,26 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                           )}
                         </td>
                         <td className="py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-2 flex-wrap">
                             <button
-                              onClick={() => handleAbrirEditarFecha(caja)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors"
-                              title="Editar datos de la caja menor"
+                              onClick={() => {
+                                setCajaMenorActual(caja);
+                                setShowHistoricoModal(false);
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600/80 hover:bg-purple-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                              title="Seleccionar esta caja menor para trabajar con ella"
                             >
-                              ✏️ Caja
+                              📌 Seleccionar
                             </button>
+                            {canEditDelete && (
+                              <button
+                                onClick={() => handleAbrirEditarFecha(caja)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors"
+                                title="Editar datos de la caja menor"
+                              >
+                                ✏️ Editar
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setCajaParaVerItems(caja);
@@ -3035,7 +3072,7 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                                 setShowCajaItemsModal(true);
                               }}
                               className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition-colors"
-                              title="Ver y editar items de la caja menor"
+                              title="Ver items de la caja menor"
                             >
                               📋 Items ({itemsRecords.filter(i => i.cajaMenor?.includes(caja.id)).length})
                             </button>
