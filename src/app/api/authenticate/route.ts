@@ -10,11 +10,20 @@ import {
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// Configuración de Airtable
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+// Configuración de Airtable - Sirius Nómina Core
+const NOMINA_BASE_ID = process.env.NOMINA_AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-const AIRTABLE_TEAM_TABLE_NAME = process.env.AIRTABLE_TEAM_TABLE_NAME || 'Equipo Financiero';
+const NOMINA_PERSONAL_TABLE_ID = process.env.NOMINA_PERSONAL_TABLE_ID;
+const NOMINA_ROLES_TABLE_ID = process.env.NOMINA_ROLES_TABLE_ID;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Nombres de campos configurables
+const CEDULA_FIELD = process.env.NOMINA_PERSONAL_CEDULA_FIELD || 'Numero Documento';
+const NOMBRE_FIELD = process.env.NOMINA_PERSONAL_NOMBRE_FIELD || 'Nombre completo';
+const PASSWORD_FIELD = process.env.NOMINA_PERSONAL_PASSWORD_FIELD || 'Password';
+const ROL_FIELD = process.env.NOMINA_PERSONAL_ROL_FIELD || 'Rol';
+const ESTADO_FIELD = process.env.NOMINA_PERSONAL_ESTADO_FIELD || 'Estado de actividad';
+const ROL_NOMBRE_FIELD = process.env.NOMINA_ROLES_NOMBRE_FIELD || 'Rol';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -64,21 +73,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const sanitizedCedula = sanitizeInput(cedula);
 
     // 🔒 Validar configuración de Airtable
-    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
-      secureLog('🚨 Configuración de Airtable no encontrada');
+    if (!NOMINA_BASE_ID || !AIRTABLE_API_KEY || !NOMINA_PERSONAL_TABLE_ID) {
+      secureLog('🚨 Configuración de Sirius Nómina Core no encontrada');
       return new NextResponse(
         JSON.stringify({ error: 'Configuración del servidor incompleta' }),
-        { 
+        {
           status: 500,
           headers: securityHeaders
         }
       );
     }
 
-    // 🔒 Buscar usuario en Airtable
-    const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TEAM_TABLE_NAME}`;
+    // 🔒 Buscar usuario en Sirius Nómina Core
+    const airtableUrl = `https://api.airtable.com/v0/${NOMINA_BASE_ID}/${NOMINA_PERSONAL_TABLE_ID}`;
     const escapedCedula = escapeAirtableQuery(sanitizedCedula);
-    const filterFormula = `{Cedula} = "${escapedCedula}"`;
+    const filterFormula = `{${CEDULA_FIELD}} = "${escapedCedula}"`;
     
     const response = await fetch(
       `${airtableUrl}?filterByFormula=${encodeURIComponent(filterFormula)}`,
@@ -117,20 +126,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const user = data.records[0].fields;
     const recordId = data.records[0].id; // Obtener el ID del registro de Airtable
 
-    console.log('Usuario encontrado en Airtable:', {
+    console.log('Usuario encontrado en Sirius Nómina Core:', {
       recordId,
-      nombre: user.Nombre,
+      nombre: user[NOMBRE_FIELD],
       cedula: sanitizedCedula
     });
 
     // Verificar estado del usuario
-    if (user['Estado Usuario'] !== 'Activo') {
+    const estadoUsuario = user[ESTADO_FIELD];
+    if (estadoUsuario !== 'Activo') {
       secureLog('⚠️ Intento de login con usuario inactivo', { cedula: sanitizedCedula });
       return new NextResponse(
-        JSON.stringify({ 
-          error: 'Usuario inactivo. Contacte al administrador para reactivar su cuenta.' 
+        JSON.stringify({
+          error: 'Usuario inactivo. Contacte al administrador para reactivar su cuenta.'
         }),
-        { 
+        {
           status: 403,
           headers: securityHeaders
         }
@@ -138,21 +148,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Verificar si el usuario tiene contraseña configurada
-    if (!user.Hash || !user.Salt) {
+    const passwordHash = user[PASSWORD_FIELD];
+    if (!passwordHash || typeof passwordHash !== 'string' || passwordHash.trim() === '') {
       return new NextResponse(
-        JSON.stringify({ 
+        JSON.stringify({
           needsPasswordSetup: true,
           message: 'Debe configurar su contraseña por primera vez'
         }),
-        { 
+        {
           status: 200,
           headers: securityHeaders
         }
       );
     }
 
-    // 🔒 Verificar contraseña
-    const isPasswordValid = await bcrypt.compare(password, user.Hash);
+    // 🔒 Verificar contraseña (comparar con hash bcrypt almacenado)
+    const isPasswordValid = await bcrypt.compare(password, passwordHash);
     
     if (!isPasswordValid) {
       secureLog('⚠️ Intento de login con contraseña incorrecta', { cedula: sanitizedCedula });
@@ -165,30 +176,63 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Obtener rol del usuario (puede ser un array de IDs de linked records)
+    const rolArray = user[ROL_FIELD];
+    const rolId = Array.isArray(rolArray) && rolArray.length > 0 ? rolArray[0] : null;
+
+    // Si hay un rolId, obtener el nombre del rol desde la tabla Roles
+    let rolNombre = 'Colaborador'; // Default
+    if (rolId && NOMINA_ROLES_TABLE_ID) {
+      try {
+        const rolResponse = await fetch(
+          `https://api.airtable.com/v0/${NOMINA_BASE_ID}/${NOMINA_ROLES_TABLE_ID}/${rolId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        if (rolResponse.ok) {
+          const rolData = await rolResponse.json();
+          rolNombre = rolData.fields[ROL_NOMBRE_FIELD] || 'Colaborador';
+        }
+      } catch (error) {
+        console.warn('No se pudo obtener el nombre del rol:', error);
+      }
+    }
+
     // 🔒 Generar JWT token
     const token = jwt.sign(
       {
-        recordId, // Agregar recordId al token
+        recordId,
         cedula: sanitizedCedula,
-        nombre: sanitizeInput(user.Nombre || ''),
-        categoria: sanitizeInput(user['Categoria Usuario'] || ''),
+        nombre: sanitizeInput(user[NOMBRE_FIELD] || ''),
+        cargo: sanitizeInput(rolNombre),
+        area: 'No especificada',
+        email: sanitizeInput(user['Email'] || ''),
+        categoria: sanitizeInput(rolNombre),
+        rol: sanitizeInput(rolNombre),
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 horas
       },
       JWT_SECRET
     );
 
-    secureLog('✅ Login exitoso', { cedula: sanitizedCedula });
-    
+    secureLog('✅ Login exitoso', { cedula: sanitizedCedula, rol: rolNombre });
+
     return new NextResponse(
       JSON.stringify({
         success: true,
         token,
         user: {
-          recordId, // Agregar recordId al objeto user
+          recordId,
           cedula: sanitizedCedula,
-          nombre: sanitizeInput(user.Nombre || ''),
-          categoria: sanitizeInput(user['Categoria Usuario'] || ''),
-          idChat: sanitizeInput(user.ID_Chat || '')
+          nombre: sanitizeInput(user[NOMBRE_FIELD] || ''),
+          cargo: sanitizeInput(rolNombre),
+          area: 'No especificada',
+          email: sanitizeInput(user['Email'] || ''),
+          categoria: sanitizeInput(rolNombre),
+          rol: sanitizeInput(rolNombre),
         }
       }),
       {

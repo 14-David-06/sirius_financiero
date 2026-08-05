@@ -9,10 +9,15 @@ import {
 } from '@/lib/security/validation';
 import bcrypt from 'bcryptjs';
 
-// Configuración de Airtable
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+// Configuración de Airtable - Sirius Nómina Core
+const NOMINA_BASE_ID = process.env.NOMINA_AIRTABLE_BASE_ID;
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-const AIRTABLE_TEAM_TABLE_NAME = process.env.AIRTABLE_TEAM_TABLE_NAME || 'Equipo Financiero';
+const NOMINA_PERSONAL_TABLE_ID = process.env.NOMINA_PERSONAL_TABLE_ID;
+
+// Nombres de campos configurables
+const CEDULA_FIELD = process.env.NOMINA_PERSONAL_CEDULA_FIELD || 'Numero Documento';
+const PASSWORD_FIELD = process.env.NOMINA_PERSONAL_PASSWORD_FIELD || 'Password';
+const ESTADO_FIELD = process.env.NOMINA_PERSONAL_ESTADO_FIELD || 'Estado de actividad';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -73,21 +78,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const sanitizedCedula = sanitizeInput(cedula);
 
     // 🔒 Validar configuración de Airtable
-    if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
-      secureLog('🚨 Configuración de Airtable no encontrada');
+    if (!NOMINA_BASE_ID || !AIRTABLE_API_KEY || !NOMINA_PERSONAL_TABLE_ID) {
+      secureLog('🚨 Configuración de Sirius Nómina Core no encontrada');
       return new NextResponse(
         JSON.stringify({ error: 'Configuración del servidor incompleta' }),
-        { 
+        {
           status: 500,
           headers: securityHeaders
         }
       );
     }
 
-    // 🔒 Buscar usuario en Airtable
-    const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TEAM_TABLE_NAME}`;
+    // 🔒 Buscar usuario en Sirius Nómina Core
+    const airtableUrl = `https://api.airtable.com/v0/${NOMINA_BASE_ID}/${NOMINA_PERSONAL_TABLE_ID}`;
     const escapedCedula = escapeAirtableQuery(sanitizedCedula);
-    const filterFormula = `{Cedula} = "${escapedCedula}"`;
+    const filterFormula = `{${CEDULA_FIELD}} = "${escapedCedula}"`;
     
     const searchResponse = await fetch(
       `${airtableUrl}?filterByFormula=${encodeURIComponent(filterFormula)}`,
@@ -127,10 +132,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const user = userRecord.fields;
 
     // Verificar si el usuario ya tiene contraseña
-    if (user.Hash && user.Salt) {
+    const passwordHash = user[PASSWORD_FIELD];
+    if (passwordHash && typeof passwordHash === 'string' && passwordHash.trim() !== '') {
       return new NextResponse(
         JSON.stringify({ error: 'El usuario ya tiene una contraseña configurada' }),
-        { 
+        {
           status: 400,
           headers: securityHeaders
         }
@@ -138,22 +144,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Verificar que el usuario esté activo
-    if (user['Estado Usuario'] !== 'Activo') {
+    const estadoUsuario = user[ESTADO_FIELD];
+    if (estadoUsuario !== 'Activo') {
       return new NextResponse(
         JSON.stringify({ error: 'Usuario inactivo. Contacte al administrador.' }),
-        { 
+        {
           status: 403,
           headers: securityHeaders
         }
       );
     }
 
-    // 🔒 Generar hash y salt
+    // 🔒 Generar hash bcrypt (sin salt separado, bcrypt ya incluye el salt en el hash)
     const saltRounds = 12;
-    const salt = await bcrypt.genSalt(saltRounds);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // 🔒 Actualizar usuario en Airtable
+    // 🔒 Actualizar usuario en Sirius Nómina Core
     const updateResponse = await fetch(`${airtableUrl}`, {
       method: 'PATCH',
       headers: {
@@ -164,8 +170,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         records: [{
           id: userRecord.id,
           fields: {
-            Hash: hashedPassword,
-            Salt: salt
+            [PASSWORD_FIELD]: hashedPassword
           }
         }]
       })

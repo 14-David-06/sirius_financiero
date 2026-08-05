@@ -2,17 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
 
 // Configuración de Airtable para Pirólisis
-const PIROLISIS_API_KEY = process.env.PIROLISIS_AIRTABLE_API_KEY || '';
 const PIROLISIS_BASE_ID = process.env.PIROLISIS_AIRTABLE_BASE_ID || '';
 
-const base = new Airtable({ apiKey: PIROLISIS_API_KEY }).base(PIROLISIS_BASE_ID);
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(PIROLISIS_BASE_ID);
 
 const BALANCES_MASA_TABLE_ID = process.env.PIROLISIS_BALANCES_MASA_TABLE_ID || '';
 
 export async function GET(request: NextRequest) {
   try {
     // Validar configuración
-    if (!PIROLISIS_API_KEY || !PIROLISIS_BASE_ID || !BALANCES_MASA_TABLE_ID) {
+    if (!process.env.AIRTABLE_API_KEY || !PIROLISIS_BASE_ID || !BALANCES_MASA_TABLE_ID) {
       console.error('❌ Faltan variables de entorno requeridas');
       return NextResponse.json(
         { error: 'Configuración incompleta del servidor', success: false },
@@ -21,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🔄 API /balances-masa iniciando...');
-    console.log('🔑 API Key disponible:', !!PIROLISIS_API_KEY);
+    console.log('🔑 API Key disponible:', !!process.env.AIRTABLE_API_KEY);
     console.log('🗄️ Base ID:', PIROLISIS_BASE_ID);
     console.log('📊 Table ID:', BALANCES_MASA_TABLE_ID);
     

@@ -8,8 +8,8 @@ const MOVIMIENTOS_TABLE = process.env.AIRTABLE_MOV_INSUMO_TABLE_ID || '';
 const CATEGORIAS_TABLE = process.env.AIRTABLE_CAT_INSUMO_TABLE_ID || '';
 const UNIDADES_TABLE = process.env.AIRTABLE_UNIDADES_TABLE_ID || '';
 
-// Inicializar Airtable con API key específica para Insumos
-const base = new Airtable({ apiKey: process.env.AIRTABLE_INS_API_KEY }).base(INSUMOS_BASE_ID);
+// Inicializar Airtable con API key global
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(INSUMOS_BASE_ID);
 
 // Interface para item a enviar
 interface ItemParaInventario {

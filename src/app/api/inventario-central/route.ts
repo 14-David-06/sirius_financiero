@@ -9,7 +9,7 @@ const STOCK_TABLE = process.env.AIRTABLE_STOCK_INSUMO_TABLE_ID || '';
 const UNIDADES_TABLE = process.env.AIRTABLE_UNIDADES_TABLE_ID || '';
 const AREAS_TABLE = process.env.AIRTABLE_AREAS_TABLE_ID || '';
 
-const base = new Airtable({ apiKey: process.env.AIRTABLE_INS_API_KEY }).base(INSUMOS_BASE_ID);
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(INSUMOS_BASE_ID);
 
 export async function GET(request: NextRequest) {
   try {

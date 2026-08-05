@@ -6,8 +6,8 @@ import OpenAI from 'openai';
 const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
 const INSUMO_TABLE = process.env.AIRTABLE_INS_TABLE_ID || '';
 
-// Inicializar Airtable con API key específica para Insumos
-const base = new Airtable({ apiKey: process.env.AIRTABLE_INS_API_KEY }).base(INSUMOS_BASE_ID);
+// Inicializar Airtable con API key global
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(INSUMOS_BASE_ID);
 
 // Interface para items de factura
 interface ItemFactura {

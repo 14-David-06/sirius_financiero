@@ -5,11 +5,11 @@ import Airtable from 'airtable';
 const INSUMOS_BASE_ID = process.env.AIRTABLE_INS_BASE_ID || '';
 const AREAS_TABLE = process.env.AIRTABLE_AREAS_TABLE_ID || '';
 
-const base = new Airtable({ apiKey: process.env.AIRTABLE_INS_API_KEY }).base(INSUMOS_BASE_ID);
+const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(INSUMOS_BASE_ID);
 
 export async function GET() {
   try {
-    if (!INSUMOS_BASE_ID || !AREAS_TABLE || !process.env.AIRTABLE_INS_API_KEY) {
+    if (!INSUMOS_BASE_ID || !AREAS_TABLE || !process.env.AIRTABLE_API_KEY) {
       return NextResponse.json(
         { success: false, error: 'Configuración de Areas no encontrada' },
         { status: 500 }
