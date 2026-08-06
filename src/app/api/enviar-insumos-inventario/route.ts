@@ -11,6 +11,10 @@ const UNIDADES_TABLE = process.env.AIRTABLE_UNIDADES_TABLE_ID || '';
 // Inicializar Airtable con API key global
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(INSUMOS_BASE_ID);
 
+// Código de área de Sirius. Los campos de área son texto libre desde el rediseño
+// del esquema, así que hay que validar antes de escribir.
+const PATRON_CODIGO_AREA = /^SIRIUS-AREA-\d+$/i;
+
 // Interface para item a enviar
 interface ItemParaInventario {
   id: string;
@@ -90,11 +94,14 @@ function buscarUnidad(unidades: UnidadMedida[], unidadTexto: string): UnidadMedi
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { items, validaciones, facturaId, numeroFactura, areaDestinoId } = body as {
+    // `areaDestino` es el código de área (texto). Se acepta `areaDestinoId` por
+    // compatibilidad con clientes que aún envían el nombre anterior.
+    const { items, validaciones, facturaId, numeroFactura, areaDestino, areaDestinoId } = body as {
       items: ItemParaInventario[];
       validaciones: ValidacionIA[];
       facturaId: string;
       numeroFactura: string;
+      areaDestino?: string;
       areaDestinoId?: string;
     };
 
@@ -103,6 +110,14 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'No se proporcionaron items para enviar' },
         { status: 400 }
       );
+    }
+
+    // `ID Area Destino` es texto libre: se valida el formato para no escribir
+    // record IDs ni referencias de factura, que ya contaminaron registros viejos.
+    const candidatoArea = (areaDestino || areaDestinoId || '').trim();
+    const areaDestinoCodigo = PATRON_CODIGO_AREA.test(candidatoArea) ? candidatoArea : '';
+    if (candidatoArea && !areaDestinoCodigo) {
+      console.warn(`⚠️ Área destino ignorada por formato inválido: ${candidatoArea} (se esperaba SIRIUS-AREA-####)`);
     }
 
     console.log(`📦 Enviando ${items.length} items al inventario desde factura ${numeroFactura}...`);
@@ -140,23 +155,25 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Si creamos el insumo en esta iteración y luego falla el movimiento,
+      // hay que revertirlo: si no, queda un insumo sin ingreso y el reintento
+      // lo duplica.
+      let insumoCreadoId: string | null = null;
+
       try {
         let insumoId: string;
 
-        // Resolver unidad de medida
+        // Resolver unidad de medida para convertir la cantidad a unidad base
         const unidadEncontrada = buscarUnidad(unidades, item.Unidad);
         const factorConversion = unidadEncontrada?.factorABase || 1;
         const cantidadBase = item.Cantidad * factorConversion;
-        const costoUnitario = item['Vr. Unitario'] || 0;
-        const costoTotal = item.Cantidad * costoUnitario;
-        const costoUnitarioBase = cantidadBase > 0 ? costoTotal / cantidadBase : 0;
 
         if (validacion.accion === 'vincular' && validacion.insumoExistenteId) {
           insumoId = validacion.insumoExistenteId;
           console.log(`🔗 Vinculando item "${item.Item}" a insumo existente: ${validacion.insumoExistenteNombre}`);
         } else {
           console.log(`➕ Creando nuevo insumo: "${item.Item}"`);
-          
+
           // Determinar unidad base para el insumo (g, ml o und)
           const unidadBase = unidadEncontrada
             ? unidades.find(u => u.simbolo === unidadEncontrada.unidadBaseDeTipo)
@@ -169,42 +186,30 @@ export async function POST(request: NextRequest) {
             ...(unidadBase && { 'Unidad Base': [unidadBase.id] }),
             ...(categoriaDefecto && { 'Categoria': [categoriaDefecto] }),
           });
-          
+
           insumoId = nuevoInsumo.id;
+          insumoCreadoId = nuevoInsumo.id;
           console.log(`✅ Insumo creado con ID: ${insumoId}`);
         }
 
-        // Crear movimiento de ingreso con datos de conversión y costos
+        // Movimiento de ingreso. El esquema ya no guarda costos, subtipo,
+        // documento de origen ni conversión: la cantidad se persiste ya
+        // convertida a unidad base.
         const movimientoFields: Record<string, string | number | string[] | boolean> = {
-          'Name': `Ingreso - ${numeroFactura} - ${item.Item}`,
-          'Tipo Movimiento': 'Ingreso',
-          'Subtipo': 'Compra',
-          'Estado Entrada Insumo': 'Pendiente',
+          'Name': `Entrada - ${numeroFactura} - ${item.Item}`.slice(0, 100),
+          // "Entrada"/"Salida"/"Ajuste" son las únicas opciones del singleSelect
+          'Tipo Movimiento': 'Entrada',
           'Insumo': [insumoId],
-          'Cantidad Original': item.Cantidad,
-          'Factor Conversion': factorConversion,
-          'Cantidad Base': cantidadBase,
-          'Costo Unitario': costoUnitario,
-          'Costo Total': costoTotal,
-          'Costo Unitario Base': costoUnitarioBase,
-          'Documento Origen': numeroFactura,
+          'Cantidad ': cantidadBase,
         };
 
-        // Link a unidad original si se encontró
-        if (unidadEncontrada) {
-          movimientoFields['Unidad Original'] = [unidadEncontrada.id];
+        // El área destino es texto libre desde el rediseño
+        if (areaDestinoCodigo) {
+          movimientoFields['ID Area Destino'] = areaDestinoCodigo;
         }
-
-        // Link al área destino (Bodega por defecto)
-        if (areaDestinoId) {
-          movimientoFields['Area Destino Link'] = [areaDestinoId];
-        }
-
-        // Mantener campo legacy
-        movimientoFields['Cantidad '] = cantidadBase;
 
         const movimiento = await base(MOVIMIENTOS_TABLE).create(movimientoFields);
-        console.log(`✅ Movimiento creado: ${movimiento.id} (${item.Cantidad} ${item.Unidad} → ${cantidadBase} base, $${costoTotal})`);
+        console.log(`✅ Movimiento creado: ${movimiento.id} (${item.Cantidad} ${item.Unidad} → ${cantidadBase} base)`);
 
         resultados.push({
           itemId: item.id,
@@ -214,12 +219,23 @@ export async function POST(request: NextRequest) {
           insumoId,
           movimientoId: movimiento.id,
           mensaje: validacion.accion === 'vincular'
-            ? `Vinculado a "${validacion.insumoExistenteNombre}" — ${item.Cantidad} ${item.Unidad} (${cantidadBase} base) — $${costoTotal.toLocaleString()}`
-            : `Nuevo insumo creado — ${item.Cantidad} ${item.Unidad} (${cantidadBase} base) — $${costoTotal.toLocaleString()}`,
+            ? `Vinculado a "${validacion.insumoExistenteNombre}" — ${item.Cantidad} ${item.Unidad} (${cantidadBase} base)`
+            : `Nuevo insumo creado — ${item.Cantidad} ${item.Unidad} (${cantidadBase} base)`,
         });
 
       } catch (error) {
         console.error(`❌ Error procesando item "${item.Item}":`, error);
+
+        // Revertir el insumo recién creado para no dejarlo huérfano
+        if (insumoCreadoId) {
+          try {
+            await base(INSUMO_TABLE).destroy(insumoCreadoId);
+            console.log(`↩️ Insumo ${insumoCreadoId} revertido tras fallar el movimiento`);
+          } catch (rollbackError) {
+            console.error(`⚠️ No se pudo revertir el insumo ${insumoCreadoId}:`, rollbackError);
+          }
+        }
+
         resultados.push({
           itemId: item.id,
           itemNombre: item.Item,

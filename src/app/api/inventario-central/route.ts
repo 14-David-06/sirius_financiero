@@ -7,7 +7,7 @@ const CATEGORIAS_TABLE = process.env.AIRTABLE_CAT_INSUMO_TABLE_ID || '';
 const MOVIMIENTOS_TABLE = process.env.AIRTABLE_MOV_INSUMO_TABLE_ID || '';
 const STOCK_TABLE = process.env.AIRTABLE_STOCK_INSUMO_TABLE_ID || '';
 const UNIDADES_TABLE = process.env.AIRTABLE_UNIDADES_TABLE_ID || '';
-const AREAS_TABLE = process.env.AIRTABLE_AREAS_TABLE_ID || '';
+// No hay tabla de Áreas: se derivan del texto de los movimientos (ver derivarAreas)
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(INSUMOS_BASE_ID);
 
@@ -17,23 +17,22 @@ export async function GET(request: NextRequest) {
     const seccion = searchParams.get('seccion') || 'resumen';
 
     if (seccion === 'resumen') {
-      const [insumos, categorias, movimientos, stocks, unidades, areas] = await Promise.all([
+      const [insumos, categorias, movimientos, stocks, unidades] = await Promise.all([
         fetchInsumos(),
         fetchCategorias(),
         fetchMovimientos(),
         fetchStocks(),
         fetchUnidades(),
-        fetchAreas(),
       ]);
+
+      // Las áreas se derivan de los movimientos: ya no existen como tabla
+      const areas = derivarAreas(movimientos);
 
       const insumosActivos = insumos.filter(i => i.estadoInsumo === 'Activo').length;
       const stockBajoMinimo = stocks.filter(s => {
         const insumo = insumos.find(i => i.id === s.insumoId);
         return insumo && insumo.stockMinimo > 0 && s.stockActual < insumo.stockMinimo;
       }).length;
-
-      // Calcular valor total del inventario
-      const valorTotalInventario = stocks.reduce((acc, s) => acc + (s.costoAcumulado || 0), 0);
 
       const movimientosRecientes = movimientos
         .sort((a, b) => new Date(b.creada).getTime() - new Date(a.creada).getTime())
@@ -47,8 +46,7 @@ export async function GET(request: NextRequest) {
           totalCategorias: categorias.length,
           totalMovimientos: movimientos.length,
           stockBajoMinimo,
-          valorTotalInventario,
-          totalAreas: areas.filter(a => a.activa).length,
+          totalAreas: areas.length,
         },
         insumos,
         categorias,
@@ -85,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (seccion === 'areas') {
-      const areas = await fetchAreas();
+      const areas = derivarAreas(await fetchMovimientos());
       return NextResponse.json({ success: true, areas });
     }
 
@@ -200,6 +198,16 @@ async function fetchCategorias(): Promise<CategoriaRecord[]> {
   return categorias;
 }
 
+/**
+ * Refleja el esquema actual de "Movimientos Insumos".
+ *
+ * El modelo se rediseñó: se eliminaron los campos de costo (Costo Unitario/Total/
+ * Unitario Base), conversión de unidades (Cantidad Original/Unidad Original/
+ * Factor Conversion/Cantidad Base), lote y vencimiento, subtipo, documento de
+ * origen, estado de recepción y los links a Áreas. En su lugar entraron los
+ * campos de trazabilidad `Fecha Movimiento`, `ID Bache Origen` e
+ * `ID Produccion Destino`. Las áreas ahora son solo texto (ID Area Origen/Destino).
+ */
 interface MovimientoRecord {
   id: string;
   codigoMovimiento: string;
@@ -207,25 +215,12 @@ interface MovimientoRecord {
   nombre: string;
   cantidad: number;
   tipoMovimiento: string;
-  subtipo: string;
-  cantidadOriginal: number;
-  unidadOriginalId: string;
-  factorConversion: number;
-  cantidadBase: number;
-  costoUnitario: number;
-  costoTotal: number;
-  costoUnitarioBase: number;
-  documentoOrigen: string;
-  idSolicitudCompra: string;
-  lote: string;
-  fechaVencimiento: string;
-  notas: string;
-  estadoEntrada: string;
   idResponsable: string;
   idAreaOrigen: string;
   idAreaDestino: string;
-  areaDestinoLinkIds: string[];
-  areaOrigenLinkIds: string[];
+  fechaMovimiento: string;
+  idBacheOrigen: string;
+  idProduccionDestino: string;
   creada: string;
   ultimaModificacion: string;
   insumoIds: string[];
@@ -238,11 +233,8 @@ async function fetchMovimientos(): Promise<MovimientoRecord[]> {
     .select({
       fields: [
         'Código Movimiento Insumo', 'ID', 'Name', 'Cantidad ', 'Tipo Movimiento',
-        'Subtipo', 'Cantidad Original', 'Unidad Original', 'Factor Conversion',
-        'Cantidad Base', 'Costo Unitario', 'Costo Total', 'Costo Unitario Base',
-        'Documento Origen', 'ID Solicitud Compra', 'Lote', 'Fecha Vencimiento', 'Notas',
-        'Estado Entrada Insumo', 'ID Responsable Core', 'ID Area Origen',
-        'ID Area Destino', 'Area Destino Link', 'Area Origen Link',
+        'ID Responsable Core', 'ID Area Origen', 'ID Area Destino',
+        'Fecha Movimiento', 'ID Bache Origen', 'ID Produccion Destino',
         'Creada', 'Última modificación', 'Insumo', 'Stock Insumos',
       ],
       sort: [{ field: 'Creada', direction: 'desc' }],
@@ -256,25 +248,12 @@ async function fetchMovimientos(): Promise<MovimientoRecord[]> {
           nombre: record.fields['Name'] as string || '',
           cantidad: record.fields['Cantidad '] as number || 0,
           tipoMovimiento: record.fields['Tipo Movimiento'] as string || '',
-          subtipo: record.fields['Subtipo'] as string || '',
-          cantidadOriginal: record.fields['Cantidad Original'] as number || 0,
-          unidadOriginalId: (record.fields['Unidad Original'] as string[] || [])[0] || '',
-          factorConversion: record.fields['Factor Conversion'] as number || 0,
-          cantidadBase: record.fields['Cantidad Base'] as number || 0,
-          costoUnitario: record.fields['Costo Unitario'] as number || 0,
-          costoTotal: record.fields['Costo Total'] as number || 0,
-          costoUnitarioBase: record.fields['Costo Unitario Base'] as number || 0,
-          documentoOrigen: record.fields['Documento Origen'] as string || '',
-          idSolicitudCompra: record.fields['ID Solicitud Compra'] as string || '',
-          lote: record.fields['Lote'] as string || '',
-          fechaVencimiento: record.fields['Fecha Vencimiento'] as string || '',
-          notas: record.fields['Notas'] as string || '',
-          estadoEntrada: record.fields['Estado Entrada Insumo'] as string || '',
           idResponsable: record.fields['ID Responsable Core'] as string || '',
           idAreaOrigen: record.fields['ID Area Origen'] as string || '',
           idAreaDestino: record.fields['ID Area Destino'] as string || '',
-          areaDestinoLinkIds: record.fields['Area Destino Link'] as string[] || [],
-          areaOrigenLinkIds: record.fields['Area Origen Link'] as string[] || [],
+          fechaMovimiento: record.fields['Fecha Movimiento'] as string || '',
+          idBacheOrigen: record.fields['ID Bache Origen'] as string || '',
+          idProduccionDestino: record.fields['ID Produccion Destino'] as string || '',
           creada: record.fields['Creada'] as string || '',
           ultimaModificacion: record.fields['Última modificación'] as string || '',
           insumoIds: record.fields['Insumo'] as string[] || [],
@@ -286,6 +265,11 @@ async function fetchMovimientos(): Promise<MovimientoRecord[]> {
   return movimientos;
 }
 
+/**
+ * Refleja el esquema actual de "Stock Insumos".
+ * El rediseño eliminó `Area` y `Costo Acumulado`, por lo que el stock ya no está
+ * segmentado por área ni valorizado.
+ */
 interface StockRecord {
   id: string;
   idStock: string;
@@ -296,8 +280,6 @@ interface StockRecord {
   cantidadSale: number[];
   insumoId: string;
   movimientoIds: string[];
-  areaId: string;
-  costoAcumulado: number;
 }
 
 async function fetchStocks(): Promise<StockRecord[]> {
@@ -307,13 +289,11 @@ async function fetchStocks(): Promise<StockRecord[]> {
       fields: [
         'id_stock', 'ID', 'stock_actual', 'Ultima Actualizacion',
         'Cantidad Ingresa', 'Cantidad Sale', 'Insumo ID', 'Movimiento Insumo ID',
-        'Area', 'Costo Acumulado',
       ],
     })
     .eachPage((records, fetchNextPage) => {
       records.forEach((record) => {
         const insumoIds = record.fields['Insumo ID'] as string[] || [];
-        const areaIds = record.fields['Area'] as string[] || [];
         stocks.push({
           id: record.id,
           idStock: record.fields['id_stock'] as string || '',
@@ -324,8 +304,6 @@ async function fetchStocks(): Promise<StockRecord[]> {
           cantidadSale: (record.fields['Cantidad Sale'] as unknown as number[]) || [],
           insumoId: insumoIds[0] || '',
           movimientoIds: record.fields['Movimiento Insumo ID'] as string[] || [],
-          areaId: areaIds[0] || '',
-          costoAcumulado: record.fields['Costo Acumulado'] as number || 0,
         });
       });
       fetchNextPage();
@@ -368,33 +346,59 @@ async function fetchUnidades(): Promise<UnidadRecord[]> {
 
 // ─── Áreas ───────────────────────────────────────────────────────
 
+/**
+ * Las áreas ya no son una tabla de Airtable: el rediseño las dejó como texto
+ * libre en `ID Area Origen` / `ID Area Destino` de cada movimiento. Se derivan
+ * de ahí para no perder el filtro por área en la UI.
+ */
 interface AreaRecord {
   id: string;
   nombre: string;
-  idCore: string;
-  responsable: string;
-  activa: boolean;
+  movimientosOrigen: number;
+  movimientosDestino: number;
 }
 
-async function fetchAreas(): Promise<AreaRecord[]> {
-  const areas: AreaRecord[] = [];
-  await base(AREAS_TABLE)
-    .select({
-      fields: ['Nombre', 'ID Core', 'Responsable', 'Activa'],
-    })
-    .eachPage((records, fetchNextPage) => {
-      records.forEach((record) => {
-        areas.push({
-          id: record.id,
-          nombre: record.fields['Nombre'] as string || '',
-          idCore: record.fields['ID Core'] as string || '',
-          responsable: record.fields['Responsable'] as string || '',
-          activa: record.fields['Activa'] as boolean || false,
-        });
-      });
-      fetchNextPage();
-    });
-  return areas;
+// Código de área de Sirius. Los campos de área son texto libre, así que hay
+// registros con basura (p.ej. referencias de factura); el patrón las descarta.
+const PATRON_CODIGO_AREA = /^SIRIUS-AREA-\d+$/i;
+
+// Únicas opciones del singleSelect "Tipo Movimiento" en Airtable
+const TIPOS_MOVIMIENTO = ['Entrada', 'Salida', 'Ajuste'];
+
+function derivarAreas(movimientos: MovimientoRecord[]): AreaRecord[] {
+  const mapa = new Map<string, AreaRecord>();
+  const descartados = new Set<string>();
+
+  const registrar = (valor: string, sentido: 'origen' | 'destino') => {
+    const clave = (valor || '').trim();
+    if (!clave) return;
+    if (!PATRON_CODIGO_AREA.test(clave)) {
+      descartados.add(clave);
+      return;
+    }
+    const actual = mapa.get(clave) || {
+      id: clave,
+      nombre: clave,
+      movimientosOrigen: 0,
+      movimientosDestino: 0,
+    };
+    if (sentido === 'origen') actual.movimientosOrigen += 1;
+    else actual.movimientosDestino += 1;
+    mapa.set(clave, actual);
+  };
+
+  for (const mov of movimientos) {
+    registrar(mov.idAreaOrigen, 'origen');
+    registrar(mov.idAreaDestino, 'destino');
+  }
+
+  if (descartados.size > 0) {
+    console.warn(
+      `⚠️ Valores en campos de área que no son códigos de área (ignorados): ${Array.from(descartados).join(', ')}`
+    );
+  }
+
+  return Array.from(mapa.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -435,20 +439,25 @@ export async function POST(request: NextRequest) {
     // ── Registrar movimiento ─────────────────────────────────────
     if (accion === 'registrar_movimiento') {
       const {
-        insumoId, tipoMovimiento, subtipo, cantidadOriginal, unidadOriginalId,
-        factorConversion, areaDestinoId, areaOrigenId, costoUnitario,
-        documentoOrigen, notas,
+        insumoId, tipoMovimiento, cantidad, areaDestino, areaOrigen,
+        fechaMovimiento, idBacheOrigen, idProduccionDestino, idResponsable,
       } = body;
 
-      if (!insumoId || !tipoMovimiento || !cantidadOriginal) {
-        return NextResponse.json({ success: false, error: 'insumoId, tipoMovimiento y cantidadOriginal son obligatorios' }, { status: 400 });
+      if (!insumoId || !tipoMovimiento || !cantidad) {
+        return NextResponse.json({ success: false, error: 'insumoId, tipoMovimiento y cantidad son obligatorios' }, { status: 400 });
       }
 
-      const factor = Number(factorConversion) || 1;
-      const cantBase = Number(cantidadOriginal) * factor;
-      const costoUnit = Number(costoUnitario) || 0;
-      const costoTotal = Number(cantidadOriginal) * costoUnit;
-      const costoUnitBase = cantBase > 0 ? costoTotal / cantBase : 0;
+      if (!TIPOS_MOVIMIENTO.includes(tipoMovimiento)) {
+        return NextResponse.json(
+          { success: false, error: `tipoMovimiento debe ser uno de: ${TIPOS_MOVIMIENTO.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
+      const cantidadNum = Number(cantidad);
+      if (!Number.isFinite(cantidadNum) || cantidadNum <= 0) {
+        return NextResponse.json({ success: false, error: 'La cantidad debe ser un número mayor a cero' }, { status: 400 });
+      }
 
       // Obtener nombre del insumo para el Name del movimiento
       let insumoNombre = '';
@@ -457,35 +466,27 @@ export async function POST(request: NextRequest) {
         insumoNombre = insumoRec.fields['Nombre'] as string || '';
       } catch { /* ignore */ }
 
-      const subtipoLabel = subtipo || tipoMovimiento;
       const movFields: Record<string, string | number | string[]> = {
-        'Name': `${tipoMovimiento} - ${subtipoLabel} - ${insumoNombre}`.slice(0, 100),
+        'Name': `${tipoMovimiento} - ${insumoNombre}`.slice(0, 100),
         'Tipo Movimiento': tipoMovimiento,
         'Insumo': [insumoId],
-        'Cantidad Original': Number(cantidadOriginal),
-        'Factor Conversion': factor,
-        'Cantidad Base': cantBase,
-        'Cantidad ': cantBase, // Legacy field
-        'Estado Entrada Insumo': 'Pendiente',
+        'Cantidad ': cantidadNum,
       };
 
-      if (subtipo) movFields['Subtipo'] = subtipo;
-      if (unidadOriginalId) movFields['Unidad Original'] = [unidadOriginalId];
-      if (areaDestinoId) movFields['Area Destino Link'] = [areaDestinoId];
-      if (areaOrigenId) movFields['Area Origen Link'] = [areaOrigenId];
-      if (costoUnit > 0) {
-        movFields['Costo Unitario'] = costoUnit;
-        movFields['Costo Total'] = costoTotal;
-        movFields['Costo Unitario Base'] = costoUnitBase;
-      }
-      if (documentoOrigen) movFields['Documento Origen'] = documentoOrigen;
-      if (notas) movFields['Notas'] = notas;
+      // Las áreas son texto libre desde el rediseño, no links a una tabla
+      if (areaOrigen) movFields['ID Area Origen'] = String(areaOrigen);
+      if (areaDestino) movFields['ID Area Destino'] = String(areaDestino);
+      if (idResponsable) movFields['ID Responsable Core'] = String(idResponsable);
+      // Sin fecha explícita el registro queda fechado por `Creada`
+      if (fechaMovimiento) movFields['Fecha Movimiento'] = String(fechaMovimiento);
+      if (idBacheOrigen) movFields['ID Bache Origen'] = String(idBacheOrigen);
+      if (idProduccionDestino) movFields['ID Produccion Destino'] = String(idProduccionDestino);
 
       const record = await base(MOVIMIENTOS_TABLE).create(movFields);
       return NextResponse.json({
         success: true,
         movimiento: { id: record.id, nombre: record.fields['Name'] },
-        mensaje: `Movimiento de ${tipoMovimiento.toLowerCase()} registrado (${cantidadOriginal} → ${cantBase} base)`,
+        mensaje: `Movimiento de ${tipoMovimiento.toLowerCase()} registrado (${cantidadNum})`,
       });
     }
 

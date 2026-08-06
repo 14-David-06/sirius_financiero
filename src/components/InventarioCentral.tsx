@@ -6,7 +6,7 @@ import {
   Package, Layers, ArrowUpDown, AlertTriangle, Search,
   RefreshCw, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
   Box, Filter, ArrowDownCircle, ArrowUpCircle, Clock,
-  Plus, Edit3, X, Save, Loader2, ArrowRightLeft, DollarSign,
+  Plus, Edit3, X, Save, Loader2, ArrowRightLeft,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -44,21 +44,12 @@ interface Movimiento {
   nombre: string;
   cantidad: number;
   tipoMovimiento: string;
-  subtipo: string;
-  cantidadOriginal: number;
-  unidadOriginalId: string;
-  factorConversion: number;
-  cantidadBase: number;
-  costoUnitario: number;
-  costoTotal: number;
-  costoUnitarioBase: number;
-  documentoOrigen: string;
-  estadoEntrada: string;
   idResponsable: string;
   idAreaOrigen: string;
   idAreaDestino: string;
-  areaDestinoLinkIds: string[];
-  areaOrigenLinkIds: string[];
+  fechaMovimiento: string;
+  idBacheOrigen: string;
+  idProduccionDestino: string;
   creada: string;
   ultimaModificacion: string;
   insumoIds: string[];
@@ -75,8 +66,6 @@ interface Stock {
   cantidadSale: number[];
   insumoId: string;
   movimientoIds: string[];
-  areaId: string;
-  costoAcumulado: number;
 }
 
 interface Unidad {
@@ -88,12 +77,12 @@ interface Unidad {
   unidadBaseDeTipo: string;
 }
 
+// Las áreas se derivan de los movimientos: ya no existen como tabla
 interface Area {
   id: string;
   nombre: string;
-  idCore: string;
-  responsable: string;
-  activa: boolean;
+  movimientosOrigen: number;
+  movimientosDestino: number;
 }
 
 interface KPIs {
@@ -102,7 +91,6 @@ interface KPIs {
   totalCategorias: number;
   totalMovimientos: number;
   stockBajoMinimo: number;
-  valorTotalInventario: number;
   totalAreas: number;
 }
 
@@ -124,7 +112,7 @@ export default function InventarioCentral() {
   const [ordenCatalogo, setOrdenCatalogo] = useState<{ campo: string; dir: 'asc' | 'desc' }>({ campo: 'idNumero', dir: 'asc' });
   const [detalleInsumo, setDetalleInsumo] = useState<string | null>(null);
 
-  const [kpis, setKpis] = useState<KPIs>({ totalInsumos: 0, insumosActivos: 0, totalCategorias: 0, totalMovimientos: 0, stockBajoMinimo: 0, valorTotalInventario: 0, totalAreas: 0 });
+  const [kpis, setKpis] = useState<KPIs>({ totalInsumos: 0, insumosActivos: 0, totalCategorias: 0, totalMovimientos: 0, stockBajoMinimo: 0, totalAreas: 0 });
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
@@ -237,18 +225,6 @@ export default function InventarioCentral() {
     return stocks.find(s => s.insumoId === insumoId);
   }, [stocks]);
 
-  const getAreaNombre = useCallback((areaId: string) => {
-    return areas.find(a => a.id === areaId)?.nombre || '';
-  }, [areas]);
-
-  const getUnidadSimbolo = useCallback((unidadId: string) => {
-    return unidades.find(u => u.id === unidadId)?.simbolo || '';
-  }, [unidades]);
-
-  const formatMoneda = (valor: number) => {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(valor);
-  };
-
   const formatFecha = (fecha: string) => {
     if (!fecha) return '—';
     return new Date(fecha).toLocaleDateString('es-CO', {
@@ -293,8 +269,12 @@ export default function InventarioCentral() {
       );
     }
     if (filtroTipoMov) resultado = resultado.filter(m => m.tipoMovimiento === filtroTipoMov);
+    // El área es texto en el movimiento; coincide como origen o como destino
+    if (filtroArea) {
+      resultado = resultado.filter(m => m.idAreaOrigen === filtroArea || m.idAreaDestino === filtroArea);
+    }
     return resultado;
-  }, [movimientos, busqueda, filtroTipoMov]);
+  }, [movimientos, busqueda, filtroTipoMov, filtroArea]);
 
   const stockConInsumo = useMemo(() => {
     return stocks.map(s => {
@@ -306,10 +286,8 @@ export default function InventarioCentral() {
         stockMinimo: insumo?.stockMinimo || 0,
         unidadMedida: insumo?.unidadMedida || '',
         bajoMinimo: insumo ? s.stockActual < insumo.stockMinimo : false,
-        areaNombre: getAreaNombre(s.areaId),
       };
     }).filter(s => {
-      if (filtroArea && s.areaId !== filtroArea) return false;
       if (!busqueda) return true;
       const q = busqueda.toLowerCase();
       return s.nombreInsumo.toLowerCase().includes(q) || s.codigoInsumo.toLowerCase().includes(q);
@@ -318,7 +296,7 @@ export default function InventarioCentral() {
       if (!a.bajoMinimo && b.bajoMinimo) return 1;
       return a.nombreInsumo.localeCompare(b.nombreInsumo);
     });
-  }, [stocks, insumos, busqueda, filtroArea, getAreaNombre]);
+  }, [stocks, insumos, busqueda]);
 
   // ─── Render helpers ────────────────────────────────────────────
 
@@ -418,8 +396,7 @@ export default function InventarioCentral() {
         <KPICard icon={<Layers className="w-5 h-5" />} label="Categorías" valor={kpis.totalCategorias} color="purple" />
         <KPICard icon={<ArrowUpDown className="w-5 h-5" />} label="Movimientos" valor={kpis.totalMovimientos} color="cyan" />
         <KPICard icon={<AlertTriangle className="w-5 h-5" />} label="Bajo Mínimo" valor={kpis.stockBajoMinimo} color={kpis.stockBajoMinimo > 0 ? 'red' : 'emerald'} />
-        <KPICard icon={<Box className="w-5 h-5" />} label="Áreas Activas" valor={kpis.totalAreas} color="cyan" />
-        <KPICard icon={<TrendingUp className="w-5 h-5" />} label="Valor Inventario" valor={kpis.valorTotalInventario} color="emerald" formato="moneda" />
+        <KPICard icon={<Box className="w-5 h-5" />} label="Áreas" valor={kpis.totalAreas} color="cyan" />
       </div>
 
       {/* Tabs */}
@@ -481,28 +458,31 @@ export default function InventarioCentral() {
           </>
         )}
         {tabActiva === 'movimientos' && (
-          <select
-            value={filtroTipoMov}
-            onChange={(e) => setFiltroTipoMov(e.target.value)}
-            className="px-3 py-2.5 bg-slate-700/60 border border-white/30 rounded-xl text-white text-sm focus:outline-none appearance-none cursor-pointer"
-          >
-            <option value="" className="bg-slate-800">Todos los tipos</option>
-            <option value="Ingreso" className="bg-slate-800">Ingreso</option>
-            <option value="Egreso" className="bg-slate-800">Egreso</option>
-            <option value="Ajuste" className="bg-slate-800">Ajuste</option>
-          </select>
-        )}
-        {tabActiva === 'stock' && areas.length > 0 && (
-          <select
-            value={filtroArea}
-            onChange={(e) => setFiltroArea(e.target.value)}
-            className="px-3 py-2.5 bg-slate-700/60 border border-white/30 rounded-xl text-white text-sm focus:outline-none appearance-none cursor-pointer"
-          >
-            <option value="" className="bg-slate-800">Todas las áreas</option>
-            {areas.filter(a => a.activa).map(a => (
-              <option key={a.id} value={a.id} className="bg-slate-800">{a.nombre}</option>
-            ))}
-          </select>
+          <>
+            <select
+              value={filtroTipoMov}
+              onChange={(e) => setFiltroTipoMov(e.target.value)}
+              className="px-3 py-2.5 bg-slate-700/60 border border-white/30 rounded-xl text-white text-sm focus:outline-none appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-800">Todos los tipos</option>
+              <option value="Entrada" className="bg-slate-800">Entrada</option>
+              <option value="Salida" className="bg-slate-800">Salida</option>
+              <option value="Ajuste" className="bg-slate-800">Ajuste</option>
+            </select>
+            {/* El área vive en los movimientos, no en el stock */}
+            {areas.length > 0 && (
+              <select
+                value={filtroArea}
+                onChange={(e) => setFiltroArea(e.target.value)}
+                className="px-3 py-2.5 bg-slate-700/60 border border-white/30 rounded-xl text-white text-sm focus:outline-none appearance-none cursor-pointer"
+              >
+                <option value="" className="bg-slate-800">Todas las áreas</option>
+                {areas.map(a => (
+                  <option key={a.id} value={a.id} className="bg-slate-800">{a.nombre}</option>
+                ))}
+              </select>
+            )}
+          </>
         )}
       </div>
 
@@ -523,10 +503,10 @@ export default function InventarioCentral() {
           />
         )}
         {tabActiva === 'stock' && (
-          <TabStock stockConInsumo={stockConInsumo} formatFecha={formatFecha} formatMoneda={formatMoneda} />
+          <TabStock stockConInsumo={stockConInsumo} formatFecha={formatFecha} />
         )}
         {tabActiva === 'movimientos' && (
-          <TabMovimientos movimientos={movimientosFiltrados} getNombreInsumo={getNombreInsumo} getAreaNombre={getAreaNombre} getUnidadSimbolo={getUnidadSimbolo} formatFecha={formatFecha} formatMoneda={formatMoneda} />
+          <TabMovimientos movimientos={movimientosFiltrados} getNombreInsumo={getNombreInsumo} formatFecha={formatFecha} />
         )}
         {tabActiva === 'categorias' && (
           <TabCategorias categorias={categorias} />
@@ -745,16 +725,13 @@ function TabCatalogo({
 function TabStock({
   stockConInsumo,
   formatFecha,
-  formatMoneda,
 }: {
   stockConInsumo: {
     id: string; idStock: string; stockActual: number; ultimaActualizacion: string;
     nombreInsumo: string; codigoInsumo: string; stockMinimo: number;
     unidadMedida: string; bajoMinimo: boolean; cantidadIngresa: number[]; cantidadSale: number[];
-    areaNombre: string; costoAcumulado: number;
   }[];
   formatFecha: (f: string) => string;
-  formatMoneda: (v: number) => string;
 }) {
   if (stockConInsumo.length === 0) {
     return (
@@ -771,10 +748,8 @@ function TabStock({
         <thead>
           <tr className="border-b border-white/10">
             <th className="text-left px-4 py-3 text-white/50 font-medium">Insumo</th>
-            <th className="text-center px-4 py-3 text-white/50 font-medium hidden sm:table-cell">Área</th>
             <th className="text-center px-4 py-3 text-white/50 font-medium">Stock Actual</th>
             <th className="text-center px-4 py-3 text-white/50 font-medium hidden sm:table-cell">Mínimo</th>
-            <th className="text-right px-4 py-3 text-white/50 font-medium hidden md:table-cell">Costo Acum.</th>
             <th className="text-center px-4 py-3 text-white/50 font-medium hidden lg:table-cell">Ingresos</th>
             <th className="text-center px-4 py-3 text-white/50 font-medium hidden lg:table-cell">Salidas</th>
             <th className="text-right px-4 py-3 text-white/50 font-medium hidden sm:table-cell">Últ. Actualización</th>
@@ -791,13 +766,6 @@ function TabStock({
                   <p className="text-white font-medium">{s.nombreInsumo}</p>
                   <p className="text-white/40 text-xs">{s.codigoInsumo}</p>
                 </td>
-                <td className="px-4 py-3 text-center hidden sm:table-cell">
-                  {s.areaNombre ? (
-                    <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-xs">{s.areaNombre}</span>
-                  ) : (
-                    <span className="text-white/30 text-xs">—</span>
-                  )}
-                </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex flex-col items-center gap-0.5">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-bold ${
@@ -809,9 +777,6 @@ function TabStock({
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center text-white/50 hidden sm:table-cell">{s.stockMinimo}</td>
-                <td className="px-4 py-3 text-right hidden md:table-cell">
-                  <span className="text-white/70 text-xs">{s.costoAcumulado > 0 ? formatMoneda(s.costoAcumulado) : '—'}</span>
-                </td>
                 <td className="px-4 py-3 text-center hidden lg:table-cell">
                   <span className="text-emerald-400/80 text-xs flex items-center justify-center gap-1">
                     <ArrowDownCircle className="w-3 h-3" /> {totalIngresa}
@@ -838,14 +803,11 @@ function TabStock({
 // ─── Tab: Movimientos ────────────────────────────────────────────
 
 function TabMovimientos({
-  movimientos, getNombreInsumo, getAreaNombre, getUnidadSimbolo, formatFecha, formatMoneda,
+  movimientos, getNombreInsumo, formatFecha,
 }: {
   movimientos: Movimiento[];
   getNombreInsumo: (id: string) => string;
-  getAreaNombre: (id: string) => string;
-  getUnidadSimbolo: (id: string) => string;
   formatFecha: (f: string) => string;
-  formatMoneda: (v: number) => string;
 }) {
   if (movimientos.length === 0) {
     return (
@@ -856,9 +818,10 @@ function TabMovimientos({
     );
   }
 
+  // Las opciones del singleSelect en Airtable son Entrada / Salida / Ajuste
   const tipoConfig: Record<string, { icon: React.ReactNode; color: string }> = {
-    Ingreso: { icon: <TrendingDown className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-500/20' },
-    Egreso: { icon: <TrendingUp className="w-4 h-4" />, color: 'text-red-400 bg-red-500/20' },
+    Entrada: { icon: <TrendingDown className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-500/20' },
+    Salida: { icon: <TrendingUp className="w-4 h-4" />, color: 'text-red-400 bg-red-500/20' },
     Ajuste: { icon: <ArrowUpDown className="w-4 h-4" />, color: 'text-yellow-400 bg-yellow-500/20' },
   };
 
@@ -870,10 +833,9 @@ function TabMovimientos({
             <th className="text-left px-4 py-3 text-white/50 font-medium">Descripción</th>
             <th className="text-center px-4 py-3 text-white/50 font-medium">Tipo</th>
             <th className="text-center px-4 py-3 text-white/50 font-medium">Cantidad</th>
-            <th className="text-right px-4 py-3 text-white/50 font-medium hidden md:table-cell">Costo Total</th>
             <th className="text-left px-4 py-3 text-white/50 font-medium hidden lg:table-cell">Insumo</th>
-            <th className="text-center px-4 py-3 text-white/50 font-medium hidden md:table-cell">Área Destino</th>
-            <th className="text-center px-4 py-3 text-white/50 font-medium hidden sm:table-cell">Estado</th>
+            <th className="text-center px-4 py-3 text-white/50 font-medium hidden md:table-cell">Área</th>
+            <th className="text-left px-4 py-3 text-white/50 font-medium hidden lg:table-cell">Trazabilidad</th>
             <th className="text-right px-4 py-3 text-white/50 font-medium hidden sm:table-cell">Fecha</th>
           </tr>
         </thead>
@@ -881,48 +843,47 @@ function TabMovimientos({
           {movimientos.map((mov) => {
             const cfg = tipoConfig[mov.tipoMovimiento] || tipoConfig.Ajuste;
             const insumoNombre = mov.insumoIds.length > 0 ? getNombreInsumo(mov.insumoIds[0]) : '—';
-            const areaDestino = mov.areaDestinoLinkIds.length > 0 ? getAreaNombre(mov.areaDestinoLinkIds[0]) : '';
-            const unidadOrig = mov.unidadOriginalId ? getUnidadSimbolo(mov.unidadOriginalId) : '';
-            const cantidadDisplay = mov.cantidadOriginal > 0
-              ? `${mov.cantidadOriginal}${unidadOrig ? ' ' + unidadOrig : ''}`
-              : `${mov.cantidad}`;
+            // `Fecha Movimiento` es la fecha real; `Creada` solo dice cuándo se digitó
+            const fechaMostrada = mov.fechaMovimiento || mov.creada;
 
             return (
               <tr key={mov.id} className="border-b border-white/10 hover:bg-slate-700/30 transition-colors">
                 <td className="px-4 py-3">
-                  <p className="text-white/80 max-w-[200px] truncate">{mov.nombre}</p>
-                  {mov.subtipo && <span className="text-white/30 text-xs">{mov.subtipo}{mov.documentoOrigen ? ` · ${mov.documentoOrigen}` : ''}</span>}
+                  <p className="text-white/80 max-w-[200px] truncate" title={mov.nombre}>{mov.nombre}</p>
+                  <span className="text-white/30 text-xs">{mov.codigoMovimiento}</span>
                 </td>
                 <td className="px-4 py-3 text-center">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}>
                     {cfg.icon} {mov.tipoMovimiento}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center text-white font-medium">{cantidadDisplay}</td>
-                <td className="px-4 py-3 text-right hidden md:table-cell">
-                  {mov.costoTotal > 0 ? (
-                    <span className="text-white/70 text-xs">{formatMoneda(mov.costoTotal)}</span>
-                  ) : (
-                    <span className="text-white/30 text-xs">—</span>
-                  )}
-                </td>
+                <td className="px-4 py-3 text-center text-white font-medium">{mov.cantidad}</td>
                 <td className="px-4 py-3 text-white/60 text-xs hidden lg:table-cell max-w-[150px] truncate">{insumoNombre}</td>
                 <td className="px-4 py-3 text-center hidden md:table-cell">
-                  {areaDestino ? (
-                    <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-xs">{areaDestino}</span>
+                  {mov.idAreaOrigen || mov.idAreaDestino ? (
+                    <span className="inline-flex items-center gap-1 text-xs">
+                      {mov.idAreaOrigen && (
+                        <span className="px-2 py-0.5 bg-slate-600/40 text-white/70 rounded-full">{mov.idAreaOrigen}</span>
+                      )}
+                      {mov.idAreaOrigen && mov.idAreaDestino && <span className="text-white/30">→</span>}
+                      {mov.idAreaDestino && (
+                        <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full">{mov.idAreaDestino}</span>
+                      )}
+                    </span>
                   ) : (
                     <span className="text-white/30 text-xs">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-center hidden sm:table-cell">
-                  {mov.estadoEntrada ? (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      mov.estadoEntrada === 'Recibido' ? 'bg-emerald-500/20 text-emerald-400' :
-                      mov.estadoEntrada === 'Pendiente' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-red-500/20 text-red-400'
-                    }`}>
-                      {mov.estadoEntrada}
-                    </span>
+                <td className="px-4 py-3 hidden lg:table-cell">
+                  {mov.idBacheOrigen || mov.idProduccionDestino ? (
+                    <div className="flex flex-col gap-0.5 text-xs">
+                      {mov.idBacheOrigen && (
+                        <span className="text-amber-400/80">Bache {mov.idBacheOrigen}</span>
+                      )}
+                      {mov.idProduccionDestino && (
+                        <span className="text-purple-400/80">{mov.idProduccionDestino}</span>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-white/30 text-xs">—</span>
                   )}
@@ -930,7 +891,7 @@ function TabMovimientos({
                 <td className="px-4 py-3 text-right text-white/40 text-xs hidden sm:table-cell">
                   <div className="flex items-center justify-end gap-1">
                     <Clock className="w-3 h-3" />
-                    {formatFecha(mov.creada)}
+                    {formatFecha(fechaMostrada)}
                   </div>
                 </td>
               </tr>
@@ -1179,48 +1140,37 @@ function ModalMovimiento({
   onCerrar: () => void;
 }) {
   const [insumoId, setInsumoId] = useState('');
-  const [tipoMovimiento, setTipoMovimiento] = useState('Ingreso');
-  const [subtipo, setSubtipo] = useState('');
+  const [tipoMovimiento, setTipoMovimiento] = useState('Entrada');
   const [cantidadOriginal, setCantidadOriginal] = useState<number | ''>('');
   const [unidadOriginalId, setUnidadOriginalId] = useState('');
-  const [areaDestinoId, setAreaDestinoId] = useState('');
-  const [areaOrigenId, setAreaOrigenId] = useState('');
-  const [costoUnitario, setCostoUnitario] = useState<number | ''>('');
-  const [documentoOrigen, setDocumentoOrigen] = useState('');
-  const [notas, setNotas] = useState('');
+  const [areaDestino, setAreaDestino] = useState('');
+  const [areaOrigen, setAreaOrigen] = useState('');
+  const [fechaMovimiento, setFechaMovimiento] = useState('');
+  const [idBacheOrigen, setIdBacheOrigen] = useState('');
+  const [idProduccionDestino, setIdProduccionDestino] = useState('');
   const [busquedaInsumo, setBusquedaInsumo] = useState('');
 
-  const subtipoOpciones: Record<string, string[]> = {
-    Ingreso: ['Compra', 'Transferencia', 'Ajuste Inventario', 'Devolución'],
-    Egreso: ['Consumo', 'Transferencia', 'Merma', 'Ajuste Inventario'],
-    Ajuste: ['Ajuste Inventario', 'Corrección', 'Inventario Físico'],
-  };
-
+  // La conversión se hace en el cliente: el esquema guarda la cantidad ya en
+  // unidad base, sin campos de factor ni cantidad original.
   const unidadSeleccionada = unidades.find(u => u.id === unidadOriginalId);
   const factorConversion = unidadSeleccionada?.factorABase || 1;
   const cantidadBase = cantidadOriginal !== '' ? Number(cantidadOriginal) * factorConversion : 0;
-  const costoTotal = cantidadOriginal !== '' && costoUnitario !== '' ? Number(cantidadOriginal) * Number(costoUnitario) : 0;
 
   const insumosFiltrados = busquedaInsumo
     ? insumos.filter(i => i.nombre.toLowerCase().includes(busquedaInsumo.toLowerCase()) || i.codigoSirius.toLowerCase().includes(busquedaInsumo.toLowerCase()))
     : insumos;
-
-  const areasActivas = areas.filter(a => a.activa);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onRegistrar({
       insumoId,
       tipoMovimiento,
-      subtipo: subtipo || undefined,
-      cantidadOriginal: Number(cantidadOriginal),
-      unidadOriginalId: unidadOriginalId || undefined,
-      factorConversion,
-      areaDestinoId: areaDestinoId || undefined,
-      areaOrigenId: areaOrigenId || undefined,
-      costoUnitario: costoUnitario !== '' ? Number(costoUnitario) : undefined,
-      documentoOrigen: documentoOrigen || undefined,
-      notas: notas || undefined,
+      cantidad: cantidadBase,
+      areaDestino: areaDestino || undefined,
+      areaOrigen: areaOrigen || undefined,
+      fechaMovimiento: fechaMovimiento || undefined,
+      idBacheOrigen: idBacheOrigen || undefined,
+      idProduccionDestino: idProduccionDestino || undefined,
     });
   };
 
@@ -1270,32 +1220,29 @@ function ModalMovimiento({
             )}
           </div>
 
-          {/* Tipo + Subtipo */}
+          {/* Tipo + Fecha del movimiento */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-white/60 text-xs mb-1.5">Tipo de Movimiento *</label>
               <select
                 value={tipoMovimiento}
-                onChange={(e) => { setTipoMovimiento(e.target.value); setSubtipo(''); }}
+                onChange={(e) => setTipoMovimiento(e.target.value)}
                 className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/80 text-sm focus:outline-none appearance-none cursor-pointer"
               >
-                <option value="Ingreso" className="bg-slate-800">Ingreso</option>
-                <option value="Egreso" className="bg-slate-800">Egreso</option>
+                <option value="Entrada" className="bg-slate-800">Entrada</option>
+                <option value="Salida" className="bg-slate-800">Salida</option>
                 <option value="Ajuste" className="bg-slate-800">Ajuste</option>
               </select>
             </div>
             <div>
-              <label className="block text-white/60 text-xs mb-1.5">Subtipo</label>
-              <select
-                value={subtipo}
-                onChange={(e) => setSubtipo(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/80 text-sm focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-slate-800">— Seleccionar —</option>
-                {(subtipoOpciones[tipoMovimiento] || []).map(s => (
-                  <option key={s} value={s} className="bg-slate-800">{s}</option>
-                ))}
-              </select>
+              <label className="block text-white/60 text-xs mb-1.5">Fecha del Movimiento</label>
+              <input
+                type="date"
+                value={fechaMovimiento}
+                onChange={(e) => setFechaMovimiento(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/80 text-sm focus:outline-none focus:border-white/30 transition-colors"
+              />
+              <p className="text-white/30 text-xs mt-1">Si se deja vacío se usa la fecha de registro</p>
             </div>
           </div>
 
@@ -1338,80 +1285,60 @@ function ModalMovimiento({
             </div>
           )}
 
-          {/* Área Destino + Área Origen */}
+          {/* Área Origen + Área Destino (códigos de área, texto libre en Airtable) */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-white/60 text-xs mb-1.5">Área Destino</label>
-              <select
-                value={areaDestinoId}
-                onChange={(e) => setAreaDestinoId(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/80 text-sm focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-slate-800">— Ninguna —</option>
-                {areasActivas.map(a => (
-                  <option key={a.id} value={a.id} className="bg-slate-800">{a.nombre}</option>
-                ))}
-              </select>
-            </div>
             <div>
               <label className="block text-white/60 text-xs mb-1.5">Área Origen</label>
               <select
-                value={areaOrigenId}
-                onChange={(e) => setAreaOrigenId(e.target.value)}
+                value={areaOrigen}
+                onChange={(e) => setAreaOrigen(e.target.value)}
                 className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/80 text-sm focus:outline-none appearance-none cursor-pointer"
               >
                 <option value="" className="bg-slate-800">— Ninguna —</option>
-                {areasActivas.map(a => (
+                {areas.map(a => (
+                  <option key={a.id} value={a.id} className="bg-slate-800">{a.nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-white/60 text-xs mb-1.5">Área Destino</label>
+              <select
+                value={areaDestino}
+                onChange={(e) => setAreaDestino(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/80 text-sm focus:outline-none appearance-none cursor-pointer"
+              >
+                <option value="" className="bg-slate-800">— Ninguna —</option>
+                {areas.map(a => (
                   <option key={a.id} value={a.id} className="bg-slate-800">{a.nombre}</option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Costo Unitario + Preview */}
-          <div>
-            <label className="block text-white/60 text-xs mb-1.5">Costo Unitario (COP)</label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          {/* Trazabilidad: bache de origen y lote de producción destino */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-white/60 text-xs mb-1.5">Bache de Origen</label>
               <input
-                type="number"
-                value={costoUnitario}
-                onChange={(e) => setCostoUnitario(e.target.value ? Number(e.target.value) : '')}
-                min={0}
-                step="any"
-                placeholder="0"
-                className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/30 transition-colors"
+                type="text"
+                value={idBacheOrigen}
+                onChange={(e) => setIdBacheOrigen(e.target.value)}
+                placeholder="S-00XXX"
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/30 transition-colors"
               />
+              <p className="text-white/30 text-xs mt-1">Solo para biochar de pirólisis</p>
             </div>
-            {costoTotal > 0 && (
-              <p className="text-white/40 text-xs mt-1">
-                Costo total: <span className="text-white/70 font-medium">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(costoTotal)}</span>
-              </p>
-            )}
-          </div>
-
-          {/* Documento Origen */}
-          <div>
-            <label className="block text-white/60 text-xs mb-1.5">Documento de Origen</label>
-            <input
-              type="text"
-              value={documentoOrigen}
-              onChange={(e) => setDocumentoOrigen(e.target.value)}
-              placeholder="Factura, orden de compra, etc."
-              className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/30 transition-colors"
-            />
-          </div>
-
-          {/* Notas */}
-          <div>
-            <label className="block text-white/60 text-xs mb-1.5">Notas</label>
-            <textarea
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              rows={2}
-              placeholder="Observaciones adicionales..."
-              className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/30 transition-colors resize-none"
-            />
+            <div>
+              <label className="block text-white/60 text-xs mb-1.5">Producción Destino</label>
+              <input
+                type="text"
+                value={idProduccionDestino}
+                onChange={(e) => setIdProduccionDestino(e.target.value)}
+                placeholder="BLEND-AAAA-MM-DD"
+                className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/30 transition-colors"
+              />
+              <p className="text-white/30 text-xs mt-1">Solo si lo consume una producción</p>
+            </div>
           </div>
 
           {/* Botones */}
