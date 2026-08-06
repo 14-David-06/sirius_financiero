@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Airtable from 'airtable';
 
-// Configuración de Airtable para Pirólisis
+// Configuración de Airtable para Pirólisis (base PiroliApp)
 const PIROLISIS_BASE_ID = process.env.PIROLISIS_AIRTABLE_BASE_ID || '';
+const PIROLISIS_API_KEY = process.env.AIRTABLE_API_KEY || '';
 
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(PIROLISIS_BASE_ID);
+const base = new Airtable({ apiKey: PIROLISIS_API_KEY }).base(PIROLISIS_BASE_ID);
 
 const BALANCES_MASA_TABLE_ID = process.env.PIROLISIS_BALANCES_MASA_TABLE_ID || '';
+// La tabla no tiene campo "Fecha": usa "Fecha Creacion" (createdTime)
+const FECHA_FIELD = process.env.PIROLISIS_BALANCES_MASA_FECHA_FIELD || 'Fecha Creacion';
 
 export async function GET(request: NextRequest) {
   try {
     // Validar configuración
-    if (!process.env.AIRTABLE_API_KEY || !PIROLISIS_BASE_ID || !BALANCES_MASA_TABLE_ID) {
+    if (!PIROLISIS_API_KEY || !PIROLISIS_BASE_ID || !BALANCES_MASA_TABLE_ID) {
       console.error('❌ Faltan variables de entorno requeridas');
+      console.error('   - AIRTABLE_API_KEY:', !!PIROLISIS_API_KEY);
+      console.error('   - PIROLISIS_AIRTABLE_BASE_ID:', !!PIROLISIS_BASE_ID);
+      console.error('   - PIROLISIS_BALANCES_MASA_TABLE_ID:', !!BALANCES_MASA_TABLE_ID);
       return NextResponse.json(
         { error: 'Configuración incompleta del servidor', success: false },
         { status: 500 }
@@ -20,10 +26,10 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🔄 API /balances-masa iniciando...');
-    console.log('🔑 API Key disponible:', !!process.env.AIRTABLE_API_KEY);
     console.log('🗄️ Base ID:', PIROLISIS_BASE_ID);
     console.log('📊 Table ID:', BALANCES_MASA_TABLE_ID);
-    
+    console.log('📅 Campo de fecha:', FECHA_FIELD);
+
     const { searchParams } = new URL(request.url);
     // Aumentar límite a 10000 registros (sin límite prácticamente)
     const maxRecords = parseInt(searchParams.get('maxRecords') || '10000');
@@ -32,12 +38,12 @@ export async function GET(request: NextRequest) {
     const records: Record<string, unknown>[] = [];
 
     console.log('📡 Consultando Airtable con límite de', maxRecords, 'registros...');
-    
+
     await base(BALANCES_MASA_TABLE_ID)
       .select({
         maxRecords,
         filterByFormula,
-        sort: [{ field: 'Fecha', direction: 'desc' }],
+        sort: [{ field: FECHA_FIELD, direction: 'desc' }],
         pageSize: 100, // Airtable trae 100 registros por página
       })
       .eachPage((pageRecords, fetchNextPage) => {

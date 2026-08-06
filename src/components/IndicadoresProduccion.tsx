@@ -17,6 +17,20 @@ import {
   Beaker
 } from 'lucide-react';
 
+// La tabla "Balances Masa" no almacena el número de semana: se calcula (ISO 8601)
+// para que coincida con el campo "Numero de la semana" de Facturación Egresos.
+const calcularSemanaISO = (fechaISO: string): number => {
+  if (!fechaISO) return 0;
+  const fecha = new Date(fechaISO);
+  if (isNaN(fecha.getTime())) return 0;
+
+  const jueves = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate()));
+  // Mover al jueves de la misma semana ISO (domingo = 7)
+  jueves.setUTCDate(jueves.getUTCDate() + 4 - (jueves.getUTCDay() || 7));
+  const inicioAnio = Date.UTC(jueves.getUTCFullYear(), 0, 1);
+  return Math.ceil(((jueves.getTime() - inicioAnio) / 86400000 + 1) / 7);
+};
+
 interface BalanceMasa {
   id: string;
   fecha: string;
@@ -145,19 +159,22 @@ export default function IndicadoresProduccion() {
       console.log('✅ Datos de producción recibidos:', dataBalances);
       
       // Transformar los datos de Airtable al formato del componente
-      const balancesTransformados = dataBalances.records.map((record: Record<string, unknown>) => ({
-        id: record.id,
-        fecha: record.Fecha || record.createdTime,
-        pesoBiocharKg: record['Peso Biochar (KG)'] || 0,
-        temperaturaR1: record['Temperatura Reactor (R1)'] || 0,
-        temperaturaR2: record['Temperatura Reactor (R2)'] || 0,
-        temperaturaR3: record['Temperatura Reactor (R3)'] || 0,
-        temperaturaH1: record['Temperatura Horno (H1)'] || 0,
-        temperaturaH2: record['Temperatura Horno (H2)'] || 0,
-        temperaturaH3: record['Temperatura Horno (H3)'] || 0,
-        temperaturaH4: record['Temperatura Horno (H4)'] || 0,
-        semanaFormulada: record['Semana Formulada'] || 0,
-      }));
+      const balancesTransformados = dataBalances.records.map((record: Record<string, unknown>) => {
+        const fecha = (record['Fecha Creacion'] || record.Fecha || record.createdTime) as string;
+        return {
+          id: record.id,
+          fecha,
+          pesoBiocharKg: record['Peso Biochar (KG)'] || 0,
+          temperaturaR1: record['Temperatura Reactor (R1)'] || 0,
+          temperaturaR2: record['Temperatura Reactor (R2)'] || 0,
+          temperaturaR3: record['Temperatura Reactor (R3)'] || 0,
+          temperaturaH1: record['Temperatura Horno (H1)'] || 0,
+          temperaturaH2: record['Temperatura Horno (H2)'] || 0,
+          temperaturaH3: record['Temperatura Horno (H3)'] || 0,
+          temperaturaH4: record['Temperatura Horno (H4)'] || 0,
+          semanaFormulada: calcularSemanaISO(fecha),
+        };
+      });
 
       console.log('📊 Balances transformados:', balancesTransformados.length, 'registros');
       setBalances(balancesTransformados);
