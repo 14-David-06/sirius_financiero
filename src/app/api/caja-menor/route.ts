@@ -205,15 +205,18 @@ export async function GET(request: NextRequest) {
 
     // Obtener también los items detallados si hay records con items
     const itemsRecords: Record<string, unknown>[] = [];
-    
+
     console.log('📡 Consultando tabla Items Caja Menor...');
+
+    // Usar eachPage para obtener TODOS los registros sin límite
+    let totalItemsProcessed = 0;
     await base(ITEMS_CAJA_MENOR_TABLE_ID).select({
-      maxRecords: 5000, // Más items que registros principales
       sort: [
         { field: ITEMS_CAJA_MENOR_FIELDS.FECHA, direction: 'desc' }
-      ]
+      ],
+      pageSize: 100 // Procesar en lotes de 100
     }).eachPage((pageRecords, fetchNextPage) => {
-      itemsRecords.push(...pageRecords.map(record => ({
+      const mappedRecords = pageRecords.map(record => ({
         id: record.id,
         item: record.fields[ITEMS_CAJA_MENOR_FIELDS.ITEM],
         fecha: record.fields[ITEMS_CAJA_MENOR_FIELDS.FECHA],
@@ -225,18 +228,35 @@ export async function GET(request: NextRequest) {
         realizaRegistro: record.fields[ITEMS_CAJA_MENOR_FIELDS.REALIZA_REGISTRO],
         cajaMenor: record.fields[ITEMS_CAJA_MENOR_FIELDS.CAJA_MENOR],
         comprobante: record.fields[ITEMS_CAJA_MENOR_FIELDS.COMPROBANTE]
-      })));
+      }));
+
+      itemsRecords.push(...mappedRecords);
+      totalItemsProcessed += mappedRecords.length;
+      console.log(`📦 Batch procesado: ${mappedRecords.length} items (Total acumulado: ${totalItemsProcessed})`);
+
       fetchNextPage();
     });
 
     console.log('✅ Registros Caja Menor obtenidos:', cajaMenorRecords.length);
     console.log('✅ Items Caja Menor obtenidos:', itemsRecords.length);
-    
+
+    // Debug: contar items por caja menor
+    console.log('\n📊 DESGLOSE DE ITEMS POR CAJA MENOR:');
+    cajaMenorRecords.forEach((caja: any) => {
+      const itemsDeLaCaja = itemsRecords.filter((item: any) =>
+        item.cajaMenor && Array.isArray(item.cajaMenor) && item.cajaMenor.includes(caja.id)
+      );
+      console.log(`   📦 ${caja.beneficiario} (${caja.fechaAnticipo}): ${itemsDeLaCaja.length} items`);
+      if (itemsDeLaCaja.length > 0) {
+        console.log(`      → IDs de items: ${itemsDeLaCaja.map((i: any) => i.item || i.id.substring(0, 8)).join(', ')}`);
+      }
+    });
+
     // Debug detallado de fechas para verificar comparación de mes actual
     if (cajaMenorRecords.length > 0) {
       const hoy = new Date();
       const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
-      console.log('📅 Mes actual:', mesActual);
+      console.log('\n📅 Mes actual:', mesActual);
       console.log('📅 Registros de Caja Menor por mes:');
       cajaMenorRecords.forEach((record: any) => {
         const fechaRecord = record.fechaAnticipo?.substring(0, 7);

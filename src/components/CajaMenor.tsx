@@ -3056,15 +3056,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                             >
                               📌 Seleccionar
                             </button>
-                            {canEditDelete && (
-                              <button
-                                onClick={() => handleAbrirEditarFecha(caja)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors"
-                                title="Editar datos de la caja menor"
-                              >
-                                ✏️ Editar
-                              </button>
-                            )}
                             <button
                               onClick={() => {
                                 setCajaParaVerItems(caja);
@@ -3121,12 +3112,31 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
             {/* Tabla de items */}
             <div className="overflow-y-auto p-4">
               {(() => {
-                const items = itemsRecords.filter(i => i.cajaMenor?.includes(cajaParaVerItems.id));
+                console.log('🔍 Filtrando items para caja menor:', cajaParaVerItems.id);
+                console.log('📊 Total items en memoria:', itemsRecords.length);
+
+                const items = itemsRecords.filter(i => {
+                  const match = i.cajaMenor?.includes(cajaParaVerItems.id);
+                  return match;
+                });
+
+                console.log('✅ Items encontrados para esta caja:', items.length);
+                console.log('📋 Items:', items.map(i => ({
+                  id: i.id,
+                  item: i.item,
+                  beneficiario: i.beneficiario,
+                  concepto: i.concepto?.substring(0, 30),
+                  valor: i.valor,
+                  cajaMenor: i.cajaMenor
+                })));
+
                 if (items.length === 0) {
                   return (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <Receipt className="w-12 h-12 text-white/20 mb-4" />
                       <p className="text-white/50">Esta caja menor no tiene items registrados</p>
+                      <p className="text-white/30 text-xs mt-2">ID de caja: {cajaParaVerItems.id}</p>
+                      <p className="text-white/30 text-xs">Total items en memoria: {itemsRecords.length}</p>
                     </div>
                   );
                 }
@@ -3154,17 +3164,6 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                           <td className="py-3 pr-3 text-white/90 text-right font-medium whitespace-nowrap">${(item.valor || 0).toLocaleString('es-CO')}</td>
                           <td className="py-3 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => {
-                                  returnToItemsCajaRef.current = cajaParaVerItems;
-                                  setShowCajaItemsModal(false);
-                                  handleEditItem(item.id, 'item');
-                                }}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-xs font-semibold transition-colors"
-                                title="Editar item"
-                              >
-                                ✏️ Editar
-                              </button>
                               <button
                                 onClick={() => handleDeleteItem(item.id, 'item')}
                                 disabled={isDeleting}
