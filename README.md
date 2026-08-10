@@ -45,7 +45,7 @@ Plataforma integral para la gestión financiera empresarial con interfaz minimal
 - **Estilos**: Tailwind CSS 4 con configuración personalizada
 - **Efectos**: Glass morphism, backdrop blur, gradientes
 - **Herramientas**: ESLint, PostCSS
-
+    
 ## 🎯 Usuarios Predefinidos
       
 El sistema incluye usuarios predefinidos con sus respectivos datos:          
