@@ -37,7 +37,7 @@ Plataforma integral para la gestión financiera empresarial con interfaz minimal
 - **Dashboard Minimalista**: Métricas clave con diseño limpio
 - **Distribución Visual**: Estados de solicitudes con colores intuitivos
 - **Actividad Reciente**: Historial de solicitudes con información relevante
-- **Estadísticas Rápidas**: Resumen de métricas importantes
+- **Estadísticas Rápidas**: Resumen de métricas importantes     
 
 ## 🛠️ Tecnologías
     
