@@ -40,7 +40,7 @@ Plataforma integral para la gestión financiera empresarial con interfaz minimal
 - **Estadísticas Rápidas**: Resumen de métricas importantes
 
 ## 🛠️ Tecnologías
-
+    
 - **Frontend**: Next.js 15, React 19, TypeScript
 - **Estilos**: Tailwind CSS 4 con configuración personalizada
 - **Efectos**: Glass morphism, backdrop blur, gradientes
