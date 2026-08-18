@@ -1,42 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { normalizarCategoria } from '@/lib/auth/roles';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// Mapeo de roles a categorías (para compatibilidad con tokens JWT antiguos)
-function normalizarCategoria(categoria: string): string {
-  // Si ya es una categoría normalizada, retornarla
-  if (['Desarrollador', 'Gerencia', 'Administrador', 'Colaborador'].includes(categoria)) {
-    return categoria;
-  }
-
-  const rolesToCategoria: Record<string, string> = {
-    'INGENIERO DE DESARROLLO': 'Desarrollador',
-    'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)': 'Desarrollador',
-    'CTO (CHIEF TECHNOLOGY OFFICER)': 'Desarrollador',
-    'COORDINADORA LIDER GERENCIA': 'Desarrollador',
-    'DIRECTOR FINANCIERO': 'Gerencia',
-    'JEFE DE PLANTA': 'Gerencia',
-    'JEFE DE PRODUCCION': 'Gerencia',
-    'SUPERVISOR DE PRODUCCION': 'Gerencia',
-    'CONTADORA': 'Administrador',
-    'ASISTENTE FINANCIERO Y CONTABLE': 'Administrador',
-    'COORDINADOR DE COMPRAS': 'Administrador',
-    'ASISTENTE ADMINISTRATIVO': 'Administrador',
-  };
-
-  // Buscar coincidencia case-insensitive
-  const categoriaUpper = categoria.toUpperCase();
-  for (const [rol, cat] of Object.entries(rolesToCategoria)) {
-    if (rol.toUpperCase() === categoriaUpper) {
-      return cat;
-    }
-  }
-
-  // Por defecto, si no encuentra mapeo, tratarlo como Colaborador
-  return 'Colaborador';
-}
 
 // Rutas que requieren autenticación
 const protectedRoutes = [
@@ -164,9 +131,11 @@ export function middleware(request: NextRequest) {
 
     console.log('Es ruta admin:', isAdminRoute, 'Categoria:', decoded.categoria);
 
+    const categoriaNormalizada = normalizarCategoria(decoded.categoria);
+    console.log('📊 Categoría normalizada:', categoriaNormalizada);
+
     if (isAdminRoute) {
       const allowedCategories = ['Administrador', 'Gerencia', 'Desarrollador'];
-      const categoriaNormalizada = normalizarCategoria(decoded.categoria);
       if (!allowedCategories.includes(categoriaNormalizada)) {
         console.log('Redirigiendo porque no es admin');
         // Redirigir a solicitudes-compra si no tiene permisos
@@ -175,9 +144,6 @@ export function middleware(request: NextRequest) {
     }
 
     // Verificar restricciones para colaboradores
-    const categoriaNormalizada = normalizarCategoria(decoded.categoria);
-    console.log('📊 Categoría normalizada:', categoriaNormalizada);
-
     if (categoriaNormalizada === 'Colaborador') {
       const isElevatedRoute = elevatedRoutes.some(route =>
         pathname.startsWith(route)
@@ -198,16 +164,16 @@ export function middleware(request: NextRequest) {
     );
 
     if (isWarehouseRoute) {
-      // Verificar tanto el rol original como la categoría mapeada
-      const categoriaNormalizada = normalizarCategoria(decoded.categoria);
+      // Verificar tanto el cargo original como la categoría resuelta
+      const cargo = (decoded.rol || decoded.cargo || decoded.categoria || '').trim().toUpperCase();
       const tieneAccesoWarehouse =
-        WAREHOUSE_ALLOWED_ROLES.includes(decoded.categoria) ||
+        WAREHOUSE_ALLOWED_ROLES.some(rol => rol.trim().toUpperCase() === cargo) ||
         categoriaNormalizada === 'Desarrollador' ||
         categoriaNormalizada === 'Gerencia' ||
         categoriaNormalizada === 'Administrador';
 
       if (!tieneAccesoWarehouse) {
-        console.log('Redirigiendo porque no tiene acceso a warehouse. Rol:', decoded.categoria);
+        console.log('Redirigiendo porque no tiene acceso a warehouse. Rol:', decoded.rol);
         return NextResponse.redirect(new URL('/solicitudes-compra', request.url));
       }
     }

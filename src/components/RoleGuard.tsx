@@ -3,48 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
+import { normalizarCategoria } from '@/lib/auth/roles';
 
 interface RoleGuardProps {
   children: React.ReactNode;
   allowedRoles?: string[];
   requiredRole?: string;
   redirectTo?: string;
-}
-
-// Mapeo de roles a categorías (mismo que middleware.ts)
-function normalizarCategoria(categoria: string | undefined): string {
-  if (!categoria) return 'Colaborador';
-
-  // Si ya es una categoría normalizada, retornarla
-  if (['Desarrollador', 'Gerencia', 'Administrador', 'Colaborador'].includes(categoria)) {
-    return categoria;
-  }
-
-  const rolesToCategoria: Record<string, string> = {
-    'INGENIERO DE DESARROLLO': 'Desarrollador',
-    'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)': 'Desarrollador',
-    'CTO (CHIEF TECHNOLOGY OFFICER)': 'Desarrollador',
-    'COORDINADORA LIDER GERENCIA': 'Desarrollador',
-    'DIRECTOR FINANCIERO': 'Gerencia',
-    'JEFE DE PLANTA': 'Gerencia',
-    'JEFE DE PRODUCCION': 'Gerencia',
-    'SUPERVISOR DE PRODUCCION': 'Gerencia',
-    'CONTADORA': 'Administrador',
-    'ASISTENTE FINANCIERO Y CONTABLE': 'Administrador',
-    'COORDINADOR DE COMPRAS': 'Administrador',
-    'ASISTENTE ADMINISTRATIVO': 'Administrador',
-  };
-
-  // Buscar coincidencia case-insensitive
-  const categoriaUpper = categoria.toUpperCase();
-  for (const [rol, cat] of Object.entries(rolesToCategoria)) {
-    if (rol.toUpperCase() === categoriaUpper) {
-      return cat;
-    }
-  }
-
-  // Por defecto, si no encuentra mapeo, tratarlo como Colaborador
-  return 'Colaborador';
 }
 
 export default function RoleGuard({

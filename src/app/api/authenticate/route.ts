@@ -9,6 +9,7 @@ import {
 } from '@/lib/security/validation';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { resolverCategoria } from '@/lib/auth/roles';
 
 // Configuración de Airtable - Sirius Nómina Core
 const NOMINA_BASE_ID = process.env.NOMINA_AIRTABLE_BASE_ID;
@@ -24,6 +25,10 @@ const PASSWORD_FIELD = process.env.NOMINA_PERSONAL_PASSWORD_FIELD || 'Password';
 const ROL_FIELD = process.env.NOMINA_PERSONAL_ROL_FIELD || 'Rol';
 const ESTADO_FIELD = process.env.NOMINA_PERSONAL_ESTADO_FIELD || 'Estado de actividad';
 const ROL_NOMBRE_FIELD = process.env.NOMINA_ROLES_NOMBRE_FIELD || 'Rol';
+// Nivel de acceso: fuente de verdad para los permisos de la app
+const NIVEL_ACCESO_PERSONAL_FIELD =
+  process.env.NOMINA_PERSONAL_NIVEL_ACCESO_FIELD || 'Nivel Acceso (from Nivel_Sistema_Nuevo)';
+const NIVEL_ACCESO_ROL_FIELD = process.env.NOMINA_ROLES_NIVEL_ACCESO_FIELD || 'Nivel_Acceso';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -180,8 +185,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const rolArray = user[ROL_FIELD];
     const rolId = Array.isArray(rolArray) && rolArray.length > 0 ? rolArray[0] : null;
 
-    // Si hay un rolId, obtener el nombre del rol desde la tabla Roles
+    // Si hay un rolId, obtener el nombre del rol y su nivel de acceso desde la tabla Roles
     let rolNombre = 'Colaborador'; // Default
+    let nivelAccesoRol: unknown;
     if (rolId && NOMINA_ROLES_TABLE_ID) {
       try {
         const rolResponse = await fetch(
@@ -196,11 +202,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (rolResponse.ok) {
           const rolData = await rolResponse.json();
           rolNombre = rolData.fields[ROL_NOMBRE_FIELD] || 'Colaborador';
+          nivelAccesoRol = rolData.fields[NIVEL_ACCESO_ROL_FIELD];
         }
       } catch (error) {
         console.warn('No se pudo obtener el nombre del rol:', error);
       }
     }
+
+    // Resolver la categoría de acceso desde el nivel registrado en Airtable.
+    // El nivel asignado a la persona manda sobre el nivel genérico del rol.
+    const nivelAccesoPersonal = user[NIVEL_ACCESO_PERSONAL_FIELD];
+    const categoria = resolverCategoria({
+      nivelAccesoPersonal,
+      nivelAccesoRol,
+      cargo: rolNombre,
+    });
+
+    secureLog('🔐 Categoría resuelta para login', {
+      cedula: sanitizedCedula,
+      rol: rolNombre,
+      categoria,
+    });
 
     // 🔒 Generar JWT token
     const token = jwt.sign(
@@ -211,7 +233,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         cargo: sanitizeInput(rolNombre),
         area: 'No especificada',
         email: sanitizeInput(user['Email'] || ''),
-        categoria: sanitizeInput(rolNombre),
+        categoria,
         rol: sanitizeInput(rolNombre),
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 horas
       },
@@ -231,7 +253,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           cargo: sanitizeInput(rolNombre),
           area: 'No especificada',
           email: sanitizeInput(user['Email'] || ''),
-          categoria: sanitizeInput(rolNombre),
+          categoria,
           rol: sanitizeInput(rolNombre),
         }
       }),
