@@ -25,8 +25,22 @@ function mapCategoria(categoria: string): { cargo: string; area: string } {
   }
 }
 
-// No per-user hard-coded overrides here. Use explicit fields in Airtable
-// or expand mapCategoria() if you need category-based mappings.
+// Mapeo específico de usuarios conocidos (fallback adicional)
+function getUserSpecificMapping(name: string): { cargo: string; area: string } | null {
+  const userMappings: { [key: string]: { cargo: string; area: string } } = {
+    "Santiago Amaya": { cargo: "Jefe de Planta", area: "Pirolisis" },
+    "Luisa Ramirez": { cargo: "Coordinadora Líder", area: "Laboratorio" },
+    "Katherin Roldan": { cargo: "Líder de SST", area: "SST" },
+    "Yesenia Ramirez": { cargo: "Auxiliar de Laboratorio", area: "Laboratorio" },
+    "Carolina Casas": { cargo: "Auxiliar Administrativo y Contable", area: "Administrativo" },
+    "Juan Manuel": { cargo: "CMO", area: "Administrativo" },
+    "Pablo Acebedo": { cargo: "CTO", area: "RAAS" },
+    "Hermes David Hernandez Garcia": { cargo: "Ingeniero de desarrollo", area: "RAAS" },
+    "David Hernandez": { cargo: "Ingeniero de desarrollo", area: "RAAS" }
+  };
+
+  return userMappings[name] || null;
+}
 
 export async function GET() {
   try {
@@ -59,13 +73,16 @@ export async function GET() {
       const explicitCargo = ((fields['Cargo'] || fields['Position'] || '') as string).trim();
       const explicitArea = ((fields['Area'] || fields['Área'] || '') as string).trim();
 
+      // Si no hay campos explícitos, intentar mapeo específico de usuario
+      const userMapping = getUserSpecificMapping(name);
 
-      // Si no hay campos explícitos, mapear desde la categoria
+      // Si no hay mapeo específico, mapear desde la categoria
       const categoria = (fields['Categoria Usuario'] || '') as string;
-      const mapped = mapCategoria(categoria);
+      const categoryMapping = mapCategoria(categoria);
 
-      const cargo = explicitCargo || mapped.cargo || '';
-      const area = explicitArea || mapped.area || '';
+      // Prioridad: explícito > mapeo específico > mapeo por categoría
+      const cargo = explicitCargo || (userMapping?.cargo) || categoryMapping.cargo || '';
+      const area = explicitArea || (userMapping?.area) || categoryMapping.area || '';
 
       return {
         id: record.id,
@@ -133,12 +150,17 @@ export async function POST(request: NextRequest) {
 
       const explicitCargo = ((fields['Cargo'] || fields['Position'] || '') as string).trim();
       const explicitArea = ((fields['Area'] || fields['Área'] || '') as string).trim();
-      // No per-user overrides here - prefer explicit fields then mapped values
-      const categoria = (fields['Categoria Usuario'] || '') as string;
-      const mapped = mapCategoria(categoria);
 
-      const cargo = explicitCargo || mapped.cargo || '';
-      const area = explicitArea || mapped.area || '';
+      // Si no hay campos explícitos, intentar mapeo específico de usuario
+      const userMapping = getUserSpecificMapping(name);
+
+      // Si no hay mapeo específico, mapear desde la categoria
+      const categoria = (fields['Categoria Usuario'] || '') as string;
+      const categoryMapping = mapCategoria(categoria);
+
+      // Prioridad: explícito > mapeo específico > mapeo por categoría
+      const cargo = explicitCargo || (userMapping?.cargo) || categoryMapping.cargo || '';
+      const area = explicitArea || (userMapping?.area) || categoryMapping.area || '';
 
       return {
         id: record.id,
