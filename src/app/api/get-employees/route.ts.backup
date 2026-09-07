@@ -1,0 +1,265 @@
+import { NextRequest, NextResponse } from 'next/server';
+import Airtable from 'airtable';
+
+interface Employee {
+  id: string;
+  name: string;
+  cedula: string;
+  cargo: string;
+  area: string;
+}
+
+// Nombres de campos - usar variables de entorno o intentar variaciones comunes
+const FIELD_NAMES = {
+  nombre: process.env.AIRTABLE_FIELD_NOMBRE || 'Nombre',
+  cedula: process.env.AIRTABLE_FIELD_CEDULA || 'Cedula',
+  cargo: process.env.AIRTABLE_FIELD_CARGO || 'Cargo',
+  area: process.env.AIRTABLE_FIELD_AREA || 'Área',
+  estado: process.env.AIRTABLE_FIELD_ESTADO_USUARIO || 'Estado Usuario',
+};
+
+// Función auxiliar para intentar obtener un campo con variaciones de nombre
+function getFieldValue(fields: Record<string, unknown>, fieldNames: string[]): string {
+  for (const fieldName of fieldNames) {
+    const value = fields[fieldName];
+    if (value !== undefined && value !== null && value !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+export async function GET() {
+  const tableName = process.env.AIRTABLE_TEAM_TABLE_NAME || 'Equipo Financiero';
+
+  // Intentar primero con la base principal, luego con Nomina
+  const attempts = [
+    {
+      name: 'Base Principal (Financiera)',
+      key: process.env.AIRTABLE_API_KEY,
+      baseId: process.env.AIRTABLE_BASE_ID
+    },
+    {
+      name: 'Base Nomina Core',
+      key: process.env.NOMINA_AIRTABLE_API_KEY || process.env.AIRTABLE_API_KEY,
+      baseId: process.env.NOMINA_AIRTABLE_BASE_ID
+    }
+  ];
+
+  let lastError: any = null;
+
+  for (const attempt of attempts) {
+    if (!attempt.key || !attempt.baseId) {
+      console.log(`⏭️ Saltando ${attempt.name}: credenciales no configuradas`);
+      continue;
+    }
+
+    try {
+      console.log(`\n📊 Intentando conectar a ${attempt.name}`);
+      console.log(`📦 Base ID: ${attempt.baseId.substring(0, 8)}...`);
+      console.log(`📋 Tabla: ${tableName}`);
+
+      const base = new Airtable({ apiKey: attempt.key }).base(attempt.baseId);
+
+      // Consultar la tabla con filtro de usuarios activos
+      const records = await base(tableName)
+        .select({
+          filterByFormula: `{${FIELD_NAMES.estado}} = 'Activo'`
+        })
+        .all();
+
+      console.log(`✅ Conexión exitosa a ${attempt.name}!`);
+      console.log(`📊 Encontrados ${records.length} registros`);
+
+    // Procesar los registros y extraer la información relevante
+    const allRecords: Employee[] = [];
+    const incompleteRecords: Array<{ name: string; missingFields: string[] }> = [];
+
+    records.forEach((record) => {
+      const fields = record.fields;
+
+      // Intentar obtener campos con variaciones comunes de nombres
+      const name = getFieldValue(fields, [FIELD_NAMES.nombre, 'Name', 'Usuario']);
+      const cedula = getFieldValue(fields, [FIELD_NAMES.cedula, 'CC', 'Cédula', 'Identificación']);
+      const cargo = getFieldValue(fields, [
+        FIELD_NAMES.cargo,
+        'Position',
+        'Posición',
+        'Titulo',
+        'Title',
+        'Puesto'
+      ]);
+      const area = getFieldValue(fields, [
+        FIELD_NAMES.area,
+        'Area',
+        'Área de trabajo',
+        'Department',
+        'Departamento',
+        'Division'
+      ]);
+
+      const employee: Employee = {
+        id: record.id,
+        name,
+        cedula,
+        cargo,
+        area
+      };
+
+      // Verificar si tiene datos completos
+      if (employee.name && employee.cargo && employee.area) {
+        allRecords.push(employee);
+      } else {
+        // Registrar qué campos faltan
+        const missingFields: string[] = [];
+        if (!employee.name) missingFields.push('Nombre');
+        if (!employee.cargo) missingFields.push('Cargo');
+        if (!employee.area) missingFields.push('Área');
+
+        incompleteRecords.push({
+          name: employee.name || 'Sin nombre',
+          missingFields
+        });
+      }
+    });
+
+    const employees = allRecords;
+
+    // Ordenar por nombre
+    employees.sort((a, b) => a.name.localeCompare(b.name));
+
+    console.log(`✅ Successfully fetched ${employees.length} employees from Equipo Financiero`);
+    console.log(`📋 Total de registros activos en Airtable: ${records.length}`);
+
+    // Log detallado de registros incompletos
+    if (incompleteRecords.length > 0) {
+      console.warn(`\n⚠️ ${incompleteRecords.length} registros excluidos por falta de datos:`);
+      incompleteRecords.slice(0, 5).forEach((rec) => {
+        console.warn(`   - "${rec.name}": Falta(n) ${rec.missingFields.join(', ')}`);
+      });
+      if (incompleteRecords.length > 5) {
+        console.warn(`   ... y ${incompleteRecords.length - 5} más`);
+      }
+
+      console.log('\n💡 Tip: Verifica que la tabla "Equipo Financiero" en Airtable tenga estos campos:');
+      console.log(`   - Nombre/Name/Usuario: ${FIELD_NAMES.nombre}`);
+      console.log(`   - Cargo/Position/Puesto: ${FIELD_NAMES.cargo}`);
+      console.log(`   - Área/Area/Department: ${FIELD_NAMES.area}`);
+      console.log('\n📝 La API intentará leer automáticamente variaciones comunes de estos nombres.');
+    }
+
+    // Log de un registro de ejemplo para diagnóstico
+    if (records.length > 0 && employees.length === 0) {
+      console.log('\n🔍 Campos disponibles en el primer registro de Airtable:');
+      const firstRecord = records[0];
+      console.log(Object.keys(firstRecord.fields).join(', '));
+    }
+
+    return NextResponse.json({
+      success: true,
+      employees,
+      count: employees.length
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error fetching employees:', error);
+
+    // Error específico de autorización de Airtable
+    if (error.statusCode === 403 || error.error === 'NOT_AUTHORIZED') {
+      console.error('\n🔐 PROBLEMA DE PERMISOS:');
+      console.error('   La API Key no tiene acceso a la base Nomina Core');
+      console.error('\n💡 SOLUCIONES:');
+      console.error('   1. Verifica que NOMINA_AIRTABLE_BASE_ID sea correcto');
+      console.error('   2. Si usas NOMINA_AIRTABLE_API_KEY, verifica que tenga acceso a la base Nomina');
+      console.error('   3. Si no usas NOMINA_AIRTABLE_API_KEY, la AIRTABLE_API_KEY debe tener acceso a AMBAS bases');
+      console.error('   4. Ve a Airtable > Base Nomina Core > Share > API key permissions\n');
+
+      return NextResponse.json(
+        {
+          error: 'No autorizado para acceder a la base Nomina Core',
+          hint: 'La API Key no tiene permisos. Verifica la configuración en Airtable.',
+          details: error.message
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error: 'Internal server error while fetching employees',
+        details: error.message
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Soporte para POST con filtros específicos
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { area, cargo } = body;
+
+    // Usar la base de NOMINA donde están los datos de empleados
+    const nominaKey = process.env.NOMINA_AIRTABLE_API_KEY || process.env.AIRTABLE_API_KEY;
+    const nominaBaseId = process.env.NOMINA_AIRTABLE_BASE_ID;
+    const tableName = process.env.AIRTABLE_TEAM_TABLE_NAME || 'Equipo Financiero';
+
+    if (!nominaKey || !nominaBaseId) {
+      return NextResponse.json(
+        { error: 'Missing Nomina database configuration' },
+        { status: 500 }
+      );
+    }
+
+    const nominaBase = new Airtable({ apiKey: nominaKey }).base(nominaBaseId);
+
+    // Construir filtro
+    const filters = [`{${FIELD_NAMES.estado}} = 'Activo'`];
+    if (area) filters.push(`{${FIELD_NAMES.area}} = '${area.replace(/'/g, "\\'")}'`);
+    if (cargo) filters.push(`{${FIELD_NAMES.cargo}} = '${cargo.replace(/'/g, "\\'")}'`);
+
+    const filterFormula = filters.length > 1 ? `AND(${filters.join(', ')})` : filters[0];
+
+    const records = await nominaBase(tableName)
+      .select({
+        filterByFormula: filterFormula
+      })
+      .all();
+
+    const employees: Employee[] = records.map((record) => {
+      const fields = record.fields as Record<string, unknown>;
+
+      const name = getFieldValue(fields, [FIELD_NAMES.nombre, 'Name', 'Usuario']);
+      const cedula = getFieldValue(fields, [FIELD_NAMES.cedula, 'CC', 'Cédula']);
+      const cargoValue = getFieldValue(fields, [FIELD_NAMES.cargo, 'Position', 'Puesto']);
+      const areaValue = getFieldValue(fields, [FIELD_NAMES.area, 'Area', 'Department']);
+
+      return {
+        id: record.id,
+        name,
+        cedula,
+        cargo: cargoValue,
+        area: areaValue
+      };
+    }).filter((employee: Employee) => {
+      return employee.name && employee.cargo && employee.area;
+    });
+
+    employees.sort((a, b) => a.name.localeCompare(b.name));
+
+    return NextResponse.json({
+      success: true,
+      employees,
+      count: employees.length,
+      filters: { area, cargo }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching filtered employees:', error);
+    return NextResponse.json(
+      { error: 'Internal server error while fetching filtered employees' },
+      { status: 500 }
+    );
+  }
+}

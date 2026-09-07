@@ -74,17 +74,6 @@ export default function SolicitudesCompra() {
     "SST": ["Administración", "Mercadeo", "Otros Gastos ADM"]
   };
 
-  // Datos de usuario de respaldo (fallback) - mantener para compatibilidad
-  const datosUsuario = {
-    "Santiago Amaya": { area: "Pirolisis", cargo: "Jefe de Planta" },
-    "Luisa Ramirez": { area: "Laboratorio", cargo: "Coordinadora Líder" },
-    "Katherin Roldan": { area: "SST", cargo: "Líder de SST" },
-    "Yesenia Ramirez": { area: "Laboratorio", cargo: "Auxiliar de Laboratorio" },
-    "Carolina Casas": { area: "Administrativo", cargo: "Auxiliar Administrativo y Contable" },
-    "Juan Manuel": { area: "Administrativo", cargo: "CMO" },
-    "Pablo Acebedo": { area: "RAAS", cargo: "CTO" }
-  };
-
   // Función para cargar empleados desde la API
   const loadEmployees = useCallback(async () => {
     try {
@@ -252,30 +241,41 @@ export default function SolicitudesCompra() {
   }, [userData?.nombre, selectedUser]);
 
   const getUserData = (username: string) => {
-    // Buscar primero en los empleados cargados desde la base de datos
-    const employee = employees.find(emp => emp.name === username);
+    // Buscar en los empleados cargados desde la base de datos
+    console.log('🔍 Buscando usuario:', username);
+
+    // 1. Intento de coincidencia exacta
+    let employee = employees.find(emp => emp.name === username);
+
+    // 2. Si no hay coincidencia exacta, buscar coincidencia parcial
+    if (!employee) {
+      console.log('⚠️ No hay coincidencia exacta, intentando coincidencia parcial...');
+
+      // Buscar si algún nombre de empleado está contenido en el username buscado
+      employee = employees.find(emp => {
+        const empNameLower = emp.name.toLowerCase();
+        const usernameLower = username.toLowerCase();
+
+        // Coincidencia si el nombre del empleado está en el username buscado
+        // Ej: "David Hernandez" está en "Hermes David Hernandez Garcia"
+        return usernameLower.includes(empNameLower) || empNameLower.includes(usernameLower);
+      });
+    }
+
     if (employee) {
+      console.log('✅ Usuario encontrado:', employee);
       return { area: employee.area, cargo: employee.cargo };
     }
-    
-    // Si no se encuentra, usar datos de respaldo
-    return datosUsuario[username as keyof typeof datosUsuario] || { area: "", cargo: "" };
+
+    console.warn('❌ Usuario NO encontrado:', username);
+    console.log('📋 Empleados disponibles:', employees.map(e => e.name));
+    // Si no se encuentra, retornar vacío
+    return { area: "", cargo: "" };
   };
 
   // Función para obtener la lista completa de empleados para el select
   const getEmployeeOptions = () => {
-    if (employees.length > 0) {
-      return employees;
-    }
-    
-    // Fallback: convertir datos de respaldo al formato de Employee
-    return Object.entries(datosUsuario).map(([name, data]) => ({
-      id: name,
-      name: name,
-      cedula: '',
-      cargo: data.cargo,
-      area: data.area
-    }));
+    return employees;
   };
 
   const getCostCenters = () => {
@@ -651,17 +651,24 @@ export default function SolicitudesCompra() {
                     )
                   )}
                   {employeesError && (
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-yellow-300 text-sm">
-                        ⚠️ {employeesError} - Usando datos de respaldo
+                    <div className="flex items-center justify-between mt-2 bg-red-500/20 border border-red-400/30 rounded-xl p-3">
+                      <p className="text-red-200 text-sm">
+                        ⚠️ {employeesError}
                       </p>
                       <button
                         type="button"
                         onClick={loadEmployees}
-                        className="text-blue-300 hover:text-blue-200 text-sm underline"
+                        className="text-blue-300 hover:text-blue-200 text-sm underline font-semibold"
                       >
                         Reintentar
                       </button>
+                    </div>
+                  )}
+                  {!loadingEmployees && !employeesError && employees.length === 0 && (
+                    <div className="mt-2 bg-yellow-500/20 border border-yellow-400/30 rounded-xl p-3">
+                      <p className="text-yellow-200 text-sm">
+                        ⚠️ No se encontraron empleados con datos completos (Nombre, Cargo, Área) en Airtable
+                      </p>
                     </div>
                   )}
                 </div>
