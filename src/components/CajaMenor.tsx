@@ -1091,28 +1091,38 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
       .filter(item => item.cajaMenor?.includes(cajaActiva?.id || ''))
       .reduce((sum, item) => sum + (item.valor || 0), 0);
     const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
-    
+
     // Validar que el valor del nuevo registro no supere el saldo disponible
     const valorNuevoRegistro = parseFloat(formData.valor) || 0;
-    
+
     if (valorNuevoRegistro <= 0) {
       alert('❌ El valor debe ser mayor a cero.');
       return;
     }
-    
+
     // Validar que el valor no sea excesivamente alto (máximo 1.000.000.000 - mil millones)
     if (valorNuevoRegistro > 1000000000) {
       alert('❌ El valor ingresado es excesivamente alto.\n\nValor máximo permitido: $1.000.000.000\nValor ingresado: $' + valorNuevoRegistro.toLocaleString('es-CO') + '\n\nPor favor, verifique el monto.');
       return;
     }
-    
+
+    // Si estamos editando, ajustar el saldo disponible sumando el valor anterior del item
+    let saldoParaValidacion = saldoDisponible;
+    if (editingItemId) {
+      const itemAnterior = itemsRecords.find(item => item.id === editingItemId);
+      const valorAnterior = itemAnterior?.valor || 0;
+      // Devolver el valor anterior al saldo para validar correctamente
+      saldoParaValidacion = saldoDisponible + valorAnterior;
+      console.log(`✏️ Editando item: Valor anterior $${valorAnterior.toLocaleString('es-CO')}, Saldo ajustado para validación: $${saldoParaValidacion.toLocaleString('es-CO')}`);
+    }
+
     if (saldoDisponible < 0 && !editingItemId) {
       alert('❌ La caja menor ya está en déficit. No se pueden registrar más gastos hasta consolidar la caja menor.');
       return;
     }
-    
-    if (valorNuevoRegistro > saldoDisponible) {
-      alert(`❌ El valor del registro ($${valorNuevoRegistro.toLocaleString('es-CO')}) supera el saldo disponible de la caja menor.\n\n💰 Saldo disponible: $${saldoDisponible.toLocaleString('es-CO')}\n⚠️ Valor a registrar: $${valorNuevoRegistro.toLocaleString('es-CO')}\n🚫 Excedente: $${(valorNuevoRegistro - saldoDisponible).toLocaleString('es-CO')}\n\nPor favor, ingrese un valor menor o igual al saldo disponible.`);
+
+    if (valorNuevoRegistro > saldoParaValidacion) {
+      alert(`❌ El valor del registro ($${valorNuevoRegistro.toLocaleString('es-CO')}) supera el saldo disponible de la caja menor.\n\n💰 Saldo disponible: $${saldoParaValidacion.toLocaleString('es-CO')}\n⚠️ Valor a registrar: $${valorNuevoRegistro.toLocaleString('es-CO')}\n🚫 Excedente: $${(valorNuevoRegistro - saldoParaValidacion).toLocaleString('es-CO')}\n\nPor favor, ingrese un valor menor o igual al saldo disponible.`);
       return;
     }
     
@@ -2346,9 +2356,17 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       const totalEgresosCaja = itemsRecords
                         .filter(item => item.cajaMenor?.includes(ultimaCajaMenor.id))
                         .reduce((sum, item) => sum + (item.valor || 0), 0);
-                      const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+                      let saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+
+                      // Si estamos editando, ajustar el saldo disponible sumando el valor anterior
+                      if (editingItemId) {
+                        const itemAnterior = itemsRecords.find(item => item.id === editingItemId);
+                        const valorAnterior = itemAnterior?.valor || 0;
+                        saldoDisponible = saldoDisponible + valorAnterior;
+                      }
+
                       const excedente = valorIngresado - saldoDisponible;
-                      
+
                       if (valorIngresado > saldoDisponible) {
                         return (
                           <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
@@ -2706,7 +2724,15 @@ function CajaMenorDashboard({ userData, onLogout }: { userData: UserData, onLogo
                       const totalEgresosCaja = itemsRecords
                         .filter(item => item.cajaMenor?.includes(ultimaCajaMenor.id))
                         .reduce((sum, item) => sum + (item.valor || 0), 0);
-                      const saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+                      let saldoDisponible = totalIngresosCaja - totalEgresosCaja;
+
+                      // Si estamos editando, ajustar el saldo disponible sumando el valor anterior
+                      if (editingItemId) {
+                        const itemAnterior = itemsRecords.find(item => item.id === editingItemId);
+                        const valorAnterior = itemAnterior?.valor || 0;
+                        saldoDisponible = saldoDisponible + valorAnterior;
+                      }
+
                       return valorIngresado > saldoDisponible;
                     })()}
                     className="flex-1 px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors shadow-lg flex items-center justify-center gap-2 text-sm md:text-base"
