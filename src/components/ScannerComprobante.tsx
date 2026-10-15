@@ -2,7 +2,15 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import { Camera, Upload, X, FileText, Loader2, CheckCircle, Eye, Trash2, Plus } from 'lucide-react';
+import { Camera, Upload, X, FileText, Loader2, CheckCircle, Eye, Trash2, Plus, Crop } from 'lucide-react';
+import ScannerCornerEditor from './ScannerCornerEditor';
+import {
+  detectDocumentCorners,
+  loadImageToCanvas,
+  renderScan,
+  type Quad,
+  type ScanFilter,
+} from '@/lib/utils/documentScanner';
 
 interface ScannerComprobanteProps {
   onPdfReady: (pdfBlob: Blob, fileName: string) => void;
@@ -16,163 +24,19 @@ interface ScannedImage {
   originalDataUrl: string;
   scannedDataUrl: string;
   fileName: string;
+  width: number;
+  height: number;
+  corners: Quad;
+  autoCorners: Quad;
+  detected: boolean;
+  filter: ScanFilter;
 }
 
-// ─── Image processing helpers ───────────────────────────────────────────────
-
-function resizeCanvas(
-  source: HTMLCanvasElement,
-  maxSize = 2000
-): HTMLCanvasElement {
-  const { width, height } = source;
-  const scale = Math.min(1, maxSize / Math.max(width, height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(width * scale);
-  canvas.height = Math.round(height * scale);
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
-  return canvas;
-}
-
-interface Point { x: number; y: number }
-
-function detectDocumentEdges(canvas: HTMLCanvasElement): Point[] {
-  const { width, height } = canvas;
-  const margin = Math.round(Math.min(width, height) * 0.10);
-  return [
-    { x: margin, y: margin },
-    { x: width - margin, y: margin },
-    { x: width - margin, y: height - margin },
-    { x: margin, y: height - margin },
-  ];
-}
-
-function applyPerspectiveCorrection(
-  source: HTMLCanvasElement,
-  corners: Point[]
-): HTMLCanvasElement {
-  const destWidth = source.width;
-  const destHeight = source.height;
-  const dest = document.createElement('canvas');
-  dest.width = destWidth;
-  dest.height = destHeight;
-  const srcCtx = source.getContext('2d')!;
-  const dstCtx = dest.getContext('2d')!;
-
-  const srcData = srcCtx.getImageData(0, 0, source.width, source.height);
-  const dstData = dstCtx.createImageData(destWidth, destHeight);
-
-  const [tl, tr, br, bl] = corners;
-
-  for (let y = 0; y < destHeight; y++) {
-    for (let x = 0; x < destWidth; x++) {
-      const u = x / (destWidth - 1);
-      const v = y / (destHeight - 1);
-
-      const srcX =
-        tl.x * (1 - u) * (1 - v) +
-        tr.x * u * (1 - v) +
-        br.x * u * v +
-        bl.x * (1 - u) * v;
-
-      const srcY =
-        tl.y * (1 - u) * (1 - v) +
-        tr.y * u * (1 - v) +
-        br.y * u * v +
-        bl.y * (1 - u) * v;
-
-      const sx = Math.max(0, Math.min(source.width - 1, Math.round(srcX)));
-      const sy = Math.max(0, Math.min(source.height - 1, Math.round(srcY)));
-
-      const srcIdx = (sy * source.width + sx) * 4;
-      const dstIdx = (y * destWidth + x) * 4;
-
-      dstData.data[dstIdx] = srcData.data[srcIdx];
-      dstData.data[dstIdx + 1] = srcData.data[srcIdx + 1];
-      dstData.data[dstIdx + 2] = srcData.data[srcIdx + 2];
-      dstData.data[dstIdx + 3] = srcData.data[srcIdx + 3];
-    }
-  }
-
-  dstCtx.putImageData(dstData, 0, 0);
-  return dest;
-}
-
-function enhanceDocument(canvas: HTMLCanvasElement): HTMLCanvasElement {
-  const out = document.createElement('canvas');
-  out.width = canvas.width;
-  out.height = canvas.height;
-  const ctx = out.getContext('2d')!;
-  ctx.drawImage(canvas, 0, 0);
-
-  const imageData = ctx.getImageData(0, 0, out.width, out.height);
-  const data = imageData.data;
-
-  const contrastFactor = 1.5;
-  const brightnessFactor = 10;
-
-  for (let i = 0; i < data.length; i += 4) {
-    let r = (data[i] - 128) * contrastFactor + 128 + brightnessFactor;
-    let g = (data[i + 1] - 128) * contrastFactor + 128 + brightnessFactor;
-    let b = (data[i + 2] - 128) * contrastFactor + 128 + brightnessFactor;
-
-    r = Math.max(0, Math.min(255, r));
-    g = Math.max(0, Math.min(255, g));
-    b = Math.max(0, Math.min(255, b));
-
-    const avg = (r + g + b) / 3;
-    let val: number;
-    if (avg > 180) {
-      val = 255;
-    } else if (avg < 80) {
-      val = 0;
-    } else {
-      val = avg;
-    }
-
-    data[i] = val;
-    data[i + 1] = val;
-    data[i + 2] = val;
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-  return out;
-}
-
-async function processImage(file: File): Promise<{ original: string; scanned: string }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      try {
-        // Draw original
-        const raw = document.createElement('canvas');
-        raw.width = img.naturalWidth;
-        raw.height = img.naturalHeight;
-        const rawCtx = raw.getContext('2d')!;
-        rawCtx.drawImage(img, 0, 0);
-
-        const resized = resizeCanvas(raw);
-        const corners = detectDocumentEdges(resized);
-        const corrected = applyPerspectiveCorrection(resized, corners);
-        const enhanced = enhanceDocument(corrected);
-
-        resolve({
-          original: resized.toDataURL('image/jpeg', 0.8),
-          scanned: enhanced.toDataURL('image/jpeg', 0.85),
-        });
-      } catch (err) {
-        reject(err);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('No se pudo cargar la imagen'));
-    };
-    img.src = url;
-  });
-}
+const FILTER_LABELS: Record<ScanFilter, string> = {
+  color: 'Color',
+  bw: 'B/N',
+  original: 'Sin filtro',
+};
 
 // ─── PDF generation ──────────────────────────────────────────────────────────
 
@@ -224,6 +88,10 @@ export default function ScannerComprobante({
   const [pdfReady, setPdfReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadedPdfName, setUploadedPdfName] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Imagen fuente (ya redimensionada) por id, para poder re-recortar o cambiar filtro.
+  const sourcesRef = useRef(new Map<string, HTMLCanvasElement>());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -251,15 +119,26 @@ export default function ScannerComprobante({
     try {
       const results: ScannedImage[] = [];
       for (const file of toProcess) {
-        const { original, scanned } = await processImage(file);
+        const source = await loadImageToCanvas(file);
+        const { corners, detected } = detectDocumentCorners(source);
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        sourcesRef.current.set(id, source);
         results.push({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          originalDataUrl: original,
-          scannedDataUrl: scanned,
+          id,
+          originalDataUrl: source.toDataURL('image/jpeg', 0.85),
+          scannedDataUrl: renderScan(source, corners, 'color'),
           fileName: file.name,
+          width: source.width,
+          height: source.height,
+          corners,
+          autoCorners: corners,
+          detected,
+          filter: 'color',
         });
       }
       setImages(prev => [...prev, ...results]);
+      // Con una sola foto, abrir el editor para revisar el recorte (como CamScanner).
+      if (results.length === 1) setEditingId(results[0].id);
     } catch {
       setError('Error al procesar la imagen. Intente con otro archivo.');
     } finally {
@@ -267,7 +146,24 @@ export default function ScannerComprobante({
     }
   }, [images.length, maxImages]);
 
+  const updateScan = (id: string, changes: { corners?: Quad; filter?: ScanFilter }) => {
+    const source = sourcesRef.current.get(id);
+    const current = images.find(img => img.id === id);
+    if (!source || !current) return;
+    const corners = changes.corners ?? current.corners;
+    const filter = changes.filter ?? current.filter;
+    try {
+      const scannedDataUrl = renderScan(source, corners, filter);
+      setImages(prev => prev.map(img => (img.id === id ? { ...img, corners, filter, scannedDataUrl } : img)));
+      setPdfReady(false);
+      setPdfPreviewUrl(null);
+    } catch {
+      setError('No se pudo recortar con esas esquinas. Ajústelas de nuevo.');
+    }
+  };
+
   const removeImage = (id: string) => {
+    sourcesRef.current.delete(id);
     setImages(prev => prev.filter(img => img.id !== id));
     setPdfReady(false);
     setPdfPreviewUrl(null);
@@ -323,6 +219,8 @@ export default function ScannerComprobante({
   }, [onPdfReady]);
 
   const handleClear = () => {
+    sourcesRef.current.clear();
+    setEditingId(null);
     setImages([]);
     setPdfReady(false);
     setUploadedPdfName(null);
@@ -335,9 +233,26 @@ export default function ScannerComprobante({
   };
 
   const canAddMore = images.length < maxImages && !disabled;
+  const editingImage = images.find(img => img.id === editingId);
 
   return (
     <div className="space-y-4">
+      {editingImage && (
+        <ScannerCornerEditor
+          key={editingImage.id}
+          imageUrl={editingImage.originalDataUrl}
+          width={editingImage.width}
+          height={editingImage.height}
+          initialCorners={editingImage.corners}
+          autoCorners={editingImage.autoCorners}
+          onConfirm={corners => {
+            updateScan(editingImage.id, { corners });
+            setEditingId(null);
+          }}
+          onCancel={() => setEditingId(null)}
+        />
+      )}
+
       {/* Selector de modo */}
       {!pdfReady && images.length === 0 && (
         <div className="flex gap-2 p-1 bg-slate-800/40 rounded-lg border border-white/10">
@@ -472,18 +387,52 @@ export default function ScannerComprobante({
                 <span className="text-xs text-white/60 flex items-center gap-1">
                   <CheckCircle className="w-3 h-3 text-green-400" />
                   Documento #{idx + 1}
-                  <span className="ml-1 px-1.5 py-0.5 bg-green-500/20 text-green-300 rounded text-[10px]">
-                    Auto-escaneado
-                  </span>
+                  {img.detected ? (
+                    <span className="ml-1 px-1.5 py-0.5 bg-green-500/20 text-green-300 rounded text-[10px]">
+                      Bordes detectados
+                    </span>
+                  ) : (
+                    <span className="ml-1 px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded text-[10px]">
+                      Imagen completa
+                    </span>
+                  )}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => removeImage(img.id)}
-                  disabled={disabled}
-                  className="text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(img.id)}
+                    disabled={disabled}
+                    className="flex items-center gap-1 text-blue-300 hover:text-blue-200 text-xs transition-colors disabled:opacity-50"
+                  >
+                    <Crop className="w-4 h-4" />
+                    Ajustar bordes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeImage(img.id)}
+                    disabled={disabled}
+                    className="text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-1 mb-2">
+                {(Object.keys(FILTER_LABELS) as ScanFilter[]).map(filter => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => updateScan(img.id, { filter })}
+                    disabled={disabled || img.filter === filter}
+                    className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                      img.filter === filter
+                        ? 'bg-blue-600/50 text-white'
+                        : 'bg-slate-700/50 text-white/50 hover:text-white/80'
+                    }`}
+                  >
+                    {FILTER_LABELS[filter]}
+                  </button>
+                ))}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
