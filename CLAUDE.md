@@ -154,25 +154,21 @@ src/
 ## Funcionalidades Destacadas
 
 ### Carga de Comprobantes (Caja Menor)
-El formulario de registro de gastos de caja menor incluye dos opciones para cargar comprobantes:
+El formulario de registro de gastos de caja menor incluye carga directa de comprobantes:
 
-#### Opción 1: Escanear Imágenes
-- **Captura:** Toma fotos con la cámara del dispositivo o sube desde galería
-- **Procesamiento:** Mejora de contraste automática usando Canvas API
-- **PDF:** Generación client-side con pdf-lib (sin servicios externos)
-- **Multipágina:** Soporte para múltiples imágenes (hasta 5) en un solo PDF
-- **Flujo:** Captura imagen → Mejora contraste → Genera PDF → Sube a S3 → Guarda en Airtable
-
-#### Opción 2: Cargar PDF Directamente (Nuevo - 2026-05-28)
-- **Carga directa:** Selecciona archivos PDF existentes desde el dispositivo
-- **Sin procesamiento:** El PDF se sube tal cual, sin conversión
-- **Validación:** Solo acepta archivos tipo `application/pdf`
-- **Vista previa:** Muestra preview del PDF antes de guardar
-- **Flujo:** Selecciona PDF → Vista previa → Sube a S3 → Guarda en Airtable
+#### Carga Directa de Archivos (Actualizado - 2026-10-26)
+- **Tipos aceptados:** Imágenes (JPG, PNG, WEBP) y PDF
+- **Carga simple:** Un botón para seleccionar archivo desde el dispositivo
+- **Sin procesamiento:** Los archivos se suben tal cual, sin conversión ni edición
+- **Vista previa:** Muestra preview del archivo antes de guardar
+  - Imágenes: Preview de la imagen
+  - PDF: Visor embebido del PDF
+- **Flujo:** Selecciona archivo → Vista previa → Sube a S3 → Guarda en Airtable
 
 **Componente:** `ScannerComprobante.tsx` (reutilizable)  
-**Selector de modo:** UI con dos botones para alternar entre "Escanear Imágenes" y "Cargar PDF"  
-**Almacenamiento:** Upload a S3 y guardado en Airtable campo `Comprobante`
+**Interfaz:** Botón único "Seleccionar imagen o PDF"  
+**Almacenamiento:** Upload a S3 y guardado en Airtable campo `Comprobante`  
+**Nota:** Se eliminó la funcionalidad de scanner/captura de imágenes con procesamiento automático
 
 ## Patrones Clave del Código
 
