@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { obtenerUsuarioSesion } from '@/lib/auth/api-session';
+import { importarExtractosBancolombia } from '@/lib/bancos/importar-extractos';
+import { resumirImportacion } from '@/lib/importacion/archivos-pendientes';
+
+export const maxDuration = 60;
 
 // Configuración de Microsoft Graph API
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0';
@@ -205,6 +210,11 @@ async function checkFileExists(accessToken: string, folderId: string, fileName: 
 }
 
 export async function POST(request: NextRequest) {
+  const usuario = obtenerUsuarioSesion(request);
+  if (!usuario || usuario.categoria === 'Colaborador') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: usuario ? 403 : 401 });
+  }
+
   try {
     console.log('🔄 Iniciando carga de archivo a OneDrive...');
 
@@ -305,40 +315,16 @@ export async function POST(request: NextRequest) {
 
     console.log('🎉 Archivo cargado exitosamente a OneDrive');
 
-    // Activar webhook de Bancolombia después de carga exitosa
-    console.log('🔄 Activando webhook de Bancolombia...');
+    // El extracto ya quedó en OneDrive: un error al importarlo no invalida la carga
+    let resumenImportacion: string;
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_BANCOL;
-      if (webhookUrl) {
-        const webhookResponse = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            trigger: 'file_uploaded',
-            file_info: {
-              name: fileName,
-              path: `${ONEDRIVE_FOLDER_PATH}/${fileName}`,
-              upload_time: new Date().toISOString(),
-              size: buffer.length
-            },
-            action: 'process_banking_movements'
-          }),
-        });
-
-        if (webhookResponse.ok) {
-          console.log('✅ Webhook de Bancolombia activado exitosamente');
-        } else {
-          console.log('⚠️ Webhook de Bancolombia no respondió correctamente:', webhookResponse.status);
-        }
-      } else {
-        console.log('⚠️ URL del webhook de Bancolombia no configurada');
-      }
-    } catch (webhookError) {
-      console.log('⚠️ Error activando webhook de Bancolombia:', webhookError);
-      // No fallar la operación principal por error en webhook
+      const resultado = await importarExtractosBancolombia(Date.now() + 30_000);
+      resumenImportacion = resumirImportacion('Bancolombia', resultado);
+    } catch (importError) {
+      console.error('❌ Error importando movimientos de Bancolombia:', importError);
+      resumenImportacion = `Bancolombia: error al importar (${importError instanceof Error ? importError.message : 'desconocido'})`;
     }
+    console.log(`🏦 ${resumenImportacion}`);
 
     return NextResponse.json({
       success: true,
@@ -359,10 +345,7 @@ export async function POST(request: NextRequest) {
         folderId: folderId,
         folderPath: ONEDRIVE_FOLDER_PATH
       },
-      webhook: {
-        bancolombia_activated: !!process.env.NEXT_PUBLIC_WEBHOOK_BANCOL,
-        message: 'Webhook de Bancolombia activado automáticamente para procesar movimientos'
-      }
+      importacion: resumenImportacion
     });
 
   } catch (error) {

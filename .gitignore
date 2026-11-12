@@ -89,3 +89,6 @@ next-env.d.ts
 .env.example
 .env.example
 .env.example
+
+# Backup de workflows n8n (contiene URLs de webhooks e IDs internos)
+docs/n8n-workflows-backup/

@@ -49,13 +49,23 @@ AIRTABLE_FIELD_DIAN_ESTADO=Estado
 AIRTABLE_FIELD_DIAN_GRUPO=Grupo
 ```
 
-### 3. Variable del Webhook n8n (opcional)
+### 3. Importación del Excel DIAN (reemplaza al workflow n8n AUTOMA_DIAN)
 
-Si usas el workflow de n8n para consultar movimientos DIAN:
+`POST /api/movimientos-dian` y el cron `/api/cron/importaciones` (L-V 7:00 a. m. Colombia)
+importan los Excel de la carpeta DIAN de OneDrive que aún no tengan registros. Además de
+los campos anteriores necesitan:
 
 ```bash
-N8N_WEBHOOK_MOVIMIENTOS_DIAN_URL=https://tu-instancia-n8n.com/webhook/movimientos-dian
+AIRTABLE_FIELD_DIAN_PREFIJO=Prefijo
+AIRTABLE_FIELD_DIAN_FOLIO=Folio
+AIRTABLE_FIELD_DIAN_NIT_RECEPTOR=NIT Receptor
+AIRTABLE_FIELD_DIAN_ICA=ICA
+AIRTABLE_FIELD_DIAN_IPC=IPC
+AIRTABLE_FIELD_DIAN_ID_DOCUMENTO=id_documento
+CRON_SECRET=<valor aleatorio largo>
 ```
+
+`N8N_WEBHOOK_MOVIMIENTOS_DIAN_URL` ya no se usa.
 
 ## Cómo Configurar en tu Plataforma de Deployment
 

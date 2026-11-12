@@ -196,59 +196,24 @@ export default function MovimientosBancarios() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userData, filtros.año, filtros.mes, fetchMovimientos]);
 
-  // Función para actualizar movimientos bancarios mediante webhooks
+  // Importa los extractos pendientes de Bancolombia y BBVA desde OneDrive
   const actualizarMovimientosBancarios = async () => {
     try {
       setActualizando(true);
       setError('');
-      
-  // Webhooks de n8n - usar variables de entorno
-  // Definir en .env.local (para client-side usar NEXT_PUBLIC_ si es necesario)
-  const webhookBancolombia = process.env.NEXT_PUBLIC_WEBHOOK_BANCOL || process.env.WEBHOOK_BANCOL || '';
-  const webhookBBVA = process.env.NEXT_PUBLIC_WEBHOOK_BBVA || process.env.WEBHOOK_BBVA || '';
-      
-      // Enviar solicitud a ambos webhooks en paralelo
-      const [responseBancolombia, responseBBVA] = await Promise.all([
-        fetch(webhookBancolombia, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            action: 'actualizar_movimientos',
-            timestamp: new Date().toISOString(),
-            usuario: userData?.nombre || 'Usuario',
-          })
-        }),
-        fetch(webhookBBVA, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            action: 'actualizar_movimientos',
-            timestamp: new Date().toISOString(),
-            usuario: userData?.nombre || 'Usuario',
-          })
-        })
-      ]);
 
-      console.log('Webhook Bancolombia status:', responseBancolombia.status);
-      console.log('Webhook BBVA status:', responseBBVA.status);
+      const response = await fetch('/api/movimientos-bancarios/procesar', { method: 'POST' });
+      const result = await response.json();
 
-      if (responseBancolombia.ok && responseBBVA.ok) {
-        // Esperar 3 segundos y recargar los datos
-        setTimeout(() => {
-          fetchMovimientos();
-        }, 3000);
-        
-        alert('✅ Actualización iniciada exitosamente en Bancolombia y BBVA. Los datos se recargarán en unos segundos.');
-      } else {
-        throw new Error('Error al actualizar uno o ambos bancos');
+      if (!response.ok && !result.message) {
+        throw new Error(result.error || 'Error al actualizar los movimientos bancarios');
       }
+
+      await fetchMovimientos();
+      alert(`${result.success ? '✅' : '⚠️'} ${result.message}`);
     } catch (error) {
       console.error('Error actualizando movimientos bancarios:', error);
-      setError('Error al enviar solicitud de actualización. Por favor intenta nuevamente.');
+      setError(error instanceof Error ? error.message : 'Error al actualizar los movimientos bancarios. Por favor intenta nuevamente.');
     } finally {
       setActualizando(false);
     }
@@ -293,11 +258,11 @@ export default function MovimientosBancarios() {
           successMessage = `Archivo cargado en SharePoint: ${result.file.path}`;
         }
         
-        // Agregar información sobre webhook
-        if (result.webhook?.bancolombia_activated) {
-          successMessage += `\n🔄 Webhook de Bancolombia activado automáticamente`;
+        if (result.importacion) {
+          successMessage += `\n🏦 ${result.importacion}`;
+          fetchMovimientos();
         }
-        
+
         setUploadSuccess(successMessage);
         
         // Mostrar instrucciones si las hay

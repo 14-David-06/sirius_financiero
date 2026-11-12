@@ -37,6 +37,16 @@ export const DIAN_FIELDS = {
   get CUFE() {
     return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_CUFE, 'AIRTABLE_FIELD_DIAN_CUFE');
   },
+  get PREFIJO() {
+    return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_PREFIJO, 'AIRTABLE_FIELD_DIAN_PREFIJO');
+  },
+  get FOLIO() {
+    return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_FOLIO, 'AIRTABLE_FIELD_DIAN_FOLIO');
+  },
+  // ID del Excel de OneDrive del que salió el registro: marca el archivo como importado
+  get ID_DOCUMENTO() {
+    return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_ID_DOCUMENTO, 'AIRTABLE_FIELD_DIAN_ID_DOCUMENTO');
+  },
 
   // Fechas del documento
   get FECHA_EMISION() {
@@ -56,10 +66,19 @@ export const DIAN_FIELDS = {
   get NOMBRE_RECEPTOR() {
     return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_NOMBRE_RECEPTOR, 'AIRTABLE_FIELD_DIAN_NOMBRE_RECEPTOR');
   },
+  get NIT_RECEPTOR() {
+    return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_NIT_RECEPTOR, 'AIRTABLE_FIELD_DIAN_NIT_RECEPTOR');
+  },
 
   // Valores
   get IVA() {
     return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_IVA, 'AIRTABLE_FIELD_DIAN_IVA');
+  },
+  get ICA() {
+    return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_ICA, 'AIRTABLE_FIELD_DIAN_ICA');
+  },
+  get IPC() {
+    return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_IPC, 'AIRTABLE_FIELD_DIAN_IPC');
   },
   get TOTAL() {
     return getRequiredField(process.env.AIRTABLE_FIELD_DIAN_TOTAL, 'AIRTABLE_FIELD_DIAN_TOTAL');
