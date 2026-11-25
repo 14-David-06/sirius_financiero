@@ -11,6 +11,21 @@ interface GraphTokenResponse {
   expires_in: number;
 }
 
+// Función helper para obtener URL base de la aplicación
+function getBaseUrl(): string {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isVercel = process.env.VERCEL === '1';
+
+  if (isDevelopment) {
+    const port = process.env.PORT || '3000';
+    return `http://localhost:${port}`;
+  } else if (isVercel) {
+    return process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.VERCEL_URL}`;
+  } else {
+    return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  }
+}
+
 // Función para obtener token de acceso usando Client Credentials Flow
 async function getAccessToken(): Promise<string> {
   const clientId = process.env.ADM_MICROSOFT_CLIENT_ID;
@@ -193,7 +208,7 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
         type: 'factura_egreso',
         mode: 'One', // Modo One: procesar solo esta factura
-        callbackUrl: `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/api/facturacion-egresos-callback`
+        callbackUrl: `${getBaseUrl()}/api/facturacion-egresos-callback`
       };
 
       console.log('📤 Payload webhook (EGRESOS):', JSON.stringify(webhookPayload, null, 2));

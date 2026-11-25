@@ -272,9 +272,29 @@ export async function POST(request: NextRequest) {
     // Calcular valor total
     const valorTotal = data.items.reduce((total, item) => total + (item.valorItem * item.cantidad), 0);
 
-    // Obtener la URL base del servidor (para desarrollo local y envío de correos)
+    // Obtener la URL base del servidor
     const isDevelopment = process.env.NODE_ENV === 'development';
-    const baseUrl = isDevelopment ? 'http://localhost:3001' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    const isVercel = process.env.VERCEL === '1';
+
+    let baseUrl: string;
+    if (isDevelopment) {
+      // Desarrollo local: usar puerto configurado o 3000 por defecto
+      const port = process.env.PORT || '3000';
+      baseUrl = `http://localhost:${port}`;
+    } else if (isVercel) {
+      // Producción en Vercel: NEXT_PUBLIC_APP_URL es requerida
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.VERCEL_URL}`;
+      if (!baseUrl || baseUrl.includes('localhost')) {
+        console.error('❌ NEXT_PUBLIC_APP_URL no está configurada correctamente en Vercel');
+        throw new Error('Configuración de URL de producción faltante - contactar a desarrollo');
+      }
+    } else {
+      // Producción fuera de Vercel
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      if (baseUrl.includes('localhost')) {
+        console.warn('⚠️ Usando localhost en producción - verificar NEXT_PUBLIC_APP_URL');
+      }
+    }
 
     // Generar PDF de la solicitud
     let pdfUrl = null;
