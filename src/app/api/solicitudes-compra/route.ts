@@ -269,11 +269,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`Solicitud de compra creada exitosamente: ${solicitudId} con ${itemsCreados.length} items`);
 
+    // Calcular valor total
+    const valorTotal = data.items.reduce((total, item) => total + (item.valorItem * item.cantidad), 0);
+
+    // Obtener la URL base del servidor (para desarrollo local y envío de correos)
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const baseUrl = isDevelopment ? 'http://localhost:3001' : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+
     // Generar PDF de la solicitud
     let pdfUrl = null;
     try {
-      // Obtener la URL base del servidor (para desarrollo local)
-      const baseUrl = 'http://localhost:3000'; // URL fija para desarrollo
       
       console.log('🔥 Intentando generar PDF usando URL:', `${baseUrl}/api/generate-pdf`);
       
@@ -336,15 +341,58 @@ export async function POST(request: NextRequest) {
       console.warn('Error generando PDF (solicitud creada exitosamente):', pdfError);
     }
 
+    // Enviar notificación por correo
+    let emailSent = false;
+    try {
+      console.log('📧 Enviando notificación por correo...');
+
+      const emailResponse = await fetch(`${baseUrl}/api/send-email-solicitud-compra`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          solicitudId: solicitudId,
+          nombreSolicitante: data.nombreSolicitante,
+          areaSolicitante: data.areaSolicitante,
+          cargoSolicitante: data.cargoSolicitante,
+          prioridadSolicitud: data.prioridadSolicitud,
+          hasProvider: data.hasProvider,
+          razonSocialProveedor: data.razonSocialProveedor,
+          descripcionTranscripcion: data.descripcionTranscripcion,
+          items: data.items,
+          valorTotal: valorTotal,
+          pdfUrl: pdfUrl,
+          toEmails: ['angi@siriusregenerative.com'],
+          ccEmails: [
+            'adm@siriusregenerative.com',
+            'alejandro@siriusregenerative.com',
+            'david@siriusregenerative.com'
+          ]
+        })
+      });
+
+      if (emailResponse.ok) {
+        console.log('✅ Notificación por correo enviada exitosamente');
+        emailSent = true;
+      } else {
+        const emailError = await emailResponse.text();
+        console.warn('⚠️ Error enviando notificación por correo:', emailError);
+      }
+    } catch (emailError) {
+      console.warn('⚠️ Error enviando notificación por correo (solicitud creada exitosamente):', emailError);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Solicitud de compra registrada exitosamente',
       data: {
         solicitudId: solicitudId,
         itemsCreados: itemsCreados.length,
-        valorTotal: data.items.reduce((total, item) => total + (item.valorItem * item.cantidad), 0),
+        valorTotal: valorTotal,
         pdfUrl: pdfUrl,
-        pdfGenerated: !!pdfUrl
+        pdfGenerated: !!pdfUrl,
+        emailSent: emailSent
       }
     });
 

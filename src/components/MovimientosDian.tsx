@@ -80,7 +80,7 @@ export default function MovimientosDian() {
         ? `/api/movimientos-dian/resumen?desde=${encodeURIComponent(desde)}`
         : '/api/movimientos-dian/resumen';
 
-      const response = await fetch(url);
+      const response = await fetch(url, { credentials: 'include' });
       const result: RespuestaResumen = await response.json();
 
       if (!response.ok || !result.success) {
@@ -119,6 +119,7 @@ export default function MovimientosDian() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // ✅ Envía cookies (auth-token)
         body: JSON.stringify({
           usuario: userData?.nombre || 'Usuario',
         }),
