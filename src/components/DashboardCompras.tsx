@@ -257,8 +257,13 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
       }
 
       const result = await response.json();
-      console.log('Estado actualizado exitosamente:', result);
-      
+      const notificacion = result.notificacion;
+      if (notificacion?.enviado) {
+        showToastNotification(`✅ Estado actualizado a ${nuevoEstado}. Se notificó a ${notificacion.destinatario}`);
+      } else if (notificacion) {
+        showToastNotification(`Estado actualizado a ${nuevoEstado}. Correo no enviado: ${notificacion.motivo}`);
+      }
+
       // Recargar los datos para mostrar el cambio
       await cargarDatos();
     } catch (error) {
