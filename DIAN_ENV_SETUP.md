@@ -27,9 +27,9 @@ Estas variables mapean los nombres exactos de las columnas en tu tabla de Airtab
 AIRTABLE_FIELD_DIAN_CREADA=Creada
 
 # Identificación del documento
-AIRTABLE_FIELD_DIAN_TIPO_DOCUMENTO=Tipo Documento
-AIRTABLE_FIELD_DIAN_PREFIJO_FOLIO=Prefijo/Folio
-AIRTABLE_FIELD_DIAN_CUFE=CUFE
+AIRTABLE_FIELD_DIAN_TIPO_DOCUMENTO=Tipo de documento
+AIRTABLE_FIELD_DIAN_PREFIJO_FOLIO=prefijo-folio
+AIRTABLE_FIELD_DIAN_CUFE=CUFE/CUDE
 
 # Fechas del documento
 AIRTABLE_FIELD_DIAN_FECHA_EMISION=Fecha Emisión

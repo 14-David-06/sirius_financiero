@@ -251,7 +251,13 @@ async function sendEmail(data: SolicitudCompraEmail): Promise<void> {
                         </tr>
                       </thead>
                       <tbody>
-                        ${itemsRows}
+                        ${items.length > 0 ? itemsRows : `
+                          <tr>
+                            <td colspan="7" style="padding: 30px; text-align: center; color: #6b7280; font-style: italic;">
+                              📋 No se agregaron items específicos a esta solicitud
+                            </td>
+                          </tr>
+                        `}
                       </tbody>
                       <tfoot>
                         <tr style="background-color: #f9fafb; border-top: 2px solid #e5e7eb;">
@@ -353,12 +359,17 @@ export async function POST(request: NextRequest) {
 
     const data: SolicitudCompraEmail = await request.json();
 
-    // Validar datos requeridos
-    if (!data.nombreSolicitante || !data.items || data.items.length === 0) {
+    // Validar datos requeridos (mínimos para enviar el email)
+    if (!data.nombreSolicitante || !data.areaSolicitante || !data.cargoSolicitante) {
       return NextResponse.json({
         success: false,
-        error: 'Faltan datos requeridos para enviar el email'
+        error: 'Faltan datos requeridos para enviar el email: nombreSolicitante, areaSolicitante y cargoSolicitante son obligatorios'
       }, { status: 400 });
+    }
+
+    // Asegurar que items sea un array (puede estar vacío)
+    if (!Array.isArray(data.items)) {
+      data.items = [];
     }
 
     // Validar configuración de Microsoft Graph
