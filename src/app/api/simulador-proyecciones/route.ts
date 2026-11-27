@@ -3,10 +3,12 @@ import {
   simularNormal,
   simularPrioridadConIngresos,
   simularPrioridadSinIngresos,
+  type InformeSimulacion,
 } from '@/lib/simulador/proyeccion';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
+const PRIORIDADES_VALIDAS = ['Alta', 'Media', 'Baja'];
 
 interface PayloadSimulacion {
   tipo_simulacion: 'normal' | 'prioridad';
@@ -36,7 +38,6 @@ interface PayloadSimulacion {
  *
  * IMPORTANTE: Replica comportamiento n8n incluyendo bugs conocidos:
  * - Rama C (prioridad sin ingresos) siempre filtra solo "Alta" ignorando selección
- * - Rama B (prioridad con ingresos) puede tener fórmula rota con arrays
  * - Todas las simulaciones ESCRIBEN en Centralización General (destructivo)
  */
 export async function POST(request: NextRequest) {
@@ -81,9 +82,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (!Array.isArray(prioridades_seleccionadas) || prioridades_seleccionadas.length === 0) {
+      if (
+        !Array.isArray(prioridades_seleccionadas) ||
+        prioridades_seleccionadas.length === 0 ||
+        !prioridades_seleccionadas.every(p => PRIORIDADES_VALIDAS.includes(p))
+      ) {
         return NextResponse.json(
-          { error: 'prioridades_seleccionadas debe ser un array no vacío para tipo=prioridad' },
+          { error: 'prioridades_seleccionadas debe ser un array no vacío con valores Alta, Media o Baja' },
           { status: 400 }
         );
       }
@@ -93,19 +98,19 @@ export async function POST(request: NextRequest) {
     console.log(`🔄 [Simulador] Iniciando: ${tipo_simulacion}${tipo_simulacion === 'prioridad' ? ` (${incluir_ingresos})` : ''} - usuario: ${usuario}`);
 
     // 4. Ejecutar simulación según rama
-    let resultado: string;
+    let informe: InformeSimulacion;
 
     if (tipo_simulacion === 'normal') {
       // Rama A
-      resultado = await simularNormal();
+      informe = await simularNormal();
     } else {
       // Ramas B y C
       if (incluir_ingresos === 'con_ingresos') {
         // Rama B
-        resultado = await simularPrioridadConIngresos(prioridades_seleccionadas);
+        informe = await simularPrioridadConIngresos(prioridades_seleccionadas);
       } else {
         // Rama C (bug: ignora prioridades, siempre usa "Alta")
-        resultado = await simularPrioridadSinIngresos(prioridades_seleccionadas);
+        informe = await simularPrioridadSinIngresos(prioridades_seleccionadas);
       }
     }
 
@@ -121,7 +126,7 @@ export async function POST(request: NextRequest) {
     // 5. Respuesta síncrona directa (no polling)
     return NextResponse.json({
       success: true,
-      result: resultado,
+      informe,
       status: 'completed',
       request_id,
       metadata: {
@@ -136,12 +141,18 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ [Simulador] Error:', error);
 
+    // AirtableError no hereda de Error, pero trae message
+    const detalles =
+      typeof error === 'object' && error !== null && 'message' in error
+        ? String(error.message)
+        : 'Error desconocido';
+
     return NextResponse.json(
       {
         success: false,
         status: 'error',
         error: 'Error al ejecutar la simulación',
-        detalles: error instanceof Error ? error.message : 'Error desconocido',
+        detalles,
       },
       { status: 500 }
     );

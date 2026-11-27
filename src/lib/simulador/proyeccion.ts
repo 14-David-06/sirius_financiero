@@ -25,53 +25,42 @@ function tablaProyecciones(): Table<FieldSet> {
   return base()(AIRTABLE_PROYECCIONES_TABLE_ID);
 }
 
-interface SemanaSimulada {
-  mes?: string;
-  año?: number;
-  semana?: number;
+export interface SemanaProyectada {
+  id: string;
+  semana: number;
+  anio: number;
+  mes: string;
   saldoInicio: number;
-  netoSemanal: number;
+  neto: number;
   saldoFinal: number;
-  ingresosEstimados?: number;
-  egresosEstimados?: number;
-  cantidadLitros?: number;
-  cantidadKilogramos?: number;
 }
 
-interface ResultadoSimulacion {
-  semanaActual: number;
-  saldoInicioSemanaActual: number;
-  netoEstimadoActual: number;
-  saldoFinalSemanaActual: number;
-  semanaPositiva: SemanaSimulada | null;
-  semanaNegativa: SemanaSimulada | null;
-  prioridades?: string[];
-  incluirIngresos?: string;
+export interface InformeSimulacion {
+  incluirIngresos: 'con_ingresos' | 'sin_ingresos';
+  prioridades: string[];
+  semanaActual: SemanaProyectada | null;
+  semanaPositiva: SemanaProyectada | null;
+  semanaNegativa: SemanaProyectada | null;
+  litrosParaEvitarNegativo: number;
+  kilosParaEvitarNegativo: number;
+  proyeccion: SemanaProyectada[];
+  notaTecnica: string | null;
 }
 
-/**
- * Formateadores de moneda según rama (replicando comportamiento n8n)
- */
-export const formatCurrencyESCO = (value: number | undefined | null): string => {
-  if (value === undefined || value === null) return '$ 0';
-  return value.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
-};
+const valorNumero = (valor: unknown): number => Number(valor) || 0;
 
-export const formatCurrencyESCONoDecimals = (value: number | undefined | null): string => {
-  if (value === undefined || value === null) return '$ 0';
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-export const formatCurrencyENUS = (value: number | undefined | null): string => {
-  if (value === undefined || value === null) return 'N/A';
-  return value < 0
-    ? `-$${Math.abs(value).toLocaleString('en-US')}`
-    : `$${value.toLocaleString('en-US')}`;
-};
+function aSemana(rec: AirtableRecord<FieldSet>): SemanaProyectada {
+  const mes = rec.get('Mes');
+  return {
+    id: rec.id,
+    semana: valorNumero(rec.get('Semana formulada')),
+    anio: valorNumero(rec.get('Año formulado')),
+    mes: mes ? String(mes) : '',
+    saldoInicio: valorNumero(rec.get('Saldo Inicio Semana/Proyectado')),
+    neto: valorNumero(rec.get('Neto Semanal/Proyectado')),
+    saldoFinal: valorNumero(rec.get('Saldo Final Semana/Proyectado')),
+  };
+}
 
 /**
  * Busca semana positiva (última con saldo inicio y fin > 0)
@@ -114,11 +103,43 @@ function buscarSemanasClaves(semanas: AirtableRecord<FieldSet>[]): {
   return { semanaPositiva, semanaNegativa };
 }
 
+function armarInforme(
+  semanaActual: AirtableRecord<FieldSet> | undefined,
+  semanasFuturas: AirtableRecord<FieldSet>[],
+  opciones: {
+    incluirIngresos: InformeSimulacion['incluirIngresos'];
+    prioridades: string[];
+    notaTecnica: string | null;
+    // n8n evalúa la semana actual al buscar semanas clave solo en las ramas con prioridad
+    actualCuentaParaClaves: boolean;
+  }
+): InformeSimulacion {
+  const evaluadas =
+    opciones.actualCuentaParaClaves && semanaActual ? [semanaActual, ...semanasFuturas] : semanasFuturas;
+  const { semanaPositiva, semanaNegativa } = buscarSemanasClaves(evaluadas);
+
+  return {
+    incluirIngresos: opciones.incluirIngresos,
+    prioridades: opciones.prioridades,
+    semanaActual: semanaActual ? aSemana(semanaActual) : null,
+    semanaPositiva: semanaPositiva ? aSemana(semanaPositiva) : null,
+    semanaNegativa: semanaNegativa ? aSemana(semanaNegativa) : null,
+    litrosParaEvitarNegativo: valorNumero(
+      semanaNegativa?.get('Cantidad Litros Deberia Vender (Biologicos)')
+    ),
+    kilosParaEvitarNegativo: valorNumero(
+      semanaNegativa?.get('Cantidad Kilogramos Deberia Vender (Biochar)')
+    ),
+    proyeccion: (semanaActual ? [semanaActual, ...semanasFuturas] : semanasFuturas).map(aSemana),
+    notaTecnica: opciones.notaTecnica,
+  };
+}
+
 /**
  * Rama A: Simulación Normal (tipo_simulacion = "normal")
  * Recalcula todas las semanas futuras propagando saldos desde la última semana con banco.
  */
-export async function simularNormal(): Promise<string> {
+export async function simularNormal(): Promise<InformeSimulacion> {
   const tabla = tablaCentralizacion();
   const anioActual = new Date().getFullYear();
 
@@ -140,10 +161,6 @@ export async function simularNormal(): Promise<string> {
       ],
     })
     .all();
-
-  if (semanasVacias.length === 0) {
-    return '⚠️ No hay semanas futuras para simular.';
-  }
 
   // 2. Propagación en cascada (Loop secuencial)
   const semanasActualizadas: AirtableRecord<FieldSet>[] = [];
@@ -186,10 +203,7 @@ export async function simularNormal(): Promise<string> {
     semanasActualizadas.push(WActualizado);
   }
 
-  // 3. Buscar semanas clave
-  const { semanaPositiva, semanaNegativa } = buscarSemanasClaves(semanasActualizadas);
-
-  // 4. Semana actual (última con banco)
+  // 3. Semana actual (última con banco)
   const semanaActualRecs = await tabla
     .select({
       filterByFormula: '{Saldo Inicial Semana/Bancos} != BLANK()',
@@ -198,66 +212,12 @@ export async function simularNormal(): Promise<string> {
     })
     .firstPage();
 
-  const semanaActual = semanaActualRecs[0];
-
-  // 5. Formatear resultado (es-CO, con decimales para actual, sin decimales para positiva/negativa)
-  const saldoInicioActual = formatCurrencyESCO(
-    Number(semanaActual?.get('Saldo Inicio Semana/Proyectado'))
-  );
-  const netoActual = formatCurrencyESCO(Number(semanaActual?.get('Neto Semanal/Proyectado')));
-  const saldoFinalActual = formatCurrencyESCO(Number(semanaActual?.get('Saldo Final Semana/Proyectado')));
-
-  const positivaData = semanaPositiva
-    ? {
-        semana: semanaPositiva.get('Semana formulada'),
-        saldoInicio: formatCurrencyESCONoDecimals(
-          Number(semanaPositiva.get('Saldo Inicio Semana/Proyectado'))
-        ),
-        neto: formatCurrencyESCONoDecimals(Number(semanaPositiva.get('Neto Semanal/Proyectado'))),
-        saldoFinal: formatCurrencyESCONoDecimals(Number(semanaPositiva.get('Saldo Final Semana/Proyectado'))),
-      }
-    : null;
-
-  const negativaData = semanaNegativa
-    ? {
-        semana: semanaNegativa.get('Semana formulada'),
-        saldoInicio: formatCurrencyESCONoDecimals(
-          Number(semanaNegativa.get('Saldo Inicio Semana/Proyectado'))
-        ),
-        neto: formatCurrencyESCONoDecimals(Number(semanaNegativa.get('Neto Semanal/Proyectado'))),
-        saldoFinal: formatCurrencyESCONoDecimals(Number(semanaNegativa.get('Saldo Final Semana/Proyectado'))),
-        litros: semanaNegativa.get('Cantidad Litros Deberia Vender (Biologicos)') || 0,
-        kilos: semanaNegativa.get('Cantidad Kilogramos Deberia Vender (Biochar)') || 0,
-      }
-    : null;
-
-  // 6. Construir texto (replicando template n8n)
-  return `✅ ¡Simulación completada con éxito!
-
-He realizado la proyección según la siguiente configuración:
-
-🔹 Prioridades seleccionadas: N/A
-🔹 Simulación con/sin ingresos: Con Ingresos
-
-📅 Semana actual: ${semanaActual?.get('Semana formulada')}
-🔄 Inicio de semana: ${saldoInicioActual}
-🧮 Neto estimado: ${netoActual}
-📦 Fin de semana proyectado: ${saldoFinalActual}
-
-🟢 Semana hasta donde alcanza la caja: ${positivaData?.semana || 'N/A'}
-🔄 Inicio de semana: ${positivaData?.saldoInicio || 'N/A'}
-💵 Neto en esa semana: ${positivaData?.neto || 'N/A'}
-✅ Fin de semana: ${positivaData?.saldoFinal || 'N/A'}
-
-🔴 Semana que terminamos sin dinero: ${negativaData?.semana || 'N/A'}
-🔄 Inicio de semana: ${negativaData?.saldoInicio || 'N/A'}
-📉 Neto de esa semana: ${negativaData?.neto || 'N/A'}
-❌ Fin de semana: ${negativaData?.saldoFinal || 'N/A'}
-
-🛑 Para evitar cerrar en negativo:
-
-🚰 Deberías vender ${negativaData?.litros || 0} litros de producto
-🌱 O ${negativaData?.kilos || 0}kg de biochar`;
+  return armarInforme(semanaActualRecs[0], semanasActualizadas, {
+    incluirIngresos: 'con_ingresos',
+    prioridades: [],
+    notaTecnica: null,
+    actualCuentaParaClaves: false,
+  });
 }
 
 /**
@@ -266,7 +226,7 @@ He realizado la proyección según la siguiente configuración:
  */
 export async function simularPrioridadConIngresos(
   prioridades: string[]
-): Promise<string> {
+): Promise<InformeSimulacion> {
   const tablaCentral = tablaCentralizacion();
   const tablaProyec = tablaProyecciones();
   const anioActual = new Date().getFullYear();
@@ -305,11 +265,8 @@ export async function simularPrioridadConIngresos(
     ingresosEstimados += Number(proy.get('Vr.Presupuesto')) || 0;
   }
 
-  // 4. Egresos filtrados por prioridad (REPLICANDO BUG: array como string en FIND)
-  const prioridadesStr = JSON.stringify(prioridades); // ["Alta","Media"] → problema potencial en fórmula
-  const condicionesPrioridad = prioridades
-    .map(p => `AND(FIND("${p}", "${prioridadesStr}"), {Prioridad} = "${p}")`)
-    .join(', ');
+  // 4. Egresos filtrados por prioridad (valores validados en la ruta: Alta | Media | Baja)
+  const condicionesPrioridad = prioridades.map(p => `{Prioridad} = "${p}"`).join(', ');
 
   const proyeccionesEgresos = await tablaProyec
     .select({
@@ -339,7 +296,7 @@ export async function simularPrioridadConIngresos(
     })
     .all();
 
-  const semanasActualizadas: AirtableRecord<FieldSet>[] = [SActualizado];
+  const semanasActualizadas: AirtableRecord<FieldSet>[] = [];
 
   for (const W of semanasVacias) {
     const semanaNum = Number(W.get('Semana formulada'));
@@ -365,45 +322,13 @@ export async function simularPrioridadConIngresos(
     semanasActualizadas.push(WActualizado);
   }
 
-  // 7. Buscar semanas clave
-  const { semanaPositiva, semanaNegativa } = buscarSemanasClaves(semanasActualizadas);
-
-  // 8. Formatear (en-US)
-  const formatActual = (field: string) =>
-    formatCurrencyENUS(Number(SActualizado.fields[field]));
-
-  const formatSemana = (semana: AirtableRecord<FieldSet> | null, field: string) =>
-    formatCurrencyENUS(semana ? Number(semana.get(field)) : undefined);
-
-  return `✅ ¡Simulación completada con éxito!
-
-He realizado la proyección según la siguiente configuración:
-
-🔹 Prioridades seleccionadas: ${prioridades.join(', ')}
-🔹 Simulación con/sin ingresos: con_ingresos
-
-📅 Semana actual: ${SActualizado.fields['Semana formulada']}
-🔄 Inicio de semana: ${formatActual('Saldo Inicio Semana/Proyectado')}
-🧮 Neto estimado: ${formatActual('Neto Semanal/Proyectado')}
-📦 Fin de semana proyectado: ${formatActual('Saldo Final Semana/Proyectado')}
-
-🧠 Nota técnica:
-Dado que las prioridades están definidas únicamente para la semana actual (${SActualizado.fields['Semana formulada']}), el sistema ha aplicado estas configuraciones exclusivamente a dicha semana. Las semanas posteriores han sido proyectadas utilizando los datos estándar sin personalización de prioridades, con base en los ingresos y egresos habituales registrados por semana.
-
-🟢 Semana hasta donde alcanza la caja: ${semanaPositiva?.get('Semana formulada') || 'N/A'}
-🔄 Inicio de semana: ${formatSemana(semanaPositiva, 'Saldo Inicio Semana/Proyectado')}
-💵 Neto en esa semana: ${formatSemana(semanaPositiva, 'Neto Semanal/Proyectado')}
-✅ Fin de semana: ${formatSemana(semanaPositiva, 'Saldo Final Semana/Proyectado')}
-
-🔴 Semana que terminamos sin dinero: ${semanaNegativa?.get('Semana formulada') || 'N/A'}
-🔄 Inicio de semana: ${formatSemana(semanaNegativa, 'Saldo Inicio Semana/Proyectado')}
-📉 Neto de esa semana: ${formatSemana(semanaNegativa, 'Neto Semanal/Proyectado')}
-❌ Fin de semana: ${formatSemana(semanaNegativa, 'Saldo Final Semana/Proyectado')}
-
-🛑 Para evitar cerrar en negativo:
-
-🚰 Deberías vender ${semanaNegativa?.get('Cantidad Litros Deberia Vender (Biologicos)') || 0} litros de producto
-🌱 O ${semanaNegativa?.get('Cantidad Kilogramos Deberia Vender (Biochar)') || 0}kg de biochar`;
+  const semanaActualNum = SActualizado.get('Semana formulada');
+  return armarInforme(SActualizado, semanasActualizadas, {
+    incluirIngresos: 'con_ingresos',
+    prioridades,
+    notaTecnica: `Las prioridades están definidas únicamente para la semana actual (${semanaActualNum}), así que el sistema las aplicó solo a esa semana. Las semanas posteriores se proyectaron con los datos estándar, sin personalización de prioridades, con base en los ingresos y egresos habituales registrados por semana.`,
+    actualCuentaParaClaves: true,
+  });
 }
 
 /**
@@ -413,7 +338,7 @@ Dado que las prioridades están definidas únicamente para la semana actual (${S
  */
 export async function simularPrioridadSinIngresos(
   prioridades: string[] // Ignorado, siempre usa "Alta" (bug n8n)
-): Promise<string> {
+): Promise<InformeSimulacion> {
   const tablaCentral = tablaCentralizacion();
   const tablaProyec = tablaProyecciones();
   const anioActual = new Date().getFullYear();
@@ -468,7 +393,7 @@ export async function simularPrioridadSinIngresos(
     })
     .all();
 
-  const semanasActualizadas: AirtableRecord<FieldSet>[] = [SActualizado];
+  const semanasActualizadas: AirtableRecord<FieldSet>[] = [];
 
   for (const W of semanasVacias) {
     const semanaNum = Number(W.get('Semana formulada'));
@@ -494,46 +419,11 @@ export async function simularPrioridadSinIngresos(
     semanasActualizadas.push(WActualizado);
   }
 
-  // 6. Buscar semanas clave
-  const { semanaPositiva, semanaNegativa } = buscarSemanasClaves(semanasActualizadas);
-
-  // 7. Formatear (en-US)
-  const formatActual = (field: string) =>
-    formatCurrencyENUS(Number(SActualizado.fields[field]));
-
-  const formatSemana = (semana: AirtableRecord<FieldSet> | null, field: string) =>
-    formatCurrencyENUS(semana ? Number(semana.get(field)) : undefined);
-
-  return `✅ ¡Simulación completada con éxito!
-
-He realizado la proyección según la siguiente configuración:
-
-🔹 Prioridades seleccionadas: ${prioridades.join(', ')}
-🔹 Simulación con/sin ingresos: sin_ingresos
-📅 Semana actual: ${SActualizado.fields['Semana formulada']}
-🔄 Inicio de semana: ${formatActual('Saldo Inicio Semana/Proyectado')}
-🧮 Neto estimado: ${formatActual('Neto Semanal/Proyectado')}
-📦 Fin de semana proyectado: ${formatActual('Saldo Final Semana/Proyectado')}
-
-🧠 Nota técnica:
-Con base en la configuración proporcionada, las prioridades seleccionadas y la simulación sin ingresos se aplicaron exclusivamente a la semana actual (${SActualizado.fields['Semana formulada']}).
-En esta semana, el sistema filtró y priorizó los egresos según las prioridades indicadas y eliminó todos los ingresos para proyectar un escenario más conservador.
-
-Para las semanas posteriores, la simulación continúa únicamente con los egresos negativos proyectados, sin aplicar filtros de prioridad, ya que la lógica de priorización está programada solo para ejecutarse en la semana actual.
-
-🟢 Semana hasta donde alcanza la caja: ${semanaPositiva?.get('Semana formulada') || 'No existe o tal vez sea esta semana 😟'}
-
-🔄 Inicio de semana: ${formatSemana(semanaPositiva, 'Saldo Inicio Semana/Proyectado')}
-💵 Neto en esa semana: ${formatSemana(semanaPositiva, 'Neto Semanal/Proyectado')}
-✅ Fin de semana: ${formatSemana(semanaPositiva, 'Saldo Final Semana/Proyectado')}
-
-🔴 Semana que terminamos sin dinero: ${semanaNegativa?.get('Semana formulada') || 'N/A'}
-🔄 Inicio de semana: ${formatSemana(semanaNegativa, 'Saldo Inicio Semana/Proyectado')}
-📉 Neto de esa semana: ${formatSemana(semanaNegativa, 'Neto Semanal/Proyectado')}
-❌ Fin de semana: ${formatSemana(semanaNegativa, 'Saldo Final Semana/Proyectado')}
-
-🛑 Para evitar cerrar en negativo:
-
-🚰 Deberías vender ${semanaNegativa?.get('Cantidad Litros Deberia Vender (Biologicos)') || 0} litros de producto
-🌱 O ${semanaNegativa?.get('Cantidad Kilogramos Deberia Vender (Biochar)') || 0}kg de biochar`;
+  const semanaActualNum = SActualizado.get('Semana formulada');
+  return armarInforme(SActualizado, semanasActualizadas, {
+    incluirIngresos: 'sin_ingresos',
+    prioridades,
+    notaTecnica: `Las prioridades seleccionadas y la simulación sin ingresos se aplicaron solo a la semana actual (${semanaActualNum}): en esa semana el sistema filtró los egresos por prioridad y eliminó todos los ingresos para proyectar un escenario conservador. Las semanas posteriores continúan únicamente con los egresos proyectados, sin filtro de prioridad.`,
+    actualCuentaParaClaves: true,
+  });
 }
