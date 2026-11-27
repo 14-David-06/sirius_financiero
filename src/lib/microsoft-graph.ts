@@ -76,6 +76,30 @@ export async function listarHijosCarpeta(carpetaId: string): Promise<DriveItem[]
   return items;
 }
 
+/** Carga simple (Graph la admite hasta 4 MB). Si el nombre ya existe, OneDrive lo renombra. */
+export async function subirArchivo(
+  carpetaId: string,
+  nombre: string,
+  contenido: Buffer,
+  tipo: string
+): Promise<DriveItem & { webUrl: string }> {
+  const token = await obtenerTokenGraph();
+  const url =
+    `${urlDrive()}/items/${carpetaId}:/${encodeURIComponent(nombre)}:/content` +
+    '?@microsoft.graph.conflictBehavior=rename';
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': tipo },
+    body: new Uint8Array(contenido),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error subiendo archivo a OneDrive: ${response.status} ${await response.text()}`);
+  }
+
+  return response.json();
+}
+
 export async function descargarArchivo(itemId: string): Promise<Buffer> {
   const token = await obtenerTokenGraph();
   const response = await fetch(`${urlDrive()}/items/${itemId}/content`, {

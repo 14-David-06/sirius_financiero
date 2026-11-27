@@ -1,53 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Airtable from 'airtable';
+import { obtenerUsuarioSesion } from '@/lib/auth/api-session';
+import { BANCOS, esBancoId, type BancoId } from '@/lib/bancos/cuentas';
+import { movimientosDelPeriodo, resumenCuenta } from '@/lib/bancos/movimientos';
+import type { PeriodoMovimientos, RespuestaMovimientos, ResumenCuenta } from '@/types/movimientos-bancarios';
 
-// Configuración de Airtable para Flujo de Caja
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(
-  process.env.AIRTABLE_BASE_ID || ''
-);
+export const maxDuration = 60;
 
-// Movimientos_Bancarios_Bancolombia (Capital de Trabajo)
-const MOVIMIENTOS_TABLE_ID = process.env.AIRTABLE_MOVIMIENTOS_TABLE_ID || '';
+function entero(valor: string | null, minimo: number, maximo: number): number | null {
+  if (!valor || !/^\d+$/.test(valor)) return null;
+  const n = Number(valor);
+  return n >= minimo && n <= maximo ? n : null;
+}
 
+/**
+ * GET ?banco=bancolombia|bbva&anio=2026&mes=11
+ * Sin año: el mes del último movimiento registrado de ese banco. Sin mes: todo el año.
+ */
 export async function GET(request: NextRequest) {
+  const usuario = obtenerUsuarioSesion(request);
+  if (!usuario) {
+    return NextResponse.json({ success: false, error: 'Sesión no válida' }, { status: 401 });
+  }
+  if (usuario.categoria === 'Colaborador') {
+    return NextResponse.json({ success: false, error: 'No tiene permisos para ver los movimientos bancarios' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const banco = searchParams.get('banco');
+  if (!esBancoId(banco)) {
+    return NextResponse.json({ success: false, error: 'Banco no válido (bancolombia o bbva)' }, { status: 400 });
+  }
+  const año = entero(searchParams.get('anio'), 2000, 2100);
+  const mes = entero(searchParams.get('mes'), 1, 12);
+
   try {
-    // Validar configuración
-    if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID || !MOVIMIENTOS_TABLE_ID) {
-      console.error('❌ Faltan variables de entorno requeridas');
-      return NextResponse.json(
-        { error: 'Configuración incompleta del servidor', success: false },
-        { status: 500 }
-      );
+    const resumenes = await Promise.all(BANCOS.map(resumenCuenta));
+    const cuentas = Object.fromEntries(BANCOS.map((id, i) => [id, resumenes[i]])) as Record<BancoId, ResumenCuenta>;
+
+    let periodo: PeriodoMovimientos;
+    if (año) {
+      periodo = { año, mes };
+    } else {
+      const ultima = cuentas[banco].fechaUltimoMovimiento;
+      const [ultimoAño, ultimoMes] = (ultima ?? new Date().toISOString()).split('-').map(Number);
+      periodo = { año: ultimoAño, mes: ultimoMes };
     }
 
-    const { searchParams } = new URL(request.url);
-    const maxRecords = parseInt(searchParams.get('maxRecords') || '1000');
-    const filterByFormula = searchParams.get('filterByFormula') || '';
-
-    const records: Record<string, unknown>[] = [];
-
-    await base(MOVIMIENTOS_TABLE_ID)
-      .select({
-        maxRecords,
-        filterByFormula,
-        sort: [{ field: 'Fecha', direction: 'desc' }],
-      })
-      .eachPage((pageRecords, fetchNextPage) => {
-        pageRecords.forEach((record) => {
-          records.push({
-            id: record.id,
-            ...record.fields,
-          });
-        });
-        fetchNextPage();
-      });
-
-    return NextResponse.json({ records, success: true });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    console.error('Error fetching movimientos bancarios:', error);
+    const movimientos = await movimientosDelPeriodo(banco, periodo);
+    const respuesta: RespuestaMovimientos = { success: true, banco, periodo, cuentas, movimientos };
+    return NextResponse.json(respuesta);
+  } catch (error) {
+    console.error(`❌ Error consultando movimientos de ${banco}:`, error);
     return NextResponse.json(
-      { error: errorMessage, success: false },
+      { success: false, error: error instanceof Error ? error.message : 'Error desconocido' },
       { status: 500 }
     );
   }

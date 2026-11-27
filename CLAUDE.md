@@ -45,7 +45,9 @@ src/
 │   │   ├── facturacion-stream/             # SSE streaming
 │   │   ├── monitoreo-facturas/
 │   │   │
-│   │   ├── movimientos-bancarios/          # Multi-banco
+│   │   ├── movimientos-bancarios/          # GET ?banco=bancolombia|bbva (cada banco su tabla)
+│   │   │   ├── extracto/       # POST PDF de un banco → OneDrive + importación
+│   │   │   └── procesar/       # POST importar pendientes de la carpeta OneDrive
 │   │   ├── movimientos-bancarios-bancolombia/
 │   │   ├── movimientos-bancarios-bbva/
 │   │   │
@@ -58,7 +60,6 @@ src/
 │   │   ├── transcribe-audio/   # Whisper transcripción
 │   │   ├── clasificar-item-ia/ # Clasificación automática
 │   │   │
-│   │   ├── upload-onedrive/    # Microsoft Graph API
 │   │   ├── upload-file/        # AWS S3
 │   │   ├── upload-factura-onedrive/
 │   │   │

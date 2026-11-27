@@ -1,22 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { obtenerUsuarioSesion } from '@/lib/auth/api-session';
 import { checkRateLimit } from '@/lib/security/validation';
-import { importarExtractosBancolombia, importarExtractosBbva } from '@/lib/bancos/importar-extractos';
+import { BANCOS, CUENTAS_BANCARIAS, esBancoId, type BancoId } from '@/lib/bancos/cuentas';
+import { EXTRACTOS } from '@/lib/bancos/importar-extractos';
 import { resumirImportacion, type ResultadoImportacion } from '@/lib/importacion/archivos-pendientes';
 
 export const maxDuration = 60;
 
-async function importar(etiqueta: string, importador: () => Promise<ResultadoImportacion>) {
+async function importar(banco: BancoId, limite: number) {
+  const etiqueta = CUENTAS_BANCARIAS[banco].nombre;
   try {
-    const resultado = await importador();
+    const resultado = await EXTRACTOS[banco].importar(limite);
     return { resultado, resumen: resumirImportacion(etiqueta, resultado), ok: resultado.errores.length === 0 };
   } catch (error) {
     console.error(`❌ Error importando ${etiqueta}:`, error);
-    return { resultado: null, resumen: `${etiqueta}: ${error instanceof Error ? error.message : 'error desconocido'}`, ok: false };
+    const mensaje = error instanceof Error ? error.message : 'error desconocido';
+    return { resultado: null as ResultadoImportacion | null, resumen: `${etiqueta}: ${mensaje}`, ok: false, error: mensaje };
   }
 }
 
-/** Importa los extractos pendientes de Bancolombia y BBVA (antes: webhooks n8n desde el navegador). */
+/**
+ * Importa los extractos que estén en la carpeta de OneDrive y aún no estén en Airtable
+ * (p. ej. PDFs copiados directamente a la carpeta). Body opcional: { banco }.
+ * Con banco: solo ese banco. Sin banco: Bancolombia y luego BBVA.
+ */
 export async function POST(request: NextRequest) {
   const usuario = obtenerUsuarioSesion(request);
   if (!usuario) {
@@ -34,17 +41,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log(`🏦 Importación de extractos solicitada por ${usuario.nombre}`);
+  const cuerpo: { banco?: unknown } = await request.json().catch(() => ({}));
+  if (cuerpo.banco !== undefined && !esBancoId(cuerpo.banco)) {
+    return NextResponse.json({ success: false, error: 'Banco no válido (bancolombia o bbva)' }, { status: 400 });
+  }
+  const bancos = esBancoId(cuerpo.banco) ? [cuerpo.banco] : BANCOS;
+
+  console.log(`🏦 Importación de extractos (${bancos.join(', ')}) solicitada por ${usuario.nombre}`);
   const limite = Date.now() + 40_000;
-  const bancolombia = await importar('Bancolombia', () => importarExtractosBancolombia(limite));
-  const bbva = await importar('BBVA', () => importarExtractosBbva(limite));
-  const message = `${bancolombia.resumen}\n${bbva.resumen}`;
+  const resultados: Partial<Record<BancoId, Awaited<ReturnType<typeof importar>>>> = {};
+  for (const banco of bancos) {
+    resultados[banco] = await importar(banco, limite);
+  }
+
+  const lista = Object.values(resultados);
+  const message = lista.map(r => r.resumen).join('\n');
   console.log(message);
 
   return NextResponse.json({
-    success: bancolombia.ok && bbva.ok,
+    success: lista.every(r => r.ok),
     message,
-    bancolombia: bancolombia.resultado,
-    bbva: bbva.resultado,
+    ...Object.fromEntries(Object.entries(resultados).map(([banco, r]) => [banco, r.resultado])),
+    error: lista.find(r => r.error)?.error,
   });
 }
