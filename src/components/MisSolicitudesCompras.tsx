@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuthSession } from '@/lib/hooks/useAuthSession';
-import { FileText, Calendar, AlertCircle, Eye } from 'lucide-react';
+import { FileText, Calendar, AlertCircle, Eye, Package, DollarSign, Building2, Hash } from 'lucide-react';
 import { CompraCompleta } from '@/types/compras';
 
 /**
@@ -278,56 +278,104 @@ export default function MisSolicitudes() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {solicitudes.map((solicitud) => (
-                <div
-                  key={solicitud.id}
-                  className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl hover:bg-white/20 transition-all duration-300"
-                >
-                  {/* Header de la tarjeta */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white mb-1">
-                        Solicitud de {safeRender(solicitud.nombreSolicitante)}
-                      </h3>
-                      <div className="flex items-center text-white/70 text-sm">
-                        <Calendar className="w-4 h-4 mr-1" />
+              {solicitudes.map((solicitud) => {
+                // Generar título inteligente desde la descripción
+                const getTituloTarjeta = () => {
+                  const desc = safeRender(solicitud.descripcionSolicitud);
+                  if (!desc || desc.length < 10) return 'Sin descripción';
+                  // Tomar primeras 60 caracteres y cortar en palabra completa
+                  const preview = desc.length > 60 ? desc.substring(0, 60) : desc;
+                  const lastSpace = preview.lastIndexOf(' ');
+                  return lastSpace > 30 ? preview.substring(0, lastSpace) + '...' : preview + '...';
+                };
+
+                const numItems = solicitud.items?.length || 0;
+                const montoTotal = solicitud.totalNeto || solicitud.valorTotal;
+                const prioridad = safeRender(solicitud.prioridadSolicitud) || 'Media';
+
+                return (
+                  <div
+                    key={solicitud.id}
+                    className="bg-white/15 backdrop-blur-md rounded-2xl p-5 border border-white/20 shadow-xl hover:bg-white/20 hover:shadow-2xl transition-all duration-300 flex flex-col"
+                  >
+                    {/* Estado y Fecha - Header compacto */}
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center text-white/60 text-xs">
+                        <Calendar className="w-3.5 h-3.5 mr-1.5" />
                         {formatDate(solicitud.fechaSolicitud)}
                       </div>
-                    </div>
-                    <span className={`px-3 py-1 rounded-lg text-sm font-medium border ${getEstadoColor(safeRender(solicitud.estadoSolicitud))}`}>
-                      {safeRender(solicitud.estadoSolicitud)}
-                    </span>
-                  </div>
-
-                  {/* Información de la solicitud */}
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/70 text-sm">Prioridad:</span>
-                      <span className={`font-medium ${getPrioridadColor(safeRender(solicitud.prioridadSolicitud) || 'Media')}`}>
-                        {safeRender(solicitud.prioridadSolicitud) || 'Media'}
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${getEstadoColor(safeRender(solicitud.estadoSolicitud))}`}>
+                        {safeRender(solicitud.estadoSolicitud)}
                       </span>
                     </div>
 
-                    {solicitud.razonSocialProveedor && (
-                      <div className="flex items-start justify-between">
-                        <span className="text-white/70 text-sm">Proveedor:</span>
-                        <span className="text-white text-sm text-right max-w-[150px] truncate">
-                          {safeRender(solicitud.razonSocialProveedor)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                    {/* Título principal - Preview de descripción */}
+                    <h3 className="text-base font-bold text-white mb-3 leading-snug min-h-[2.5rem]">
+                      {getTituloTarjeta()}
+                    </h3>
 
-                  {/* Botón de ver detalles */}
-                  <button
-                    onClick={() => setSelectedSolicitud(solicitud)}
-                    className="w-full bg-gradient-to-r from-blue-600/70 to-purple-600/70 hover:from-blue-700/80 hover:to-purple-700/80 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    Ver Detalles
-                  </button>
-                </div>
-              ))}
+                    {/* Badges de información rápida */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {/* Badge de ítems */}
+                      {numItems > 0 && (
+                        <div className="flex items-center bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/15">
+                          <Package className="w-3.5 h-3.5 mr-1.5 text-blue-300" />
+                          <span className="text-xs font-medium text-white">{numItems} {numItems === 1 ? 'ítem' : 'ítems'}</span>
+                        </div>
+                      )}
+
+                      {/* Badge de prioridad */}
+                      <div className={`flex items-center bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/15`}>
+                        <AlertCircle className={`w-3.5 h-3.5 mr-1.5 ${getPrioridadColor(prioridad)}`} />
+                        <span className={`text-xs font-medium ${getPrioridadColor(prioridad)}`}>{prioridad}</span>
+                      </div>
+
+                      {/* Badge de monto total */}
+                      {montoTotal && montoTotal > 0 && (
+                        <div className="flex items-center bg-white/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/15">
+                          <DollarSign className="w-3.5 h-3.5 mr-1.5 text-green-300" />
+                          <span className="text-xs font-medium text-white">
+                            ${montoTotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Preview de descripción - texto más largo */}
+                    <div className="mb-4 flex-grow">
+                      <p className="text-white/70 text-sm line-clamp-2 leading-relaxed">
+                        {safeRender(solicitud.descripcionSolicitud)}
+                      </p>
+                    </div>
+
+                    {/* Footer - Info adicional */}
+                    <div className="space-y-2 mb-4 pb-4 border-b border-white/10">
+                      {/* Solicitante */}
+                      <div className="flex items-center text-white/60 text-xs">
+                        <div className="w-2 h-2 rounded-full bg-blue-400/60 mr-2"></div>
+                        <span className="truncate">{safeRender(solicitud.nombreSolicitante)}</span>
+                      </div>
+
+                      {/* Proveedor */}
+                      {solicitud.razonSocialProveedor && (
+                        <div className="flex items-center text-white/60 text-xs">
+                          <Building2 className="w-3.5 h-3.5 mr-2 text-purple-300/60" />
+                          <span className="truncate">{safeRender(solicitud.razonSocialProveedor)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botón de ver detalles */}
+                    <button
+                      onClick={() => setSelectedSolicitud(solicitud)}
+                      className="w-full bg-gradient-to-r from-blue-600/70 to-purple-600/70 hover:from-blue-700/90 hover:to-purple-700/90 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-300 flex items-center justify-center group"
+                    >
+                      <Eye className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                      Ver Detalles
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
