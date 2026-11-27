@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CompraCompleta, CompraItem } from '@/types/compras';
 import FormularioCotizacion from './FormularioCotizacion';
 import {
@@ -470,9 +471,10 @@ export default function IngresoInventarioCompra({
       minimumFractionDigits: 0,
     }).format(amount);
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/20 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+  // En <body> para quedar por encima de la barra de navegación fija
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/20 shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-slate-900/95 backdrop-blur-md px-6 py-4 border-b border-white/10 flex items-center justify-between rounded-t-2xl z-10">
           <div className="flex items-center gap-3">
@@ -1110,6 +1112,7 @@ export default function IngresoInventarioCompra({
           }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

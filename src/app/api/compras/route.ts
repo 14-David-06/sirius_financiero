@@ -1,12 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AirtableRecord, AirtableResponse, CompraCompleta, EstadisticasData, ApiResponse, AirtableField } from '@/types/compras';
-import { 
-  sanitizeInput, 
-  checkRateLimit, 
+import {
+  sanitizeInput,
+  checkRateLimit,
   securityHeaders,
   secureLog,
   escapeAirtableQuery
 } from '@/lib/security/validation';
+import { obtenerUsuarioSesion } from '@/lib/auth/api-session';
+
+class ErrorAirtable extends Error {
+  constructor(public status: number, public statusText: string, public detalle: string) {
+    super(`Airtable respondió ${status}`);
+  }
+}
+
+/** Airtable entrega máximo 100 registros por página: se recorren todas con offset. */
+async function todasLasPaginas(url: string, consulta: URLSearchParams): Promise<AirtableRecord[]> {
+  const registros: AirtableRecord[] = [];
+  let offset: string | undefined;
+  do {
+    const parametros = new URLSearchParams(consulta);
+    if (offset) parametros.set('offset', offset);
+    const respuesta = await fetch(`${url}?${parametros}`, {
+      headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}`, 'Content-Type': 'application/json' },
+    });
+    if (!respuesta.ok) {
+      throw new ErrorAirtable(respuesta.status, respuesta.statusText, (await respuesta.text()).substring(0, 200));
+    }
+    const datos: AirtableResponse = await respuesta.json();
+    registros.push(...datos.records);
+    offset = datos.offset;
+  } while (offset);
+  return registros;
+}
 
 // Configuración de Airtable
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -72,6 +99,18 @@ function processAirtableField(field: any): any {
 }
 
 export async function GET(request: NextRequest) {
+  // El middleware no cubre /api: la sesión se valida aquí
+  const usuario = obtenerUsuarioSesion(request);
+  if (!usuario) {
+    return new NextResponse(JSON.stringify({ error: 'Sesión no válida' }), { status: 401, headers: securityHeaders });
+  }
+  if (usuario.categoria === 'Colaborador') {
+    return new NextResponse(JSON.stringify({ error: 'No tiene permisos para ver las solicitudes' }), {
+      status: 403,
+      headers: securityHeaders,
+    });
+  }
+
   try {
     // 🔒 Rate Limiting
     const clientIP = request.headers.get('x-forwarded-for') || 
@@ -113,88 +152,49 @@ export async function GET(request: NextRequest) {
     // 🔒 Obtener y validar parámetros de consulta
     const { searchParams } = new URL(request.url);
     const rawFilterByUser = searchParams.get('user');
-    const rawMaxRecords = searchParams.get('maxRecords') || '100';
+    const rawMaxRecords = searchParams.get('maxRecords') || '1000';
 
     // Validar y sanitizar parámetros
     const filterByUser = rawFilterByUser ? sanitizeInput(rawFilterByUser) : null;
-    const maxRecords = Math.min(parseInt(rawMaxRecords) || 100, 500); // Límite máximo de 500
+    // Antes eran 100 por defecto: las solicitudes más antiguas, aunque siguieran abiertas, no aparecían
+    const maxRecords = Math.min(parseInt(rawMaxRecords) || 1000, 1000);
 
-    // Construir URL para obtener compras
     const comprasUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${COMPRAS_TABLE_ID}`;
-    let comprasQuery = `?maxRecords=${maxRecords}&sort[0][field]=Fecha de solicitud&sort[0][direction]=desc`;
-    
+    const comprasQuery = new URLSearchParams({
+      maxRecords: String(maxRecords),
+      'sort[0][field]': 'Fecha de solicitud',
+      'sort[0][direction]': 'desc',
+    });
     if (filterByUser) {
       const escapedUser = escapeAirtableQuery(filterByUser);
-      const filterFormula = `{Nombre Solicitante} = "${escapedUser}"`;
-      comprasQuery += `&filterByFormula=${encodeURIComponent(filterFormula)}`;
+      comprasQuery.set('filterByFormula', `{Nombre Solicitante} = "${escapedUser}"`);
     }
-
-    // Obtener compras
-    const comprasResponse = await fetch(comprasUrl + comprasQuery, {
-      headers: {
-        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!comprasResponse.ok) {
-      const errorText = await comprasResponse.text();
-      secureLog('🚨 Error al obtener compras', { 
-        status: comprasResponse.status,
-        statusText: comprasResponse.statusText,
-        url: comprasUrl + comprasQuery,
-        errorText: errorText.substring(0, 200) // Solo los primeros 200 chars para seguridad
-      });
-      return new NextResponse(
-        JSON.stringify({ 
-          error: 'Error al obtener compras',
-          details: process.env.NODE_ENV === 'development' ? {
-            status: comprasResponse.status,
-            statusText: comprasResponse.statusText
-          } : undefined
-        }),
-        { 
-          status: 500,
-          headers: securityHeaders
-        }
-      );
-    }
-
-    const comprasData: AirtableResponse = await comprasResponse.json();
-
-    // Obtener items relacionados
     const itemsUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${ITEMS_TABLE_ID}`;
-    const itemsResponse = await fetch(`${itemsUrl}?maxRecords=1000`, {
-      headers: {
-        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
 
-    if (!itemsResponse.ok) {
-      const errorText = await itemsResponse.text();
-      secureLog('🚨 Error al obtener items', { 
-        status: itemsResponse.status,
-        statusText: itemsResponse.statusText,
-        url: `${itemsUrl}?maxRecords=1000`,
-        errorText: errorText.substring(0, 200)
+    let comprasData: AirtableResponse;
+    let itemsData: AirtableResponse;
+    try {
+      const [compras, items] = await Promise.all([
+        todasLasPaginas(comprasUrl, comprasQuery),
+        todasLasPaginas(itemsUrl, new URLSearchParams()),
+      ]);
+      comprasData = { records: compras };
+      itemsData = { records: items };
+    } catch (error) {
+      if (!(error instanceof ErrorAirtable)) throw error;
+      secureLog('🚨 Error al obtener compras o items', {
+        status: error.status,
+        statusText: error.statusText,
+        errorText: error.detalle,
       });
       return new NextResponse(
-        JSON.stringify({ 
-          error: 'Error al obtener items',
-          details: process.env.NODE_ENV === 'development' ? {
-            status: itemsResponse.status,
-            statusText: itemsResponse.statusText
-          } : undefined
+        JSON.stringify({
+          error: 'Error al obtener compras',
+          details: process.env.NODE_ENV === 'development' ? { status: error.status, statusText: error.statusText } : undefined,
         }),
-        { 
-          status: 500,
-          headers: securityHeaders
-        }
+        { status: 500, headers: securityHeaders }
       );
     }
-
-    const itemsData: AirtableResponse = await itemsResponse.json();
 
     // Procesar y combinar datos
     const comprasConItems: CompraCompleta[] = comprasData.records.map((compra: AirtableRecord) => {

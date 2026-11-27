@@ -72,13 +72,15 @@ export default function MonitoreoSolicitudes() {
   }
 
   return (
-    <div 
-      className="min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
+    <div
+      className="relative min-h-screen bg-cover bg-center bg-fixed bg-no-repeat"
       style={{
         backgroundImage: 'url(https://res.cloudinary.com/dvnuttrox/image/upload/v1752096889/DJI_0909_cmozhv.jpg)'
       }}
     >
-      <div className="relative z-10 pt-24">
+      <div className="absolute inset-0 bg-slate-950/40" />
+      {/* Sin z-index propio: así los modales (z-50) quedan por encima de la barra de navegación */}
+      <div className="relative pt-28">
         <DashboardCompras
           userData={userData}
           onLogout={handleLogout}

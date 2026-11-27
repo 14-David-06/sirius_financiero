@@ -1,227 +1,110 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CircleAlert, RefreshCw, Search, X } from 'lucide-react';
 import DetalleCompraCompleto from './DetalleCompraCompleto';
-import ChatCompra from './ChatCompra';
 import IngresoInventarioCompra from './IngresoInventarioCompra';
 import Toast from './ui/Toast';
+import FilaSolicitud from './compras/FilaSolicitud';
+import { ESTILO_ESTADO, PESO_ESTADO, PESO_PRIORIDAD, normalizarValor } from './compras/estilos';
+import { TARJETA } from './cartera/estilos';
 import { useNotifications } from '@/lib/hooks/useNotifications';
-import { useMessagePolling } from '@/lib/hooks/useMessagePolling';
-import { Bell } from 'lucide-react';
-import { CompraCompleta, EstadisticasData, UserData, ApiResponse } from '@/types/compras';
+import type { CompraCompleta, UserData, ApiResponse } from '@/types/compras';
 
 interface DashboardComprasProps {
   userData: UserData;
   onLogout: () => void;
 }
 
+type Pestana = 'Pendiente' | 'Aprobado' | 'Comprado' | 'Rechazado' | 'todas';
+
+const PESTANAS: { valor: Pestana; etiqueta: string }[] = [
+  { valor: 'Pendiente', etiqueta: 'Pendientes' },
+  { valor: 'Aprobado', etiqueta: 'Aprobadas' },
+  { valor: 'Comprado', etiqueta: 'Compradas' },
+  { valor: 'Rechazado', etiqueta: 'Rechazadas' },
+  { valor: 'todas', etiqueta: 'Todas' },
+];
+
+const POR_PAGINA = 25;
+const CAMPO =
+  'w-full rounded-lg border border-white/15 bg-slate-800/80 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 [&>option]:bg-slate-800';
+
+const normalizarTexto = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Pendientes primero; dentro de cada estado, prioridad alta primero y luego la más reciente. */
+function ordenar(a: CompraCompleta, b: CompraCompleta): number {
+  return (
+    (PESO_ESTADO[normalizarValor(b.estadoSolicitud)] ?? 0) - (PESO_ESTADO[normalizarValor(a.estadoSolicitud)] ?? 0) ||
+    (PESO_PRIORIDAD[normalizarValor(b.prioridadSolicitud)] ?? 0) - (PESO_PRIORIDAD[normalizarValor(a.prioridadSolicitud)] ?? 0) ||
+    new Date(b.fechaSolicitud).getTime() - new Date(a.fechaSolicitud).getTime()
+  );
+}
+
 export default function DashboardCompras({ userData }: DashboardComprasProps) {
   const [comprasData, setComprasData] = useState<CompraCompleta[]>([]);
-  const [estadisticas, setEstadisticas] = useState<EstadisticasData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('todos');
-  const [filtroArea, setFiltroArea] = useState('todas');
+  const [pestana, setPestana] = useState<Pestana>('Pendiente');
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroArea, setFiltroArea] = useState('');
+  const [filtroPrioridad, setFiltroPrioridad] = useState('');
+  const [visibles, setVisibles] = useState(POR_PAGINA);
   const [updatingStates, setUpdatingStates] = useState<Set<string>>(new Set());
   const [selectedCompra, setSelectedCompra] = useState<CompraCompleta | null>(null);
   const [showDetalleCompleto, setShowDetalleCompleto] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [chatCompra, setChatCompra] = useState<CompraCompleta | null>(null);
-  const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
-  
-  // Estado para ingreso de insumos al inventario (incluye cotización)
   const [showIngresoInventario, setShowIngresoInventario] = useState(false);
   const [inventarioCompra, setInventarioCompra] = useState<CompraCompleta | null>(null);
   const [generatingOrden, setGeneratingOrden] = useState<string | null>(null);
+  const pestanaInicialFijada = useRef(false);
 
-  // Hooks de notificaciones
-  const {
-    permission,
-    requestPermission,
-    showNotification,
-    showToastNotification,
-    showToast,
-    toastMessage,
-    hideToast
-  } = useNotifications(userData);
+  const { showToastNotification, showToast, toastMessage, hideToast } = useNotifications(userData);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
-  // Obtener mensajes no leídos cuando se carguen las compras
-  useEffect(() => {
-    if (comprasData.length > 0) {
-      fetchUnreadMessages();
-    }
-  }, [comprasData]);
-
-  // Hook de polling de mensajes para notificaciones
-  const { isPolling } = useMessagePolling({
-    userData,
-    solicitudes: comprasData,
-    onNewMessage: (compraId, messageCount) => {
-      // Solo mostrar notificaciones si el chat no está abierto
-      if (!showChat || chatCompra?.id !== compraId) {
-        const compra = comprasData.find(c => c.id === compraId);
-
-        // Notificación push del navegador
-        showNotification({
-          title: 'Nuevo mensaje en Sirius Financiero',
-          body: `Tienes ${messageCount} mensaje(s) nuevo(s) en la solicitud de ${compra?.nombreSolicitante || 'compra'}`,
-          tag: `chat-${compraId}`
-        });
-
-        // Notificación in-app (toast)
-        showToastNotification(`Nuevo mensaje en la solicitud de ${compra?.nombreSolicitante || 'compra'}`);
-
-        // Actualizar contador de mensajes no leídos
-        setUnreadMessages(prev => ({
-          ...prev,
-          [compraId]: (prev[compraId] || 0) + messageCount
-        }));
-      }
-    },
-    enabled: !!userData && permission === 'granted' // Solo polling cuando las notificaciones están permitidas
-  });
-
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/compras');
-      
+      setError('');
+      const response = await fetch('/api/compras', { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Error al cargar los datos');
       }
-
       const data: ApiResponse = await response.json();
       setComprasData(data.compras);
-      setEstadisticas(data.estadisticas);
     } catch (error) {
-      setError('Error al cargar los datos de compras');
+      setError('No se pudieron cargar las solicitudes de compra');
       console.error('Error:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUnreadMessages = async () => {
-    if (!comprasData.length) return;
+  useEffect(() => {
+    cargarDatos();
+  }, [cargarDatos]);
 
-    try {
-      const unreadCounts: Record<string, number> = {};
+  // Si no hay pendientes al entrar, se muestran todas en lugar de una lista vacía
+  useEffect(() => {
+    if (pestanaInicialFijada.current || comprasData.length === 0) return;
+    pestanaInicialFijada.current = true;
+    if (!comprasData.some(c => normalizarValor(c.estadoSolicitud) === 'Pendiente')) setPestana('todas');
+  }, [comprasData]);
 
-      // Obtener mensajes no leídos para cada compra
-      const promises = comprasData.map(async (compra) => {
-        try {
-          const response = await fetch(`/api/chat-compras?compraId=${compra.id}`);
-          if (response.ok) {
-            const data = await response.json();
-            const mensajes = data.mensajes || [];
-            
-            // Contar mensajes del solicitante que no han sido vistos
-            const unreadCount = mensajes.filter((msg: any) => 
-              msg.remitente === 'Solicitante' && !msg.fechaHoraVisto
-            ).length;
-            
-            if (unreadCount > 0) {
-              unreadCounts[compra.id] = unreadCount;
-            }
-          }
-        } catch (error) {
-          console.error(`Error obteniendo mensajes para compra ${compra.id}:`, error);
-        }
-      });
-
-      await Promise.all(promises);
-      setUnreadMessages(unreadCounts);
-    } catch (error) {
-      console.error('Error obteniendo mensajes no leídos:', error);
-    }
-  };
-
-  const getStatusColor = (estado: string) => {
-    switch (estado?.toLowerCase()) {
-      case 'aprobado':
-        return 'bg-green-500/20 text-green-300 border-green-400/30';
-      case 'rechazado':
-        return 'bg-red-500/20 text-red-300 border-red-400/30';
-      case 'pendiente':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30';
-      case 'comprado':
-        return 'bg-blue-500/20 text-blue-300 border-blue-400/30';
-      default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-400/30';
-    }
-  };
-
-  const getPriorityColor = (prioridad: string) => {
-    switch (prioridad?.toLowerCase()) {
-      case 'alta':
-        return 'bg-red-500/20 text-red-300 border-red-400/30';
-      case 'media':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30';
-      case 'baja':
-        return 'bg-green-500/20 text-green-300 border-green-400/30';
-      default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-400/30';
-    }
-  };
-
-  const getPriorityIcon = (prioridad: string) => {
-    switch (prioridad?.toLowerCase()) {
-      case 'alta':
-        return '🔴';
-      case 'media':
-        return '🟡';
-      case 'baja':
-        return '🟢';
-      default:
-        return '⚪';
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CO', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  // Función para generar orden de compra
   const handleGenerarOrdenCompra = async (compra: CompraCompleta) => {
     if (!compra.cotizacionDoc) {
       alert('Debe cargar una cotización antes de generar la orden de compra');
       return;
     }
-    
     setGeneratingOrden(compra.id);
     try {
       const response = await fetch('/api/generate-orden-compra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          solicitudData: compra,
-          compraId: compra.id
-        }),
+        body: JSON.stringify({ solicitudData: compra, compraId: compra.id }),
       });
-
       const result = await response.json();
-
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Error al generar la orden de compra');
       }
-
-      // Abrir el PDF en nueva pestaña
       window.open(result.pdfUrl, '_blank');
       showToastNotification(`✅ Orden de compra ${result.ordenCompraId || ''} generada con ${result.itemsCreados || 0} items`);
       await cargarDatos();
@@ -235,27 +118,17 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
 
   const updateEstado = async (compraId: string, nuevoEstado: string) => {
     try {
-      // Agregar el ID a los estados que se están actualizando
       setUpdatingStates(prev => new Set([...prev, compraId]));
-      
       const response = await fetch('/api/compras/update-estado', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          compraId,
-          nuevoEstado,
-          nombresAdmin: userData.nombre
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ compraId, nuevoEstado, nombresAdmin: userData.nombre }),
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Error del servidor:', errorData);
         throw new Error(errorData.error || 'Error al actualizar el estado');
       }
-
       const result = await response.json();
       const notificacion = result.notificacion;
       if (notificacion?.enviado) {
@@ -263,382 +136,219 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
       } else if (notificacion) {
         showToastNotification(`Estado actualizado a ${nuevoEstado}. Correo no enviado: ${notificacion.motivo}`);
       }
-
-      // Recargar los datos para mostrar el cambio
       await cargarDatos();
     } catch (error) {
       console.error('Error al actualizar estado:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      alert(`Error al actualizar el estado: ${errorMessage}`);
+      alert(`Error al actualizar el estado: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
-      // Remover el ID de los estados que se están actualizando
       setUpdatingStates(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(compraId);
-        return newSet;
+        const siguiente = new Set(prev);
+        siguiente.delete(compraId);
+        return siguiente;
       });
     }
   };
 
-  const comprasFiltradas = comprasData
-    .filter(compra => {
-      const cumpleFiltroEstado = filtroEstado === 'todos' || compra.estadoSolicitud === filtroEstado;
-      const cumpleFiltroArea = filtroArea === 'todas' || compra.areaCorrespondiente === filtroArea;
-      return cumpleFiltroEstado && cumpleFiltroArea;
-    })
-    .sort((a, b) => {
-      // Función para obtener el peso del estado (Pendiente tiene máxima prioridad)
-      const getEstadoWeight = (estado: string) => {
-        switch (estado?.toLowerCase()) {
-          case 'pendiente': return 4; // Máxima prioridad
-          case 'aprobado': return 3;
-          case 'rechazado': return 2;
-          case 'comprado': return 1;
-          default: return 0;
-        }
-      };
+  const areas = useMemo(
+    () => [...new Set(comprasData.map(c => c.areaCorrespondiente).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [comprasData]
+  );
 
-      // Función para obtener el peso de la prioridad
-      const getPrioridadWeight = (prioridad: string) => {
-        switch (prioridad?.toLowerCase()) {
-          case 'alta': return 3;   // Alta prioridad
-          case 'media': return 2;  // Media prioridad
-          case 'baja': return 1;   // Baja prioridad
-          default: return 0;       // Sin prioridad definida
-        }
-      };
-
-      // Comparar primero por estado (Pendiente primero)
-      const estadoComparison = getEstadoWeight(b.estadoSolicitud) - getEstadoWeight(a.estadoSolicitud);
-      if (estadoComparison !== 0) {
-        return estadoComparison;
-      }
-
-      // Si ambos tienen el mismo estado, ordenar por prioridad (Alta → Media → Baja)
-      const prioridadComparison = getPrioridadWeight(b.prioridadSolicitud || '') - getPrioridadWeight(a.prioridadSolicitud || '');
-      if (prioridadComparison !== 0) {
-        return prioridadComparison;
-      }
-
-      // Si estado y prioridad son iguales, ordenar por fecha (más reciente primero)
-      return new Date(b.fechaSolicitud).getTime() - new Date(a.fechaSolicitud).getTime();
-    });
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mr-4"></div>
-            <span className="text-white text-xl font-semibold">Cargando datos...</span>
-          </div>
-        </div>
-      </div>
+  // Filtros de búsqueda, área y prioridad: los conteos de las pestañas los respetan
+  const filtradasSinEstado = useMemo(() => {
+    const termino = normalizarTexto(busqueda.trim());
+    return comprasData.filter(
+      c =>
+        (!filtroArea || c.areaCorrespondiente === filtroArea) &&
+        (!filtroPrioridad || normalizarValor(c.prioridadSolicitud) === filtroPrioridad) &&
+        (!termino ||
+          normalizarTexto(
+            `${c.nombreSolicitante} ${c.descripcionSolicitud} ${c.razonSocialProveedor ?? ''} ${c.areaCorrespondiente}`
+          ).includes(termino))
     );
-  }
+  }, [comprasData, busqueda, filtroArea, filtroPrioridad]);
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl max-w-md">
-          <div className="text-center">
-            <div className="text-red-400 text-6xl mb-4">⚠️</div>
-            <h2 className="text-2xl font-bold text-white mb-4">Error</h2>
-            <p className="text-white/90 mb-6">{error}</p>
-            <button
-              onClick={cargarDatos}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300"
-            >
+  const conteos = useMemo(() => {
+    const resultado: Record<Pestana, number> = { Pendiente: 0, Aprobado: 0, Comprado: 0, Rechazado: 0, todas: 0 };
+    for (const c of filtradasSinEstado) {
+      const estado = normalizarValor(c.estadoSolicitud) as Pestana;
+      if (estado in resultado) resultado[estado]++;
+      resultado.todas++;
+    }
+    return resultado;
+  }, [filtradasSinEstado]);
+
+  const comprasFiltradas = useMemo(
+    () =>
+      filtradasSinEstado
+        .filter(c => pestana === 'todas' || normalizarValor(c.estadoSolicitud) === pestana)
+        .sort(ordenar),
+    [filtradasSinEstado, pestana]
+  );
+
+  useEffect(() => setVisibles(POR_PAGINA), [pestana, busqueda, filtroArea, filtroPrioridad]);
+
+  const hayFiltros = Boolean(busqueda || filtroArea || filtroPrioridad);
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFiltroArea('');
+    setFiltroPrioridad('');
+  };
+
+  return (
+    <main className="mx-auto max-w-7xl px-4 pb-12 sm:px-6">
+      <header className={`${TARJETA} mb-4 flex flex-wrap items-center justify-between gap-4 p-6`}>
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-50 sm:text-3xl">Solicitudes de compra</h1>
+          <p className="mt-1 text-sm text-slate-400">Revisa, aprueba y da seguimiento a las solicitudes de las áreas.</p>
+        </div>
+        <button
+          type="button"
+          onClick={cargarDatos}
+          disabled={isLoading}
+          className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-slate-800/70 px-4 py-2 text-sm text-slate-100 hover:bg-slate-700/70 disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Actualizar
+        </button>
+      </header>
+
+      {error && (
+        <div role="alert" className="mb-4 flex items-start gap-3 rounded-2xl border border-red-400/40 bg-red-950/70 p-4 text-sm text-red-100 backdrop-blur-md">
+          <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-300" />
+          <div className="flex-1">
+            <p className="font-medium">{error}</p>
+            <button type="button" onClick={cargarDatos} className="mt-1 text-red-200 underline hover:text-white">
               Reintentar
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header con información del usuario */}
-        <div className="mt-16 mb-8 bg-white/15 backdrop-blur-md rounded-3xl p-4 sm:p-6 border border-white/20 shadow-2xl">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-4 w-full sm:w-auto">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-xl">
-                  {userData.nombre.charAt(0).toUpperCase()}
+      <section aria-label="Solicitudes" className={`${TARJETA} overflow-hidden`}>
+        <div role="tablist" aria-label="Estado" className="flex gap-1 overflow-x-auto border-b border-white/10 px-3 pt-3">
+          {PESTANAS.map(({ valor, etiqueta }) => {
+            const activa = pestana === valor;
+            const punto = valor !== 'todas' ? ESTILO_ESTADO[valor]?.punto : null;
+            return (
+              <button
+                key={valor}
+                type="button"
+                role="tab"
+                aria-selected={activa}
+                onClick={() => setPestana(valor)}
+                className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 pb-3 pt-1 text-sm transition-colors ${
+                  activa ? 'border-blue-400 text-slate-50' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {punto && <span className={`h-2 w-2 rounded-full ${punto}`} aria-hidden="true" />}
+                {etiqueta}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${
+                    activa ? 'bg-blue-500/20 text-blue-100' : 'bg-white/10 text-slate-300'
+                  }`}
+                >
+                  {conteos[valor]}
                 </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl font-bold text-white truncate">
-                  Bienvenido, {userData.nombre}
-                </h1>
-                <p className="text-white/70 text-sm mt-1">
-                  {userData.cargo} - {userData.area}
-                </p>
-              </div>
-            </div>
-          </div>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Estadísticas principales */}
-        {estadisticas && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
-              <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">{estadisticas.totalCompras}</div>
-                <p className="text-white/80 font-medium text-xs sm:text-sm">Total Compras</p>
-              </div>
-            </div>
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
-              <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">{estadisticas.totalItems}</div>
-                <p className="text-white/80 font-medium text-xs sm:text-sm">Total Items</p>
-              </div>
-            </div>
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
-              <div className="text-center">
-                <div className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2 leading-tight">{formatCurrency(estadisticas.montoTotal)}</div>
-                <p className="text-white/80 font-medium text-xs sm:text-sm">Monto Total</p>
-              </div>
-            </div>
-            <div className="bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
-              <div className="text-center">
-                <div className="text-lg sm:text-2xl font-bold text-white mb-1 sm:mb-2 leading-tight">{formatCurrency(estadisticas.montoTotalNeto)}</div>
-                <p className="text-white/80 font-medium text-xs sm:text-sm">Monto Neto</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Filtros */}
-        <div className="mb-6 bg-white/15 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-white/20 shadow-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white font-semibold mb-2 text-sm sm:text-base">Filtrar por Estado</label>
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 text-sm sm:text-base"
-              >
-                <option value="todos" className="text-gray-900 bg-white">Todos los Estados</option>
-                <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
-                <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
-                <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
-                <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-white font-semibold mb-2 text-sm sm:text-base">Filtrar por Área</label>
-              <select
-                value={filtroArea}
-                onChange={(e) => setFiltroArea(e.target.value)}
-                className="w-full p-3 bg-white/15 border border-white/30 rounded-xl text-white placeholder-white/70 backdrop-blur-sm focus:outline-none focus:border-blue-400 text-sm sm:text-base"
-              >
-                <option value="todas" className="text-gray-900 bg-white">Todas las Áreas</option>
-                {estadisticas && Object.keys(estadisticas.distribucionAreas).map(area => (
-                  <option key={area} value={area} className="text-gray-900 bg-white">{area}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Lista de compras */}
-        <div className="bg-white/15 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b border-white/20">
-            <h2 className="text-lg sm:text-xl font-bold text-white">
-              Solicitudes de Compra ({comprasFiltradas.length})
-            </h2>
-          </div>
-          
-          {comprasFiltradas.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-white/70">No se encontraron solicitudes con los filtros aplicados</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-white/20">
-              {comprasFiltradas.map((compra, index) => (
-                <div key={compra.id} className="p-4 sm:p-6 hover:bg-white/5 transition-colors duration-200">
-                  
-                  {/* Header de la solicitud */}
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <span className="text-white/80 text-sm font-medium bg-white/10 px-2 py-1 rounded-lg flex-shrink-0">
-                        #{index + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-base sm:text-lg font-semibold text-white truncate">
-                          {compra.nombreSolicitante}
-                        </h3>
-                        <p className="text-white/70 text-sm">
-                          {compra.areaCorrespondiente} • {formatDate(compra.fechaSolicitud)}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Estados y badges - Stack en móvil */}
-                    <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
-                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(compra.estadoSolicitud)}`}>
-                        {compra.estadoSolicitud || 'Sin estado'}
-                      </span>
-                      {compra.prioridadSolicitud && (
-                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(compra.prioridadSolicitud)}`}>
-                          {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Información principal en grid responsive */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4">
-                    <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-white/70 text-xs sm:text-sm">Valor Total:</p>
-                      <p className="text-white font-semibold text-sm sm:text-base">{formatCurrency(compra.valorTotal || 0)}</p>
-                    </div>
-                    <div className="bg-white/5 rounded-lg p-3">
-                      <p className="text-white/70 text-xs sm:text-sm">Items:</p>
-                      <p className="text-white font-semibold text-sm sm:text-base">{compra.items.length} items</p>
-                    </div>
-                    {compra.prioridadSolicitud && (
-                      <div className="bg-white/5 rounded-lg p-3">
-                        <p className="text-white/70 text-xs sm:text-sm">🎯 Prioridad:</p>
-                        <p className={`font-semibold text-sm sm:text-base ${
-                          compra.prioridadSolicitud.toLowerCase() === 'alta' ? 'text-red-300' : 
-                          compra.prioridadSolicitud.toLowerCase() === 'media' ? 'text-yellow-300' : 
-                          'text-green-300'
-                        }`}>
-                          {getPriorityIcon(compra.prioridadSolicitud)} {compra.prioridadSolicitud}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Proveedor si existe */}
-                  {compra.razonSocialProveedor && (
-                    <div className="bg-white/10 rounded-lg p-3 mb-3">
-                      <p className="text-white/70 text-xs sm:text-sm">Proveedor:</p>
-                      <p className="text-white font-medium text-sm sm:text-base">{compra.razonSocialProveedor}</p>
-                    </div>
-                  )}
-                  
-                  {/* Descripción si existe */}
-                  {compra.descripcionSolicitud && (
-                    <div className="bg-white/10 rounded-lg p-3 mb-3">
-                      <p className="text-white/70 text-xs sm:text-sm mb-1">Descripción:</p>
-                      <p className="text-white text-xs sm:text-sm line-clamp-2">
-                        {compra.descripcionSolicitud}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* Admin info si existe */}
-                  {compra.nombresAdmin && (
-                    <div className="bg-white/5 rounded-lg p-3 mb-4">
-                      <p className="text-white/70 text-xs sm:text-sm">Aprobado/Rechazado por:</p>
-                      <p className="text-white font-medium text-sm sm:text-base">{compra.nombresAdmin}</p>
-                    </div>
-                  )}
-                  
-                  {/* Sección de acciones */}
-                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pt-4 border-t border-white/10">
-                    {/* Selector de estado */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-white/70 text-xs sm:text-sm whitespace-nowrap">Cambiar estado:</label>
-                      <select
-                        value={compra.estadoSolicitud || ''}
-                        onChange={(e) => updateEstado(compra.id, e.target.value)}
-                        disabled={updatingStates.has(compra.id)}
-                        className="text-xs sm:text-sm px-3 py-1.5 bg-white/10 border border-white/30 rounded-lg text-white focus:outline-none focus:border-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
-                      >
-                        <option value="Pendiente" className="text-gray-900 bg-white">Pendiente</option>
-                        <option value="Aprobado" className="text-gray-900 bg-white">Aprobado</option>
-                        <option value="Rechazado" className="text-gray-900 bg-white">Rechazado</option>
-                        <option value="Comprado" className="text-gray-900 bg-white">Comprado</option>
-                      </select>
-                      {updatingStates.has(compra.id) && (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b border-white"></div>
-                      )}
-                    </div>
-                    
-                    {/* Botones de acción */}
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      {/* Botón Generar Orden de Compra */}
-                      <button
-                        onClick={() => handleGenerarOrdenCompra(compra)}
-                        disabled={!compra.cotizacionDoc || generatingOrden === compra.id}
-                        title={!compra.cotizacionDoc ? 'Debe cargar una cotización primero' : 'Generar PDF de Orden de Compra'}
-                        className={`px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none flex items-center justify-center gap-1 ${
-                          compra.cotizacionDoc 
-                            ? 'bg-gradient-to-r from-emerald-600 to-green-700 text-white hover:from-emerald-700 hover:to-green-800' 
-                            : 'bg-gray-500/30 text-white/40 cursor-not-allowed border border-white/10'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {generatingOrden === compra.id ? (
-                          <>
-                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Generando...
-                          </>
-                        ) : (
-                          <>
-                            📄 Generar Orden de Compra
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          console.log('Botón Chat Compra clickeado para compra:', compra.id);
-                          setSelectedCompra(compra);
-                          setChatCompra(compra);
-                          setShowChat(true);
-                          // Resetear contador de mensajes no leídos para esta compra
-                          setUnreadMessages(prev => {
-                            const newState = { ...prev };
-                            delete newState[compra.id];
-                            return newState;
-                          });
-                          console.log('Estado showChat establecido a true');
-                        }}
-                        className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none relative"
-                      >
-                        💬 Chat Compra
-                        {unreadMessages[compra.id] && unreadMessages[compra.id] > 0 && (
-                          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
-                            {unreadMessages[compra.id] > 99 ? '99+' : unreadMessages[compra.id]}
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setInventarioCompra(compra);
-                          setShowIngresoInventario(true);
-                        }}
-                        className="bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-teal-600 hover:to-emerald-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none flex items-center justify-center gap-1"
-                      >
-                        📦 Ingresar a Inventario
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedCompra(compra);
-                          setShowDetalleCompleto(true);
-                        }}
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-xs sm:text-sm flex-1 sm:flex-none"
-                      >
-                        📋 Ver Detalle Completo
-                      </button>
-                    </div>
-                  </div>
-                </div>
+        <div className="flex flex-col gap-3 border-b border-white/10 p-4 md:flex-row md:items-end">
+          <label className="flex-1">
+            <span className="mb-1 block text-xs font-medium text-slate-400">Buscar</span>
+            <span className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                type="search"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Solicitante, descripción o proveedor"
+                className={`${CAMPO} pl-9 placeholder:text-slate-500`}
+              />
+            </span>
+          </label>
+          <label className="md:w-48">
+            <span className="mb-1 block text-xs font-medium text-slate-400">Área</span>
+            <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} className={CAMPO}>
+              <option value="">Todas las áreas</option>
+              {areas.map(area => (
+                <option key={area} value={area}>{area}</option>
               ))}
-            </div>
+            </select>
+          </label>
+          <label className="md:w-40">
+            <span className="mb-1 block text-xs font-medium text-slate-400">Prioridad</span>
+            <select value={filtroPrioridad} onChange={e => setFiltroPrioridad(e.target.value)} className={CAMPO}>
+              <option value="">Todas</option>
+              <option value="Alta">Alta</option>
+              <option value="Media">Media</option>
+              <option value="Baja">Baja</option>
+            </select>
+          </label>
+          {hayFiltros && (
+            <button
+              type="button"
+              onClick={limpiarFiltros}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-slate-50"
+            >
+              <X className="h-4 w-4" />
+              Limpiar
+            </button>
           )}
         </div>
-      </div>
-      
-      {/* Modal de Detalle Completo */}
+
+        {isLoading && comprasData.length === 0 ? (
+          <div className="flex items-center justify-center gap-3 p-16 text-slate-300">
+            <RefreshCw className="h-6 w-6 animate-spin" />
+            Cargando solicitudes…
+          </div>
+        ) : comprasFiltradas.length === 0 ? (
+          <p className="p-12 text-center text-sm text-slate-400">
+            {hayFiltros
+              ? 'Ninguna solicitud coincide con los filtros.'
+              : pestana === 'Pendiente'
+                ? 'No hay solicitudes pendientes por revisar.'
+                : 'No hay solicitudes en este estado.'}
+          </p>
+        ) : (
+          <>
+            <ul className={`divide-y divide-white/10 transition-opacity ${isLoading ? 'opacity-60' : ''}`}>
+              {comprasFiltradas.slice(0, visibles).map(compra => (
+                <FilaSolicitud
+                  key={compra.id}
+                  compra={compra}
+                  actualizandoEstado={updatingStates.has(compra.id)}
+                  generandoOrden={generatingOrden === compra.id}
+                  onCambiarEstado={estado => updateEstado(compra.id, estado)}
+                  onVerDetalle={() => {
+                    setSelectedCompra(compra);
+                    setShowDetalleCompleto(true);
+                  }}
+                  onGenerarOrden={() => handleGenerarOrdenCompra(compra)}
+                  onIngresarInventario={() => {
+                    setInventarioCompra(compra);
+                    setShowIngresoInventario(true);
+                  }}
+                />
+              ))}
+            </ul>
+            {comprasFiltradas.length > visibles && (
+              <div className="border-t border-white/10 p-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => setVisibles(v => v + POR_PAGINA)}
+                  className="rounded-lg px-4 py-2 text-sm text-blue-300 hover:bg-white/5"
+                >
+                  Mostrar más · {comprasFiltradas.length - visibles} restantes
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
       {showDetalleCompleto && selectedCompra && (
         <DetalleCompraCompleto
           compra={selectedCompra}
@@ -652,29 +362,6 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
         />
       )}
 
-      {/* Modal de Chat */}
-      {showChat && selectedCompra && (
-        <ChatCompra
-          compraId={selectedCompra.id}
-          userData={userData}
-          onClose={() => {
-            setShowChat(false);
-            setSelectedCompra(null);
-            setChatCompra(null);
-          }}
-          origen="monitoreo-solicitudes"
-          onMessagesRead={() => {
-            // Actualizar contador de mensajes no leídos para esta compra
-            setUnreadMessages(prev => {
-              const newState = { ...prev };
-              delete newState[selectedCompra.id];
-              return newState;
-            });
-          }}
-        />
-      )}
-
-      {/* Modal de Ingreso a Inventario */}
       {showIngresoInventario && inventarioCompra && (
         <IngresoInventarioCompra
           compra={inventarioCompra}
@@ -693,41 +380,7 @@ export default function DashboardCompras({ userData }: DashboardComprasProps) {
         />
       )}
 
-      {/* Toast de notificaciones */}
-      <Toast
-        message={toastMessage}
-        isVisible={showToast}
-        onClose={hideToast}
-        type="info"
-      />
-
-      {/* Indicador de notificaciones y botón de permisos */}
-      <div className="fixed bottom-4 right-4 z-40">
-        <div className="flex items-center gap-2">
-          {permission === 'granted' && (
-            <div className="flex items-center gap-2 bg-green-500/20 backdrop-blur-md border border-green-500/30 rounded-lg px-3 py-2">
-              <Bell className="w-4 h-4 text-green-400" />
-            </div>
-          )}
-
-          {permission === 'default' && (
-            <button
-              onClick={requestPermission}
-              className="flex items-center gap-2 bg-blue-500/20 hover:bg-blue-500/30 backdrop-blur-md border border-blue-500/30 rounded-lg px-3 py-2 transition-colors"
-            >
-              <Bell className="w-4 h-4 text-blue-400" />
-              <span className="text-blue-300 text-sm">Activar notificaciones</span>
-            </button>
-          )}
-
-          {permission === 'denied' && (
-            <div className="flex items-center gap-2 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-lg px-3 py-2">
-              <Bell className="w-4 h-4 text-red-400" />
-              <span className="text-red-300 text-sm">Notificaciones bloqueadas</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      <Toast message={toastMessage} isVisible={showToast} onClose={hideToast} type="info" />
+    </main>
   );
 }
